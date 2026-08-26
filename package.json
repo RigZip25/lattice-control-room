@@ -3,7 +3,7 @@
   "private": true,
   "packageManager": "pnpm@11.19.0",
   "scripts": {
-    "test": "pnpm --filter @lattice/core test && pnpm --filter @lattice/control-room verify",
+    "test": "pnpm --filter @lattice/core test && pnpm --filter @lattice/control-room verify && pnpm --filter @lattice/control-room verify:runtime",
     "typecheck": "pnpm -r typecheck",
     "build": "pnpm --filter @lattice/core build && pnpm --filter @lattice/demo build && pnpm --filter @lattice/control-room build",
     "demo": "pnpm build && node apps/demo/dist/main.js",

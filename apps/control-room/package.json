@@ -7,6 +7,7 @@
     "build": "tsc --outDir dist",
     "typecheck": "pnpm --filter @lattice/core build && tsc --noEmit",
     "verify": "pnpm --filter @lattice/core build && node scripts/verify-ui.mjs",
+    "verify:runtime": "pnpm build && node scripts/verify-runtime.mjs",
     "start": "node dist/server.js"
   },
   "dependencies": { "@lattice/core": "workspace:*" },

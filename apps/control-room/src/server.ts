@@ -2,12 +2,30 @@ import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
-import { productScreens, referenceGeographies, runRigZipDryRun } from "@lattice/core";
+import { applyOperatingCommand, initialOperatingState, productScreens, referenceGeographies, runRigZipDryRun, type OperatingCommand } from "@lattice/core";
 
 const host = "127.0.0.1";
 const port = Number(process.env.LATTICE_PORT ?? 4310);
 const publicRoot = fileURLToPath(new URL("../public/", import.meta.url));
-const mime: Record<string, string> = { ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8" };
+const mime: Record<string, string> = { ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".geojson": "application/geo+json; charset=utf-8", ".png": "image/png" };
+let operatingState = initialOperatingState();
+
+function json(response: import("node:http").ServerResponse, status: number, payload: unknown): void {
+  response.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
+  response.end(JSON.stringify(payload));
+}
+
+async function readJson(request: import("node:http").IncomingMessage): Promise<unknown> {
+  const chunks: Buffer[] = [];
+  let bytes = 0;
+  for await (const chunk of request) {
+    const buffer = Buffer.from(chunk);
+    bytes += buffer.length;
+    if (bytes > 32_768) throw new Error("Command payload is too large");
+    chunks.push(buffer);
+  }
+  return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+}
 
 createServer(async (request, response) => {
   response.setHeader("X-Content-Type-Options", "nosniff");
@@ -15,6 +33,20 @@ createServer(async (request, response) => {
   response.setHeader("X-Frame-Options", "DENY");
   response.setHeader("Content-Security-Policy", "default-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self' data:");
   const requestUrl = new URL(request.url ?? "/", `http://${host}:${port}`);
+  if (request.method === "GET" && requestUrl.pathname === "/api/v1/runtime-state") {
+    json(response, 200, operatingState);
+    return;
+  }
+  if (request.method === "POST" && requestUrl.pathname === "/api/v1/commands") {
+    try {
+      const command = await readJson(request) as OperatingCommand;
+      operatingState = applyOperatingCommand(operatingState, command, new Date().toISOString());
+      json(response, 200, operatingState);
+    } catch (error) {
+      json(response, 400, { error: error instanceof Error ? error.message : "Invalid command" });
+    }
+    return;
+  }
   if (request.method === "GET" && requestUrl.pathname === "/api/v1/control-room") {
     response.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
     response.end(JSON.stringify(runRigZipDryRun().readModel));
@@ -39,7 +71,7 @@ createServer(async (request, response) => {
     return;
   }
   if (request.method !== "GET") {
-    response.writeHead(405, { Allow: "GET" }); response.end("Method not allowed"); return;
+    response.writeHead(405, { Allow: "GET, POST" }); response.end("Method not allowed"); return;
   }
   const isApplicationRoute = productScreens.some((screen) => screen.route === requestUrl.pathname)
     || requestUrl.pathname.startsWith("/markets/");

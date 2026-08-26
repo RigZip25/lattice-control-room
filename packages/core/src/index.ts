@@ -17,3 +17,4 @@ export * from "./product-line.js";
 export * from "./rigzip-scenario.js";
 export * from "./screen-registry.js";
 export * from "./wallet.js";
+export * from "./operating-state.js";

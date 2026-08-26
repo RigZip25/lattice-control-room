@@ -1,4 +1,4 @@
-const palette = ["#e8e4dc", "#c5e5e5", "#7dc4c4", "#3d9e9e", "#2f7a7a", "#1a4d4d"];
+const palette = ["#e7edf2", "#c4dbe3", "#8abecb", "#4e96aa", "#226a82", "#0b3d55"];
 
 function slug(value) {
   return value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -17,7 +17,11 @@ function usCoordinate([longitude, latitude], code) {
 function score(id) {
   let value = 2166136261;
   for (const character of id) value = Math.imul(value ^ character.charCodeAt(0), 16777619);
-  return 8 + (Math.abs(value) % 850) / 10;
+  return 0.2 + (Math.abs(value) % 278) / 10;
+}
+
+function bucketFor(value) {
+  return value < 1 ? 0 : value < 3 ? 1 : value < 5 ? 2 : value < 10 ? 3 : value < 20 ? 4 : 5;
 }
 
 function pathFor(feature, project, code) {
@@ -39,15 +43,20 @@ export async function renderChoropleths(root = document) {
     const bounds = { minX:Math.min(...xs), maxX:Math.max(...xs), minY:Math.min(...ys), maxY:Math.max(...ys) };
     const width = 760, height = 330, padding = 12;
     const scale = Math.min((width - padding * 2) / (bounds.maxX - bounds.minX), (height - padding * 2) / (bounds.maxY - bounds.minY));
-    const project = ([x,y]) => [padding + (x - bounds.minX) * scale, height - padding - (y - bounds.minY) * scale];
+    const usedWidth = (bounds.maxX - bounds.minX) * scale;
+    const usedHeight = (bounds.maxY - bounds.minY) * scale;
+    const offsetX = (width - usedWidth) / 2;
+    const offsetY = (height - usedHeight) / 2;
+    const project = ([x,y]) => [offsetX + (x - bounds.minX) * scale, height - offsetY - (y - bounds.minY) * scale];
     const paths = collection.features.map((feature) => {
       const name = feature.properties.NAME ?? feature.properties.shapeName;
       const id = feature.properties.GEOID ?? feature.properties.shapeID;
       const value = score(id);
-      const bucket = Math.min(5, Math.floor(value / 17));
+      const bucket = bucketFor(value);
       const route = mode === "states" && feature.properties.STUSPS === "NE" ? "/markets/nebraska" : `${container.dataset.geoBase}/${slug(name)}`;
       return `<path d="${pathFor(feature, project, feature.properties.STUSPS)}" fill="${palette[bucket]}" data-route="${route}" tabindex="0" role="link" aria-label="${name}: проникновение ${value.toFixed(1)}%"><title>${name} · проникновение ${value.toFixed(1)}% · demo</title></path>`;
     }).join("");
-    container.innerHTML = `<svg class="choropleth" viewBox="0 0 ${width} ${height}" aria-label="Интерактивная карта административных единиц">${paths}</svg><div class="map-legend"><span>ПРОНИКНОВЕНИЕ · DEMO</span>${palette.map((color,index)=>`<i style="--swatch:${color}">${index*17}${index===5?"+":"–"+(index+1)*17}%</i>`).join("")}<b>Наведите или выберите область</b></div><small class="map-source">${container.dataset.geoAttribution}</small>`;
+    const ranges = ["< 1%","1–3%","3–5%","5–10%","10–20%","> 20%"];
+    container.innerHTML = `<div class="map-canvas"><span class="metric-badge">АНАЛИТИЧЕСКИЙ СЛОЙ: <b>OPPORTUNITY</b></span><svg class="choropleth" viewBox="0 0 ${width} ${height}" aria-label="Интерактивная карта административных единиц">${paths}</svg></div><div class="legend-scale">${palette.map((color,index)=>`<div><i class="swatch-${index}"></i><span>${ranges[index]}</span></div>`).join("")}</div><div class="uncertainty-legend"><span><i></i>Прямые данные</span><span class="limited"><i></i>Ограниченные данные</span><span class="modelled"><i></i>Модельная оценка</span><b>Наведите или выберите область</b></div><small class="map-source">${container.dataset.geoAttribution} · METRIC DATA: DEMO</small>`;
   }));
 }

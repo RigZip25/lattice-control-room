@@ -38,7 +38,7 @@ const colombia = JSON.parse(colombiaRaw);
 if (states.features.length !== 51 || counties.features.length !== 93 || czechia.features.length !== 14 || italy.features.length !== 20 || colombia.features.length !== 33) {
   throw new Error(`Administrative boundary coverage failed: ${states.features.length}/51 US, ${counties.features.length}/93 Nebraska, ${czechia.features.length}/14 Czechia, ${italy.features.length}/20 Italy, ${colombia.features.length}/33 Colombia`);
 }
-for (const marker of ["data-geo-source", "renderChoropleths", "ADMINISTRATIVE BOUNDARIES", "NO SYNTHETIC CELLS"]) {
+for (const marker of ["data-geo-source", "renderChoropleths", "ТОПОЛОГИЯ ПРОНИКНОВЕНИЯ", "NO SYNTHETIC CELLS"]) {
   if (!`${app}\n${mapModule}`.includes(marker)) throw new Error(`Missing geographic interaction marker: ${marker}`);
 }
 process.stdout.write("Verified 22 Figma screens and 211 interactive administrative boundaries across five reference maps.\n");

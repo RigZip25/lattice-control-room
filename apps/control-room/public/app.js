@@ -1,8 +1,7 @@
 import { blueprints } from "/screen-blueprints.js";
 import { renderChoropleths } from "/map.js";
 
-const savedMarkets = JSON.parse(localStorage.getItem("lattice.discovery-markets") ?? "[]");
-const state = { executive:false, locale:"RU", notice:"", decisions:3, selectedFilter:"ВСЕ", addCountry:false, addedMarkets:savedMarkets };
+const state = { executive:false, locale:"RU", notice:"", decisions:3, selectedFilter:"ВСЕ", addCountry:false, addedMarkets:[], version:0 };
 let screens = [];
 let control = null;
 let geographies = [];
@@ -24,8 +23,30 @@ const interactiveMaps = {
   italy: { source:"/data/maps/italy-regions.geojson", mode:"regions", base:"/markets/italy", attribution:"geoBoundaries · 2023 · CC BY 3.0" },
   colombia: { source:"/data/maps/colombia-departments.geojson", mode:"regions", base:"/markets/colombia", attribution:"geoBoundaries · 2017 · ODbL 1.0" },
 };
+const mapPanelConfig = {
+  command: { title:"ТОПОЛОГИЯ РЫНОЧНЫХ СИГНАЛОВ ПО ШТАТАМ", segment:"ВСЕ НАПРАВЛЕНИЯ", pills:["RigZip","Evorios","Travel","Navigator"] },
+  markets: { title:"ТОПОЛОГИЯ ПРОНИКНОВЕНИЯ ПО ШТАТАМ", segment:"ВСЕ НАПРАВЛЕНИЯ", pills:["RigZip","Evorios","Travel","Navigator"] },
+  nebraska: { title:"ТОПОЛОГИЯ ПРОНИКНОВЕНИЯ ПО КАУНТИ", segment:"Construction / Logistics", pills:["Trailers","Agriculture","Equipment","Contractors","Fleet"] },
+  czechia: { title:"ТОПОЛОГИЯ ПРОНИКНОВЕНИЯ ПО КРАЯМ", segment:"Товары для дома / Маркетплейсы", pills:["Товары для дома","Маркетплейсы","Логистика","Фуд","Финансы"] },
+  italy: { title:"ТОПОЛОГИЯ ПРОНИКНОВЕНИЯ ПО РЕГИОНАМ", segment:"Delivery / Logistics", pills:["Delivery","Логистика","Ритейл","Ф&Б","HoReCa"] },
+  colombia: { title:"ТОПОЛОГИЯ ПРОНИКНОВЕНИЯ ПО ДЕПАРТАМЕНТАМ", segment:"Продукты питания / Фреш-доставка", pills:["Продукты питания","Фреш-доставка","Ритейл","Фарма","Агро"] },
+};
 
 const esc = (value) => String(value).replace(/[&<>'"]/g, (char) => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"})[char]);
+function applyRuntime(runtime) {
+  state.executive = runtime.executive;
+  state.locale = runtime.locale;
+  state.decisions = runtime.openDecisions;
+  state.selectedFilter = runtime.selectedFilter;
+  state.addedMarkets = runtime.discoveryMarkets.map((market) => ({ ...market, administrativeLevels:["country","subdivision"], supportedActivityDimensions:[market.activity] }));
+  state.version = runtime.version;
+}
+async function sendCommand(command) {
+  const response = await fetch("/api/v1/commands", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify(command) });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error ?? "Command rejected");
+  applyRuntime(payload);
+}
 const byKey = (key) => screens.find((screen) => screen.key === key);
 function current() {
   const exact = screens.find((screen) => screen.route === location.pathname);
@@ -66,7 +87,9 @@ function panelMarkup(panel, screen) {
       : asset
       ? `<img src="${asset}" alt="${esc(panel.title)}: административные границы" loading="eager">`
       : `<div class="boundary-pending"><b>ГРАНИЦЫ ЗАГРУЖАЮТСЯ</b><span>Система определяет принятый административный уровень и проверяет набор полигонов перед публикацией.</span><small>DISCOVERY · NO SYNTHETIC CELLS</small></div>`;
-    return `<article class="module map-module"><div class="module-title">${esc(panel.title)}<span>ADMINISTRATIVE BOUNDARIES</span></div><div class="geo-map">${map}</div><div class="module-rows">${rows}</div></article>`;
+    const config = mapPanelConfig[screen.key] ?? { title:panel.title, segment:"ALL MARKETCELLS", pills:[] };
+    const controls = interactive ? `<div class="map-controls"><div class="map-control-block"><b>АНАЛИТИЧЕСКИЙ СЛОЙ: OPPORTUNITY</b><div>${["Opportunity","Evidence","Traction","Penetration","Marginal Response","Liquidity","Saturation"].map((label,index)=>`<button class="map-chip ${index===0?"selected":""}" type="button">${label}</button>`).join("")}</div></div><div class="map-control-block segment-control"><b>СЕГМЕНТ MARKETCELL: ${esc(config.segment)}</b><div>${config.pills.map((label,index)=>`<button class="map-chip ${index===0?"selected":""}" type="button">${esc(label)}</button>`).join("")}</div></div></div>` : "";
+    return `<article class="module map-module"><div class="map-panel-head"><h2>${esc(config.title)}</h2>${controls}</div><div class="geo-map">${map}</div></article>`;
   }
   if (panel.kind === "bars") return `<article class="module"><div class="module-title">${esc(panel.title)}<span>FORECAST</span></div><div class="bars">${panel.rows.map((row,index)=>`<div><label>${esc(row)}</label><i><b class="bar-${Math.min(index,5)}"></b></i></div>`).join("")}</div></article>`;
   if (panel.kind === "decisions") return `<article class="module decisions"><div class="module-title">${esc(panel.title)}<span>${state.decisions}</span></div>${panel.rows.map((row,index)=>`<div class="decision"><small>REQUIRES AUTHORITY</small><b>${esc(row)}</b><div><button data-action="approve" data-index="${index}">ОДОБРИТЬ</button><button data-action="reject" data-index="${index}">ОТКЛОНИТЬ</button><button data-route="${esc(byKey(screen.linksTo[index % screen.linksTo.length])?.route ?? screen.route)}">ПОДРОБНЕЕ</button></div></div>`).join("")}</article>`;
@@ -113,20 +136,22 @@ function countryModal() {
 }
 
 function navigate(route) { history.pushState({},"",route); render(); window.scrollTo(0,0); }
-document.addEventListener("click", (event) => {
+document.addEventListener("click", async (event) => {
   const target = event.target.closest("[data-route],button"); if (!target) return;
   if (target.dataset.route) { navigate(target.dataset.route); return; }
-  if (target.dataset.action === "executive") { state.executive=!state.executive; state.notice=state.executive?"EXECUTIVE VIEW ENABLED":"OPERATOR VIEW ENABLED"; }
-  if (target.dataset.action === "locale") { state.locale=state.locale==="RU"?"EN":"RU"; state.notice="LANGUAGE LAYER SWITCHED"; }
-  if (target.dataset.action === "filter") { const values=["ВСЕ","RIGZIP","EVORIOS","TRAVEL"]; state.selectedFilter=values[(values.indexOf(state.selectedFilter)+1)%values.length]; state.notice=`FILTER: ${state.selectedFilter}`; }
-  if (target.dataset.action === "refresh") state.notice="READ MODELS REFRESHED / NO EXTERNAL CALLS";
+  try {
+    if (target.dataset.action === "executive") { await sendCommand({kind:"SET_EXECUTIVE_VIEW",enabled:!state.executive}); state.notice=state.executive?"EXECUTIVE VIEW ENABLED":"OPERATOR VIEW ENABLED"; }
+    if (target.dataset.action === "locale") { await sendCommand({kind:"SET_LOCALE",locale:state.locale==="RU"?"EN":"RU"}); state.notice="LANGUAGE LAYER SWITCHED"; }
+    if (target.dataset.action === "filter") { const values=["ВСЕ","RIGZIP","EVORIOS","TRAVEL"]; const filter=values[(values.indexOf(state.selectedFilter)+1)%values.length]; await sendCommand({kind:"SET_FILTER",filter}); state.notice=`FILTER: ${state.selectedFilter}`; }
+    if (target.dataset.action === "refresh") { await sendCommand({kind:"REFRESH_READ_MODELS"}); state.notice="READ MODELS REFRESHED / NO EXTERNAL CALLS"; }
   if (target.dataset.action === "add-country") state.addCountry=true;
   if (target.dataset.action === "close-country") state.addCountry=false;
-  if (target.dataset.action === "approve") { state.decisions=Math.max(0,state.decisions-1); state.notice="DRY-RUN APPROVAL RECORDED / NO FUNDS MOVED"; }
-  if (target.dataset.action === "reject") { state.decisions=Math.max(0,state.decisions-1); state.notice="PROPOSAL REJECTED IN LOCAL STATE"; }
+    if (target.dataset.action === "approve") { await sendCommand({kind:"RESOLVE_DECISION",outcome:"APPROVED"}); state.notice="DRY-RUN APPROVAL RECORDED / NO FUNDS MOVED"; }
+    if (target.dataset.action === "reject") { await sendCommand({kind:"RESOLVE_DECISION",outcome:"REJECTED"}); state.notice="PROPOSAL REJECTED IN LOCAL STATE"; }
+  } catch (error) { state.notice = `COMMAND REJECTED: ${error.message}`; }
   render(); setTimeout(()=>{state.notice="";render();},2200);
 });
-document.addEventListener("submit", (event) => {
+document.addEventListener("submit", async (event) => {
   if (event.target.id !== "country-form") return;
   event.preventDefault();
   const form = new FormData(event.target);
@@ -134,13 +159,14 @@ document.addEventListener("submit", (event) => {
   const catalogItem = countryCatalog.find(item=>item.code===code);
   if (!catalogItem) return;
   const slug = catalogItem.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-zа-я0-9]+/gi,"-").replace(/^-|-$/g,"");
-  const market = { countryCode:code, countryName:catalogItem.name, slug, administrativeLevels:["country","subdivision"], supportedActivityDimensions:[String(form.get("activity"))], status:"DISCOVERY", brand:String(form.get("brand")) };
-  state.addedMarkets.push(market);
-  localStorage.setItem("lattice.discovery-markets",JSON.stringify(state.addedMarkets));
-  state.addCountry=false;
-  navigate(`/markets/${slug}`);
-  state.notice=`${catalogItem.name}: DISCOVERY MARKET CREATED`;
-  render();
+  const market = { countryCode:code, countryName:catalogItem.name, slug, activity:String(form.get("activity")), status:"DISCOVERY", brand:String(form.get("brand")) };
+  try {
+    await sendCommand({kind:"ADD_DISCOVERY_MARKET",market});
+    state.addCountry=false;
+    navigate(`/markets/${slug}`);
+    state.notice=`${catalogItem.name}: DISCOVERY MARKET CREATED`;
+    render();
+  } catch (error) { state.notice=`COMMAND REJECTED: ${error.message}`; render(); }
 });
 addEventListener("popstate", render);
 
@@ -149,4 +175,5 @@ Promise.all([
   fetch("/api/v1/control-room").then(response=>response.json()),
   fetch("/api/v1/geographies").then(response=>response.json()),
   fetch("/api/v1/country-catalog").then(response=>response.json()),
-]).then(([registry,readModel,geographyRegistry,catalog])=>{screens=registry.screens;control=readModel;geographies=geographyRegistry.geographies;countryCatalog=catalog.countries;render();}).catch(error=>{document.getElementById("app").innerHTML=`<div class="fatal">CONTROL ROOM UNAVAILABLE<br>${esc(error.message)}</div>`;});
+  fetch("/api/v1/runtime-state").then(response=>response.json()),
+]).then(([registry,readModel,geographyRegistry,catalog,runtime])=>{screens=registry.screens;control=readModel;geographies=geographyRegistry.geographies;countryCatalog=catalog.countries;applyRuntime(runtime);render();}).catch(error=>{document.getElementById("app").innerHTML=`<div class="fatal">CONTROL ROOM UNAVAILABLE<br>${esc(error.message)}</div>`;});
