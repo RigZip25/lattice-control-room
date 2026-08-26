@@ -2,7 +2,7 @@ import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
-import { runRigZipDryRun } from "@lattice/core";
+import { productScreens, runRigZipDryRun } from "@lattice/core";
 
 const host = "127.0.0.1";
 const port = Number(process.env.LATTICE_PORT ?? 4310);
@@ -17,6 +17,11 @@ createServer(async (request, response) => {
   if (request.method === "GET" && request.url === "/api/v1/control-room") {
     response.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
     response.end(JSON.stringify(runRigZipDryRun().readModel));
+    return;
+  }
+  if (request.method === "GET" && request.url === "/api/v1/screens") {
+    response.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
+    response.end(JSON.stringify({ screens: productScreens }));
     return;
   }
   if (request.method !== "GET") {
