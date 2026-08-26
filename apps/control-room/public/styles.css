@@ -162,3 +162,6 @@ body{color:#f1f3f8}.page-head span,.data-row,.production-row span,.command-decis
 /* Ranked territories remain a compact, horizontally scrollable data rail. */
 .region-ranking{min-width:0}.region-ranking>div{display:flex;grid-template-columns:none;gap:6px;overflow-x:auto;overflow-y:hidden;padding:0 0 5px;scrollbar-width:thin;scrollbar-color:#657188 #161e30}.region-ranking button{flex:0 0 178px}.region-ranking>div::-webkit-scrollbar{height:5px}.region-ranking>div::-webkit-scrollbar-track{background:#161e30;border-radius:5px}.region-ranking>div::-webkit-scrollbar-thumb{background:#657188;border-radius:5px}.geo-vector{grid-template-rows:minmax(270px,1fr) auto auto auto auto}.command-map .geo-map:has(.geo-vector){height:535px;overflow:hidden}
 @media(max-width:760px){.factory-state,.attention,.signal,.capital-mini,.exec{display:none}.metric-ribbon small{font-size:9px}.metric-ribbon span{font-size:8px}.region-ranking button{flex-basis:160px}.command-map .geo-map:has(.geo-vector){height:555px}}
+
+/* Yellow is a light action surface: primary CTA copy must always be dark. */
+.decision-actions button:first-child,.decision button:first-child,.head-actions button.primary,.production-detail>button{color:#080d1c;font-weight:800;text-shadow:none}
