@@ -41,13 +41,13 @@ export async function renderChoropleths(root = document) {
     const scale = Math.min((width - padding * 2) / (bounds.maxX - bounds.minX), (height - padding * 2) / (bounds.maxY - bounds.minY));
     const project = ([x,y]) => [padding + (x - bounds.minX) * scale, height - padding - (y - bounds.minY) * scale];
     const paths = collection.features.map((feature) => {
-      const name = feature.properties.NAME;
-      const id = feature.properties.GEOID;
+      const name = feature.properties.NAME ?? feature.properties.shapeName;
+      const id = feature.properties.GEOID ?? feature.properties.shapeID;
       const value = score(id);
       const bucket = Math.min(5, Math.floor(value / 17));
-      const route = mode === "states" ? (feature.properties.STUSPS === "NE" ? "/markets/nebraska" : `/markets/united-states/${slug(name)}`) : `/markets/nebraska/${slug(name)}`;
+      const route = mode === "states" && feature.properties.STUSPS === "NE" ? "/markets/nebraska" : `${container.dataset.geoBase}/${slug(name)}`;
       return `<path d="${pathFor(feature, project, feature.properties.STUSPS)}" fill="${palette[bucket]}" data-route="${route}" tabindex="0" role="link" aria-label="${name}: проникновение ${value.toFixed(1)}%"><title>${name} · проникновение ${value.toFixed(1)}% · demo</title></path>`;
     }).join("");
-    container.innerHTML = `<svg class="choropleth" viewBox="0 0 ${width} ${height}" aria-label="Интерактивная карта административных единиц">${paths}</svg><div class="map-legend"><span>ПРОНИКНОВЕНИЕ · DEMO</span>${palette.map((color,index)=>`<i style="--swatch:${color}">${index*17}${index===5?"+":"–"+(index+1)*17}%</i>`).join("")}<b>Наведите или выберите область</b></div>`;
+    container.innerHTML = `<svg class="choropleth" viewBox="0 0 ${width} ${height}" aria-label="Интерактивная карта административных единиц">${paths}</svg><div class="map-legend"><span>ПРОНИКНОВЕНИЕ · DEMO</span>${palette.map((color,index)=>`<i style="--swatch:${color}">${index*17}${index===5?"+":"–"+(index+1)*17}%</i>`).join("")}<b>Наведите или выберите область</b></div><small class="map-source">${container.dataset.geoAttribution}</small>`;
   }));
 }

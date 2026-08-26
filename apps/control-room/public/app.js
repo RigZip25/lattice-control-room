@@ -17,9 +17,12 @@ const referenceMapAssets = {
   colombia: "/assets/maps/colombia-1.png",
 };
 const interactiveMaps = {
-  command: { source:"/data/maps/us-states.geojson", mode:"states" },
-  markets: { source:"/data/maps/us-states.geojson", mode:"states" },
-  nebraska: { source:"/data/maps/nebraska-counties.geojson", mode:"counties" },
+  command: { source:"/data/maps/us-states.geojson", mode:"states", base:"/markets/united-states", attribution:"US Census Bureau · 2024" },
+  markets: { source:"/data/maps/us-states.geojson", mode:"states", base:"/markets/united-states", attribution:"US Census Bureau · 2024" },
+  nebraska: { source:"/data/maps/nebraska-counties.geojson", mode:"counties", base:"/markets/nebraska", attribution:"US Census Bureau · 2024" },
+  czechia: { source:"/data/maps/czechia-regions.geojson", mode:"regions", base:"/markets/czechia", attribution:"geoBoundaries · 2021 · CC BY 4.0" },
+  italy: { source:"/data/maps/italy-regions.geojson", mode:"regions", base:"/markets/italy", attribution:"geoBoundaries · 2023 · CC BY 3.0" },
+  colombia: { source:"/data/maps/colombia-departments.geojson", mode:"regions", base:"/markets/colombia", attribution:"geoBoundaries · 2017 · ODbL 1.0" },
 };
 
 const esc = (value) => String(value).replace(/[&<>'"]/g, (char) => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"})[char]);
@@ -59,7 +62,7 @@ function panelMarkup(panel, screen) {
     const interactive = screen.figmaNodeId === "PARAMETERIZED_GEOGRAPHIC_DRILLDOWN" ? null : interactiveMaps[screen.key];
     const asset = screen.figmaNodeId === "PARAMETERIZED_GEOGRAPHIC_DRILLDOWN" ? null : referenceMapAssets[screen.key];
     const map = interactive
-      ? `<div class="geo-vector" data-geo-source="${interactive.source}" data-geo-mode="${interactive.mode}"></div>`
+      ? `<div class="geo-vector" data-geo-source="${interactive.source}" data-geo-mode="${interactive.mode}" data-geo-base="${interactive.base}" data-geo-attribution="${interactive.attribution}"></div>`
       : asset
       ? `<img src="${asset}" alt="${esc(panel.title)}: административные границы" loading="eager">`
       : `<div class="boundary-pending"><b>ГРАНИЦЫ ЗАГРУЖАЮТСЯ</b><span>Система определяет принятый административный уровень и проверяет набор полигонов перед публикацией.</span><small>DISCOVERY · NO SYNTHETIC CELLS</small></div>`;
