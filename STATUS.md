@@ -2,7 +2,10 @@
 
 ## Current milestone
 
-Foundation and first governed decision vertical slice.
+Supabase-backed SaaS identity, brand onboarding and geographic expansion.
+
+The authoritative implementation tracker is
+[`docs/CONTROL_CHECKLIST.md`](docs/CONTROL_CHECKLIST.md).
 
 ## Implemented
 
