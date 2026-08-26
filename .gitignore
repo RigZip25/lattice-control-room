@@ -6,3 +6,4 @@ coverage/
 !.env.example
 *.log
 work-*.json
+work/
