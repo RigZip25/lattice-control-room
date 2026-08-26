@@ -7,6 +7,15 @@ let control = null;
 let geographies = [];
 let countryCatalog = [];
 
+const referenceMapAssets = {
+  command: "/assets/maps/us-1.png",
+  markets: "/assets/maps/us-1.png",
+  nebraska: "/assets/maps/nebraska-1.png",
+  czechia: "/assets/maps/czechia-1.png",
+  italy: "/assets/maps/italy-1.png",
+  colombia: "/assets/maps/colombia-1.png",
+};
+
 const esc = (value) => String(value).replace(/[&<>'"]/g, (char) => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"})[char]);
 const byKey = (key) => screens.find((screen) => screen.key === key);
 function current() {
@@ -40,7 +49,13 @@ function navGroups() {
 function panelMarkup(panel, screen) {
   const rows = panel.rows.map((row,index) => `<button class="data-row" data-route="${esc(byKey(screen.linksTo[index % screen.linksTo.length])?.route ?? screen.route)}"><span class="row-dot"></span><span>${esc(row)}</span><b>↗</b></button>`).join("");
   if (panel.kind === "flow") return `<article class="module module-wide"><div class="module-title">${esc(panel.title)}<span>LIVE</span></div><div class="flowline">${panel.rows.map((row,index)=>`<button data-route="${esc(byKey(screen.linksTo[index % screen.linksTo.length])?.route ?? screen.route)}"><i>${String(index+1).padStart(2,"0")}</i>${esc(row)}</button>`).join("<em>→</em>")}</div></article>`;
-  if (panel.kind === "map") return `<article class="module map-module"><div class="module-title">${esc(panel.title)}<span>REFERENCE CONFIG</span></div><div class="geo-map">${Array.from({length:28},(_,i)=>`<i class="heat-${i%6}"></i>`).join("")}</div><div class="module-rows">${rows}</div></article>`;
+  if (panel.kind === "map") {
+    const asset = screen.figmaNodeId === "PARAMETERIZED_GEOGRAPHIC_DRILLDOWN" ? null : referenceMapAssets[screen.key];
+    const map = asset
+      ? `<img src="${asset}" alt="${esc(panel.title)}: административные границы" loading="eager">`
+      : `<div class="boundary-pending"><b>ГРАНИЦЫ ЗАГРУЖАЮТСЯ</b><span>Система определяет принятый административный уровень и проверяет набор полигонов перед публикацией.</span><small>DISCOVERY · NO SYNTHETIC CELLS</small></div>`;
+    return `<article class="module map-module"><div class="module-title">${esc(panel.title)}<span>ADMINISTRATIVE BOUNDARIES</span></div><div class="geo-map">${map}</div><div class="module-rows">${rows}</div></article>`;
+  }
   if (panel.kind === "bars") return `<article class="module"><div class="module-title">${esc(panel.title)}<span>FORECAST</span></div><div class="bars">${panel.rows.map((row,index)=>`<div><label>${esc(row)}</label><i><b class="bar-${Math.min(index,5)}"></b></i></div>`).join("")}</div></article>`;
   if (panel.kind === "decisions") return `<article class="module decisions"><div class="module-title">${esc(panel.title)}<span>${state.decisions}</span></div>${panel.rows.map((row,index)=>`<div class="decision"><small>REQUIRES AUTHORITY</small><b>${esc(row)}</b><div><button data-action="approve" data-index="${index}">ОДОБРИТЬ</button><button data-action="reject" data-index="${index}">ОТКЛОНИТЬ</button><button data-route="${esc(byKey(screen.linksTo[index % screen.linksTo.length])?.route ?? screen.route)}">ПОДРОБНЕЕ</button></div></div>`).join("")}</article>`;
   return `<article class="module"><div class="module-title">${esc(panel.title)}<span>FACT</span></div><div class="module-rows">${rows}</div></article>`;
