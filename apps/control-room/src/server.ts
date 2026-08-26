@@ -2,7 +2,7 @@ import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
-import { applyOperatingCommand, initialOperatingState, productScreens, referenceGeographies, runRigZipDryRun, type OperatingCommand } from "@lattice/core";
+import { applyOperatingCommand, factoryCadenceAt, initialOperatingState, productScreens, referenceGeographies, runRigZipDryRun, type OperatingCommand } from "@lattice/core";
 
 const host = "127.0.0.1";
 const port = Number(process.env.LATTICE_PORT ?? 4310);
@@ -35,6 +35,24 @@ createServer(async (request, response) => {
   const requestUrl = new URL(request.url ?? "/", `http://${host}:${port}`);
   if (request.method === "GET" && requestUrl.pathname === "/api/v1/runtime-state") {
     json(response, 200, operatingState);
+    return;
+  }
+  if (request.method === "GET" && requestUrl.pathname === "/api/v1/factory-status") {
+    const generatedAt = new Date().toISOString();
+    const readModel = runRigZipDryRun().readModel;
+    json(response, 200, {
+      generatedAt,
+      cadence: factoryCadenceAt(generatedAt),
+      runtimeVersion: operatingState.version,
+      mode: operatingState.mode,
+      openDecisions: operatingState.openDecisions,
+      brands: readModel.portfolio.length + operatingState.brandProfiles.length,
+      expansionMarkets: 4 + operatingState.discoveryMarkets.length,
+      expansionAreas: operatingState.expansionAreas.length,
+      availableCapitalUsd: readModel.wallet.availableUsd,
+      killSwitch: readModel.authority.killSwitch,
+      source: "LOCAL_GOVERNED_READ_MODEL",
+    });
     return;
   }
   if (request.method === "POST" && requestUrl.pathname === "/api/v1/commands") {

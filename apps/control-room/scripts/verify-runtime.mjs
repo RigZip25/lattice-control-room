@@ -34,6 +34,8 @@ try {
 
   const initial = await json("/api/v1/runtime-state");
   if (initial.payload.mode !== "DRY_RUN" || initial.payload.version !== 0) throw new Error("Runtime must start in version-zero DRY_RUN mode");
+  const factoryStatus = await json("/api/v1/factory-status");
+  if (!factoryStatus.response.ok || !factoryStatus.payload.cadence?.shift || factoryStatus.payload.source !== "LOCAL_GOVERNED_READ_MODEL") throw new Error("Factory status endpoint is incomplete");
   const filtered = await json("/api/v1/commands", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({kind:"SET_FILTER",filter:"RIGZIP"}) });
   if (!filtered.response.ok || filtered.payload.version !== 1 || filtered.payload.selectedFilter !== "RIGZIP") throw new Error("Governed filter command failed");
   const expanded = await json("/api/v1/commands", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({kind:"ADD_EXPANSION_AREA",area:{countryCode:"US",adminUnitId:"31",name:"Nebraska",unitType:"state",route:"/markets/nebraska",brand:"RigZip",status:"DISCOVERY"}}) });
