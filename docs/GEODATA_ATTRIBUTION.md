@@ -6,6 +6,7 @@ values and are not part of the source boundary datasets.
 
 | Dataset | Administrative units | Snapshot | Source and license |
 | --- | --- | --- | --- |
+| World | 180 country/equivalent polygons | repository snapshot | world.geo.json, derived from Natural Earth |
 | United States | 51 states/equivalents | 2024 | US Census Bureau Cartographic Boundary Files |
 | Nebraska | 93 counties | 2024 | US Census Bureau Cartographic Boundary Files |
 | Czechia | 14 regions (ADM1) | 2021 | geoBoundaries gbOpen, CC BY 4.0 |

@@ -5,6 +5,7 @@ export * from "./control-room.js";
 export * from "./decision-loop.js";
 export * from "./decision-packet-store.js";
 export * from "./decision-service.js";
+export * from "./distribution-channel.js";
 export * from "./financial-authority.js";
 export * from "./geography.js";
 export * from "./identity.js";
