@@ -49,6 +49,7 @@ export async function renderChoropleths(root = document) {
     const mode = container.dataset.geoMode;
     const region = container.dataset.geoRegion;
     const activeCountries = new Map((container.dataset.activeCountries ?? "").split(",").filter(Boolean).map((item)=>{ const [id,value] = item.split(":"); return [id,Number(value)]; }));
+    const activeAreas = new Set((container.dataset.activeAreas ?? "").split(",").filter(Boolean));
     const visibleFeatures = mode === "countries" && region !== "WORLD" ? collection.features.filter((feature)=>macroRegions[region]?.includes(feature.id)) : collection.features;
     const all = visibleFeatures.flatMap((feature) => rings(feature).flatMap((polygon) => polygon.flatMap((ring) => ring.map((point) => usCoordinate(point, feature.properties.STUSPS)))));
     const xs = all.map(([x]) => x), ys = all.map(([, y]) => y);
@@ -74,10 +75,11 @@ export async function renderChoropleths(root = document) {
       const countryCode = mode === "states" || mode === "counties" ? "US" : container.dataset.geoCountry ?? "";
       const unitType = mode === "states" ? "state" : mode === "counties" ? "county" : "region";
       const areaToken = encodeURIComponent(JSON.stringify({countryCode,adminUnitId:String(feature.properties.GEOID ?? feature.properties.shapeID ?? feature.id),name,unitType,route}));
+      const isSelectedArea = activeAreas.has(`${countryCode}:${String(feature.properties.GEOID ?? feature.properties.shapeID ?? feature.id)}`);
       const action=mode === "countries" && !isExpansionMarket && alpha2
         ? `data-geo-action="add-expansion" data-geo-code="${alpha2}:${feature.id}"`
         : mode !== "countries" ? `data-geo-action="inspect-area" data-geo-area="${areaToken}"` : `data-route="${route}"`;
-      return `<path d="${pathFor(feature, project, feature.properties.STUSPS)}" fill="${isExpansionMarket ? palette[bucket] : "#252d3e"}" class="${isExpansionMarket ? "market-active" : "market-inactive"}" ${action} tabindex="0" role="link" aria-label="${name}: ${isExpansionMarket ? `проникновение ${value.toFixed(1)}%` : alpha2 ? "добавить в экспансию" : "добавление требует настройки"}"><title>${name} · ${mode === "countries" ? isExpansionMarket ? `проникновение ${value.toFixed(1)}% · demo` : alpha2 ? "нажмите, чтобы добавить в экспансию" : "требуется отдельная настройка территории" : `проникновение ${value.toFixed(1)}% · нажмите для действий`}</title></path>`;
+      return `<path d="${pathFor(feature, project, feature.properties.STUSPS)}" fill="${isExpansionMarket ? palette[bucket] : "#252d3e"}" class="${isExpansionMarket ? "market-active" : "market-inactive"}${isSelectedArea ? " area-in-expansion" : ""}" ${action} tabindex="0" role="link" aria-label="${name}: ${isSelectedArea ? "в текущей экспансии" : isExpansionMarket ? `проникновение ${value.toFixed(1)}%` : alpha2 ? "добавить в экспансию" : "добавление требует настройки"}"><title>${name} · ${mode === "countries" ? isExpansionMarket ? `проникновение ${value.toFixed(1)}% · demo` : alpha2 ? "нажмите, чтобы добавить в экспансию" : "требуется отдельная настройка территории" : `${isSelectedArea ? "в текущей экспансии · " : ""}проникновение ${value.toFixed(1)}% · нажмите для действий`}</title></path>`;
     }).join("");
     const listedFeatures = mode === "states"
       ? scoredFeatures.filter(({feature}) => feature.properties.STUSPS !== "DC").toSorted((a,b)=>a.name.localeCompare(b.name))
