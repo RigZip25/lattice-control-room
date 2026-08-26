@@ -68,7 +68,9 @@ function current() {
   const exact = screens.find((screen) => screen.route === location.pathname);
   if (exact) return exact;
   if (location.pathname.startsWith("/markets/")) {
-    const [, , countrySlug = "market", areaSlug] = location.pathname.split("/");
+    const [, , encodedCountrySlug = "market", encodedAreaSlug] = location.pathname.split("/");
+    const countrySlug = decodeURIComponent(encodedCountrySlug);
+    const areaSlug = encodedAreaSlug ? decodeURIComponent(encodedAreaSlug) : undefined;
     const geography = [...geographies,...state.addedMarkets].find((item) => item.slug === countrySlug);
     const label = (value) => value.replaceAll("-", " ").replace(/\b\w/g, (character) => character.toUpperCase());
     return {
@@ -105,14 +107,21 @@ function panelMarkup(panel, screen) {
     return `<article class="module module-wide flow-module"><div class="module-title">${esc(flowTitle)}<span>${tr("РАБОТАЕТ","LIVE")}</span></div><div class="flowline">${panel.rows.map((row,index)=>`<button data-route="${esc(byKey(screen.linksTo[index % screen.linksTo.length])?.route ?? screen.route)}"><i>${String(index+1).padStart(2,"0")}</i><b>${esc(flowLabels[row]?.[state.locale === "RU" ? 0 : 1] ?? row)}</b><small>${index === 0 ? tr("в работе","active") : tr("следующий этап","next stage")}</small></button>`).join("<em>→</em>")}</div></article>`;
   }
   if (panel.kind === "map") {
-    const interactive = screen.figmaNodeId === "PARAMETERIZED_GEOGRAPHIC_DRILLDOWN" ? null : interactiveMaps[screen.key];
+    const dynamicMarket = screen.figmaNodeId === "PARAMETERIZED_GEOGRAPHIC_DRILLDOWN"
+      ? state.addedMarkets.find((market)=>location.pathname.split("/")[2] && market.slug===decodeURIComponent(location.pathname.split("/")[2]))
+      : null;
+    const interactive = dynamicMarket
+      ? { source:"/data/maps/world-countries.geojson", mode:"country-focus", country:dynamicMarket.countryCode, focus:dynamicMarket.worldCode, base:location.pathname, attribution:"world.geo.json · Natural Earth" }
+      : screen.figmaNodeId === "PARAMETERIZED_GEOGRAPHIC_DRILLDOWN" ? null : interactiveMaps[screen.key];
     const asset = screen.figmaNodeId === "PARAMETERIZED_GEOGRAPHIC_DRILLDOWN" ? null : referenceMapAssets[screen.key];
     const map = interactive
-      ? `<div class="geo-vector" data-geo-source="${interactive.source}" data-geo-mode="${interactive.mode}" data-geo-country="${interactive.country ?? (interactive.mode === "states" || interactive.mode === "counties" ? "US" : "")}" data-geo-base="${interactive.base}" data-geo-attribution="${interactive.attribution}" data-geo-region="${screen.key === "command" ? state.selectedRegion : "ALL"}" data-active-countries="${screen.key === "command" ? activeCountrySpec() : ""}" data-active-areas="${state.expansionAreas.map((area)=>`${area.countryCode}:${area.adminUnitId}`).join(",")}"></div>`
+      ? `<div class="geo-vector" data-geo-source="${interactive.source}" data-geo-mode="${interactive.mode}" data-geo-country="${interactive.country ?? (interactive.mode === "states" || interactive.mode === "counties" ? "US" : "")}" data-geo-focus="${interactive.focus ?? ""}" data-geo-base="${interactive.base}" data-geo-attribution="${interactive.attribution}" data-geo-region="${screen.key === "command" ? state.selectedRegion : "ALL"}" data-active-countries="${screen.key === "command" ? activeCountrySpec() : ""}" data-active-areas="${state.expansionAreas.map((area)=>`${area.countryCode}:${area.adminUnitId}`).join(",")}"></div>`
       : asset
       ? `<img src="${asset}" alt="${esc(panel.title)}: административные границы" loading="eager">`
       : `<div class="boundary-pending"><b>ГРАНИЦЫ ЗАГРУЖАЮТСЯ</b><span>Система определяет принятый административный уровень и проверяет набор полигонов перед публикацией.</span><small>DISCOVERY · NO SYNTHETIC CELLS</small></div>`;
-    const config = mapPanelConfig[screen.key] ?? { title:panel.title, segment:"ALL MARKETCELLS", pills:[] };
+    const config = dynamicMarket
+      ? { title:`КОНТУР РЫНКА: ${dynamicMarket.countryName.toUpperCase()}`, segment:dynamicMarket.activity, pills:[dynamicMarket.brand] }
+      : mapPanelConfig[screen.key] ?? { title:panel.title, segment:"ALL MARKETCELLS", pills:[] };
     const controls = interactive ? `<div class="map-controls"><div class="map-control-block"><b>АНАЛИТИЧЕСКИЙ СЛОЙ: OPPORTUNITY</b><div>${["Opportunity","Evidence","Traction","Penetration","Marginal Response","Liquidity","Saturation"].map((label,index)=>`<button class="map-chip ${index===0?"selected":""}" type="button">${label}</button>`).join("")}</div></div><div class="map-control-block ${config.regions?"region-control":"segment-control"}"><b>${config.regions?"ГЕОГРАФИЧЕСКИЙ ОХВАТ":`СЕГМЕНТ MARKETCELL: ${esc(config.segment)}`}</b><div>${config.pills.map((label,index)=>`<button class="map-chip ${(config.regions?config.regions[index]===state.selectedRegion:index===0)?"selected":""}" type="button" ${config.regions?`data-region="${config.regions[index]}"`:""}>${esc(label)}</button>`).join("")}</div></div></div>` : "";
     return `<article class="module map-module"><div class="map-panel-head"><h2>${esc(config.title)}</h2>${controls}</div><div class="geo-map">${map}</div></article>`;
   }
