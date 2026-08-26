@@ -5,6 +5,7 @@ export type OperatingLocale = "RU" | "EN";
 
 export interface DiscoveryMarket {
   readonly countryCode: string;
+  readonly worldCode?: string;
   readonly countryName: string;
   readonly slug: string;
   readonly brand: string;
@@ -54,6 +55,7 @@ export function applyOperatingCommand(state: OperatingState, command: OperatingC
   if (command.kind === "RESOLVE_DECISION" && !["APPROVED","REJECTED"].includes(command.outcome)) throw new Error("Decision outcome is invalid");
   if (command.kind === "ADD_DISCOVERY_MARKET") {
     if (!/^[A-Z]{2}$/.test(command.market.countryCode)) throw new Error("Discovery market requires an ISO alpha-2 country code");
+    if (command.market.worldCode !== undefined && !/^[A-Z]{3}$/.test(command.market.worldCode)) throw new Error("Discovery market world code must be ISO alpha-3 shaped");
     if (state.discoveryMarkets.some((market) => market.countryCode === command.market.countryCode)) throw new Error("Discovery market already exists");
     if (command.market.status !== "DISCOVERY") throw new Error("New markets must start in DISCOVERY");
   }

@@ -12,9 +12,10 @@ describe("governed local operating state", () => {
   });
 
   it("admits a country only once and only in discovery mode", () => {
-    const command = { kind:"ADD_DISCOVERY_MARKET", market:{ countryCode:"DE", countryName:"Германия", slug:"germaniya", brand:"Evorios", activity:"neighbor marketplace", status:"DISCOVERY" } } as const;
+    const command = { kind:"ADD_DISCOVERY_MARKET", market:{ countryCode:"DE", worldCode:"DEU", countryName:"Германия", slug:"germaniya", brand:"Evorios", activity:"neighbor marketplace", status:"DISCOVERY" } } as const;
     const state = applyOperatingCommand(initialOperatingState(), command, "2026-08-26T12:00:00.000Z");
     expect(state.discoveryMarkets).toHaveLength(1);
+    expect(state.discoveryMarkets[0]?.worldCode).toBe("DEU");
     expect(() => applyOperatingCommand(state, command, "2026-08-26T12:01:00.000Z")).toThrow(/already exists/);
   });
 

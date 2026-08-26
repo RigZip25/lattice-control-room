@@ -1,7 +1,7 @@
 import { blueprints } from "/screen-blueprints.js";
 import { renderChoropleths } from "/map.js";
 
-const state = { executive:false, locale:"RU", notice:"", decisions:3, selectedFilter:"ВСЕ", selectedRegion:"WORLD", addCountry:false, addedMarkets:[], version:0 };
+const state = { executive:false, locale:"RU", notice:"", decisions:3, selectedFilter:"ВСЕ", selectedRegion:"WORLD", addCountry:false, pendingCountry:null, addedMarkets:[], version:0 };
 let screens = [];
 let control = null;
 let geographies = [];
@@ -37,7 +37,7 @@ const demoExpansionMarkets = [
   { country:"ITA", brand:"TRAVEL", penetration:4.9 },
   { country:"COL", brand:"NAVIGATOR", penetration:5.4 },
 ];
-const activeCountrySpec = () => demoExpansionMarkets.filter((market)=>state.selectedFilter === "ВСЕ" || market.brand === state.selectedFilter).map((market)=>`${market.country}:${market.penetration}`).join(",");
+const activeCountrySpec = () => [...demoExpansionMarkets,...state.addedMarkets.filter((market)=>market.worldCode).map((market)=>({country:market.worldCode,brand:market.brand.toUpperCase(),penetration:0.2}))].filter((market)=>state.selectedFilter === "ВСЕ" || market.brand === state.selectedFilter).map((market)=>`${market.country}:${market.penetration}`).join(",");
 
 const esc = (value) => String(value).replace(/[&<>'"]/g, (char) => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"})[char]);
 const tr = (ru, en) => state.locale === "RU" ? ru : en;
@@ -288,12 +288,14 @@ function render() {
 
 function countryModal() {
   const existing = new Set([...geographies,...state.addedMarkets].map(item=>item.countryCode));
-  return `<div class="modal-backdrop"><form class="modal" id="country-form"><div class="module-title">${tr("ИССЛЕДОВАНИЕ НОВОГО РЫНКА","NEW MARKET DISCOVERY")} <button type="button" data-action="close-country">×</button></div><h2>${tr("Добавить страну","Add a country")}</h2><p>${tr("Страна добавляется в режиме исследования. Расходы, публикации и внешние подключения останутся заблокированы.","The country starts in discovery mode. Spending, publishing and external connections remain blocked.")}</p><label>${tr("СТРАНА","COUNTRY")}<select name="country" required><option value="">${tr("Выберите страну","Select a country")}</option>${countryCatalog.map(item=>`<option value="${item.code}" ${existing.has(item.code)?"disabled":""}>${esc(item.name)} (${item.code})</option>`).join("")}</select></label><label>${tr("БРЕНД","BRAND")}<select name="brand" required><option>RigZip</option><option>Evorios</option><option>Books</option><option>Travel</option><option>Smart Navigator</option></select></label><label>${tr("НАПРАВЛЕНИЕ ДЕЯТЕЛЬНОСТИ","ACTIVITY")}<input name="activity" required placeholder="${tr("Например: аренда коммерческого транспорта","For example: commercial vehicle rental")}"></label><div class="modal-actions"><button type="button" data-action="close-country">${tr("ОТМЕНА","CANCEL")}</button><button type="submit">${tr("ДОБАВИТЬ ДЛЯ ИССЛЕДОВАНИЯ","START DISCOVERY")}</button></div></form></div>`;
+  const [pendingAlpha2="",pendingAlpha3=""] = String(state.pendingCountry ?? "").split(":");
+  return `<div class="modal-backdrop"><form class="modal" id="country-form"><div class="module-title">${tr("ИССЛЕДОВАНИЕ НОВОГО РЫНКА","NEW MARKET DISCOVERY")} <button type="button" data-action="close-country">×</button></div><h2>${tr("Добавить в экспансию","Add to expansion")}</h2><p>${tr("Страна начнёт с нулевой глубины проникновения в режиме исследования. Расходы, публикации и внешние подключения останутся заблокированы.","The country starts at zero penetration in discovery mode. Spending, publishing and external connections remain blocked.")}</p><input type="hidden" name="worldCode" value="${esc(pendingAlpha3)}"><label>${tr("СТРАНА","COUNTRY")}<select name="country" required><option value="">${tr("Выберите страну","Select a country")}</option>${countryCatalog.map(item=>`<option value="${item.code}" ${existing.has(item.code)?"disabled":""} ${pendingAlpha2===item.code?"selected":""}>${esc(item.name)} (${item.code})</option>`).join("")}</select></label><label>${tr("БРЕНД","BRAND")}<select name="brand" required><option>RigZip</option><option>Evorios</option><option>Books</option><option>Travel</option><option>Smart Navigator</option></select></label><label>${tr("НАПРАВЛЕНИЕ ДЕЯТЕЛЬНОСТИ","ACTIVITY")}<input name="activity" required placeholder="${tr("Например: аренда коммерческого транспорта","For example: commercial vehicle rental")}"></label><div class="modal-actions"><button type="button" data-action="close-country">${tr("ОТМЕНА","CANCEL")}</button><button type="submit">${tr("ДОБАВИТЬ В ЭКСПАНСИЮ","ADD TO EXPANSION")}</button></div></form></div>`;
 }
 
 function navigate(route) { history.pushState({},"",route); render(); window.scrollTo(0,0); }
 document.addEventListener("click", async (event) => {
-  const target = event.target.closest("[data-route],button"); if (!target) return;
+  const target = event.target.closest("[data-route],[data-geo-action],button"); if (!target) return;
+  if (target.dataset.geoAction === "add-expansion") { state.pendingCountry=String(target.dataset.geoCode ?? ""); state.addCountry=true; render(); return; }
   if (target.dataset.route) { navigate(target.dataset.route); return; }
   try {
     if (target.dataset.action === "executive") { await sendCommand({kind:"SET_EXECUTIVE_VIEW",enabled:!state.executive}); state.notice=tr(state.executive?"Включён обзор для владельца":"Включён рабочий обзор",state.executive?"Executive view enabled":"Operator view enabled"); }
@@ -302,7 +304,7 @@ document.addEventListener("click", async (event) => {
     if (target.dataset.action === "refresh") { await sendCommand({kind:"REFRESH_READ_MODELS"}); state.notice=tr("Данные обновлены локально. Внешние вызовы не выполнялись","Read models refreshed locally. No external calls were made"); }
     if (target.dataset.region) { state.selectedRegion=target.dataset.region; state.notice=tr("Географический охват изменён","Geographic scope changed"); }
   if (target.dataset.action === "add-country") state.addCountry=true;
-  if (target.dataset.action === "close-country") state.addCountry=false;
+  if (target.dataset.action === "close-country") { state.addCountry=false; state.pendingCountry=null; }
     if (target.dataset.action === "approve") { await sendCommand({kind:"RESOLVE_DECISION",outcome:"APPROVED"}); state.notice=tr("Решение сохранено в режиме проверки. Средства не перемещались","Dry-run approval recorded. No funds moved"); }
     if (target.dataset.action === "reject") { await sendCommand({kind:"RESOLVE_DECISION",outcome:"REJECTED"}); state.notice=tr("Предложение отклонено и сохранено локально","Proposal rejected and recorded locally"); }
   } catch (error) { state.notice = `COMMAND REJECTED: ${error.message}`; }
@@ -315,11 +317,14 @@ document.addEventListener("submit", async (event) => {
   const code = String(form.get("country") ?? "");
   const catalogItem = countryCatalog.find(item=>item.code===code);
   if (!catalogItem) return;
+  const mappedPolygon = document.querySelector(`[data-geo-code^="${code}:"]`);
+  const mappedWorldCode = mappedPolygon?.getAttribute("data-geo-code")?.split(":")[1] ?? String(form.get("worldCode") ?? "");
   const slug = catalogItem.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-zа-я0-9]+/gi,"-").replace(/^-|-$/g,"");
-  const market = { countryCode:code, countryName:catalogItem.name, slug, activity:String(form.get("activity")), status:"DISCOVERY", brand:String(form.get("brand")) };
+  const market = { countryCode:code, countryName:catalogItem.name, slug, worldCode:mappedWorldCode, activity:String(form.get("activity")), status:"DISCOVERY", brand:String(form.get("brand")) };
   try {
     await sendCommand({kind:"ADD_DISCOVERY_MARKET",market});
     state.addCountry=false;
+    state.pendingCountry=null;
     navigate(`/markets/${slug}`);
     state.notice=`${catalogItem.name}: DISCOVERY MARKET CREATED`;
     render();
