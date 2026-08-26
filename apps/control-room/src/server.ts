@@ -74,7 +74,8 @@ createServer(async (request, response) => {
     response.writeHead(405, { Allow: "GET, POST" }); response.end("Method not allowed"); return;
   }
   const isApplicationRoute = productScreens.some((screen) => screen.route === requestUrl.pathname)
-    || requestUrl.pathname.startsWith("/markets/");
+    || requestUrl.pathname.startsWith("/markets/")
+    || requestUrl.pathname.startsWith("/brands/");
   const requested = requestUrl.pathname === "/" || isApplicationRoute ? "index.html" : requestUrl.pathname.slice(1);
   const safePath = normalize(requested).replace(/^(\.\.(\\|\/|$))+/, "");
   try {

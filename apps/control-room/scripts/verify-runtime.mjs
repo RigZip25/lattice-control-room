@@ -38,10 +38,12 @@ try {
   if (!filtered.response.ok || filtered.payload.version !== 1 || filtered.payload.selectedFilter !== "RIGZIP") throw new Error("Governed filter command failed");
   const expanded = await json("/api/v1/commands", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({kind:"ADD_EXPANSION_AREA",area:{countryCode:"US",adminUnitId:"31",name:"Nebraska",unitType:"state",route:"/markets/nebraska",brand:"RigZip",status:"DISCOVERY"}}) });
   if (!expanded.response.ok || expanded.payload.version !== 2 || expanded.payload.expansionAreas.length !== 1) throw new Error("Governed expansion-area command failed");
+  const addedBrand = await json("/api/v1/commands", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({kind:"ADD_BRAND_PROFILE",brand:{id:"test-brand",name:"Test Brand",archetype:"OTHER",offering:"A test service",audience:"Qualified local customers",businessModel:"Subscription",objectives:["Validate demand"],primaryValueEvent:"qualified_subscription",targetGeographies:["US"],languages:["en"],constraints:["No external execution"],status:"DISCOVERY"}}) });
+  if (!addedBrand.response.ok || addedBrand.payload.version !== 3 || addedBrand.payload.brandProfiles.length !== 1) throw new Error("Governed brand-profile command failed");
   const forbidden = await json("/api/v1/commands", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({kind:"SPEND_FUNDS",amountUsd:100}) });
   if (forbidden.response.status !== 400) throw new Error("Unknown financial command was not rejected");
   const unchanged = await json("/api/v1/runtime-state");
-  if (unchanged.payload.version !== 2 || unchanged.payload.mode !== "DRY_RUN") throw new Error("Rejected command mutated runtime state");
+  if (unchanged.payload.version !== 3 || unchanged.payload.mode !== "DRY_RUN") throw new Error("Rejected command mutated runtime state");
   process.stdout.write("Verified 22 routes and governed DRY_RUN command API.\n");
 } finally {
   server.kill("SIGTERM");

@@ -23,6 +23,21 @@ export interface ExpansionArea {
   readonly status: "DISCOVERY";
 }
 
+export interface BrandProfile {
+  readonly id: string;
+  readonly name: string;
+  readonly archetype: "LOCAL_TWO_SIDED_MARKETPLACE" | "INTERNATIONAL_NEIGHBORHOOD_MARKETPLACE" | "CONTENT_IP_PORTFOLIO" | "TRAVEL_PLATFORM" | "RECURRING_UTILITY" | "OTHER";
+  readonly offering: string;
+  readonly audience: string;
+  readonly businessModel: string;
+  readonly objectives: readonly string[];
+  readonly primaryValueEvent: string;
+  readonly targetGeographies: readonly string[];
+  readonly languages: readonly string[];
+  readonly constraints: readonly string[];
+  readonly status: "DISCOVERY";
+}
+
 export interface OperatingEvent {
   readonly id: string;
   readonly version: number;
@@ -39,6 +54,7 @@ export interface OperatingState {
   readonly lastRefreshAt?: string;
   readonly discoveryMarkets: readonly DiscoveryMarket[];
   readonly expansionAreas: readonly ExpansionArea[];
+  readonly brandProfiles: readonly BrandProfile[];
   readonly events: readonly OperatingEvent[];
   readonly mode: "DRY_RUN";
 }
@@ -50,15 +66,16 @@ export type OperatingCommand =
   | { readonly kind: "REFRESH_READ_MODELS" }
   | { readonly kind: "RESOLVE_DECISION"; readonly outcome: "APPROVED" | "REJECTED" }
   | { readonly kind: "ADD_DISCOVERY_MARKET"; readonly market: DiscoveryMarket }
-  | { readonly kind: "ADD_EXPANSION_AREA"; readonly area: ExpansionArea };
+  | { readonly kind: "ADD_EXPANSION_AREA"; readonly area: ExpansionArea }
+  | { readonly kind: "ADD_BRAND_PROFILE"; readonly brand: BrandProfile };
 
 export function initialOperatingState(): OperatingState {
-  return { version: 0, executive: false, locale: "RU", selectedFilter: "ВСЕ", openDecisions: 3, discoveryMarkets: [], expansionAreas: [], events: [], mode: "DRY_RUN" };
+  return { version: 0, executive: false, locale: "RU", selectedFilter: "ВСЕ", openDecisions: 3, discoveryMarkets: [], expansionAreas: [], brandProfiles: [], events: [], mode: "DRY_RUN" };
 }
 
 export function applyOperatingCommand(state: OperatingState, command: OperatingCommand, occurredAt: string): OperatingState {
   if (!Number.isFinite(Date.parse(occurredAt))) throw new Error("Operating event timestamp is invalid");
-  if (command === null || typeof command !== "object" || !["SET_EXECUTIVE_VIEW","SET_LOCALE","SET_FILTER","REFRESH_READ_MODELS","RESOLVE_DECISION","ADD_DISCOVERY_MARKET","ADD_EXPANSION_AREA"].includes(command.kind)) {
+  if (command === null || typeof command !== "object" || !["SET_EXECUTIVE_VIEW","SET_LOCALE","SET_FILTER","REFRESH_READ_MODELS","RESOLVE_DECISION","ADD_DISCOVERY_MARKET","ADD_EXPANSION_AREA","ADD_BRAND_PROFILE"].includes(command.kind)) {
     throw new Error("Operating command kind is invalid");
   }
   if (command.kind === "SET_EXECUTIVE_VIEW" && typeof command.enabled !== "boolean") throw new Error("Executive view command is invalid");
@@ -78,6 +95,14 @@ export function applyOperatingCommand(state: OperatingState, command: OperatingC
     if (command.area.status !== "DISCOVERY") throw new Error("New expansion areas must start in DISCOVERY");
     if (state.expansionAreas.some((area) => area.countryCode === command.area.countryCode && area.adminUnitId === command.area.adminUnitId)) throw new Error("Expansion area already exists");
   }
+  if (command.kind === "ADD_BRAND_PROFILE") {
+    if (!/^[a-z0-9][a-z0-9-]{1,62}$/.test(command.brand.id)) throw new Error("Brand id is invalid");
+    if (command.brand.name.trim().length < 2 || command.brand.offering.trim().length < 3 || command.brand.audience.trim().length < 3) throw new Error("Brand identity, offering and audience are required");
+    if (command.brand.primaryValueEvent.trim().length < 3 || command.brand.businessModel.trim().length < 3) throw new Error("Brand value event and business model are required");
+    if (command.brand.targetGeographies.length === 0 || command.brand.languages.length === 0 || command.brand.objectives.length === 0) throw new Error("Brand geography, language and objectives are required");
+    if (command.brand.status !== "DISCOVERY") throw new Error("New brands must start in DISCOVERY");
+    if (state.brandProfiles.some((brand) => brand.id === command.brand.id || brand.name.toLowerCase() === command.brand.name.toLowerCase())) throw new Error("Brand already exists");
+  }
   const version = state.version + 1;
   const event: OperatingEvent = { id: deterministicId("operating_event", { version, command, occurredAt }), version, kind: command.kind, occurredAt };
   const next: OperatingState = { ...state, version, events: [...state.events, event] };
@@ -89,6 +114,7 @@ export function applyOperatingCommand(state: OperatingState, command: OperatingC
     case "RESOLVE_DECISION": return { ...next, openDecisions: Math.max(0, state.openDecisions - 1) };
     case "ADD_DISCOVERY_MARKET": return { ...next, discoveryMarkets: [...state.discoveryMarkets, command.market] };
     case "ADD_EXPANSION_AREA": return { ...next, expansionAreas: [...state.expansionAreas, command.area] };
+    case "ADD_BRAND_PROFILE": return { ...next, brandProfiles: [...state.brandProfiles, command.brand] };
     default: throw new Error("Operating command kind is invalid");
   }
 }

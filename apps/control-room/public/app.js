@@ -1,7 +1,7 @@
 import { blueprints } from "/screen-blueprints.js";
 import { renderChoropleths } from "/map.js";
 
-const state = { executive:false, locale:"RU", notice:"", decisions:3, selectedFilter:"ВСЕ", selectedRegion:"WORLD", addCountry:false, pendingCountry:null, pendingArea:null, addedMarkets:[], expansionAreas:[], version:0 };
+const state = { executive:false, locale:"RU", notice:"", decisions:3, selectedFilter:"ВСЕ", selectedRegion:"WORLD", addCountry:false, addBrand:false, pendingCountry:null, pendingArea:null, addedMarkets:[], expansionAreas:[], brandProfiles:[], version:0 };
 let screens = [];
 let control = null;
 let geographies = [];
@@ -41,6 +41,8 @@ const activeCountrySpec = () => [...demoExpansionMarkets,...state.addedMarkets.f
 
 const esc = (value) => String(value).replace(/[&<>'"]/g, (char) => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"})[char]);
 const tr = (ru, en) => state.locale === "RU" ? ru : en;
+const coreBrands = ["RigZip","Evorios","Books","Travel","Smart Navigator"];
+const brandOptions = () => [...new Set([...coreBrands,...state.brandProfiles.map((brand)=>brand.name)])].map((brand)=>`<option>${esc(brand)}</option>`).join("");
 const pendingDecisionLabel = (count) => state.locale === "EN" ? `${count} ${count === 1 ? "decision" : "decisions"} pending` : `${count} ${count === 1 ? "решение ожидает" : count < 5 ? "решения ожидают" : "решений ожидают"}`;
 function applyRuntime(runtime) {
   state.executive = runtime.executive;
@@ -49,6 +51,7 @@ function applyRuntime(runtime) {
   state.selectedFilter = runtime.selectedFilter;
   state.addedMarkets = runtime.discoveryMarkets.map((market) => ({ ...market, administrativeLevels:["country","subdivision"], supportedActivityDimensions:[market.activity] }));
   state.expansionAreas = runtime.expansionAreas ?? [];
+  state.brandProfiles = runtime.brandProfiles ?? [];
   state.version = runtime.version;
 }
 async function sendCommand(command) {
@@ -74,6 +77,11 @@ function current() {
       domain: "MARKET",
       linksTo: ["markets", "experiments", "venture"],
     };
+  }
+  if (location.pathname.startsWith("/brands/") && location.pathname.endsWith("/onboarding")) {
+    const brandId = location.pathname.split("/")[2];
+    const brand = state.brandProfiles.find((item)=>item.id===brandId);
+    return { order:11, key:"brand-onboarding", route:location.pathname, title:brand?.name ?? "Brand onboarding", figmaNodeId:"PARAMETERIZED_BRAND_ONBOARDING", domain:"CONFIGURATION", linksTo:["brands","markets","experiments","content-factory","distribution","learning-engine"] };
   }
   return screens.find((screen) => screen.key === "command");
 }
@@ -250,13 +258,32 @@ const strategyScreens = {
 
 function strategySurfaceMarkup(screen) {
   const spec = strategyScreens[screen.key];
-  return `<section class="strategy-surface"><header class="strategy-bar"><div><small>${esc(spec.eyebrow)}</small><b>${esc(spec.status)}</b></div><button data-route="${esc(byKey(spec.next)?.route ?? "/command")}">${esc(spec.action)} →</button></header><div class="strategy-stages">${spec.stages.map(([label,value,note],index)=>`<button data-route="${screen.route}"><i>${String(index+1).padStart(2,"0")}</i><span><small>${esc(label)}</small><b>${esc(value)}</b><em>${esc(note)}</em></span></button>`).join("")}</div><article class="module strategy-table"><div class="module-title">${esc(spec.title)} <span>${tr("ПОД УПРАВЛЕНИЕМ","GOVERNED")}</span></div><div class="strategy-head">${spec.columns.map(column=>`<b>${esc(column)}</b>`).join("")}</div>${spec.rows.map((row,index)=>`<button class="strategy-row" data-route="${esc(byKey(screen.linksTo[index % screen.linksTo.length])?.route ?? screen.route)}">${row.map(cell=>`<span>${esc(cell)}</span>`).join("")}</button>`).join("")}</article><aside class="module strategy-side"><div class="module-title">${esc(spec.sideTitle)} <span>${tr("ПОЛИТИКА","POLICY")}</span></div><dl>${spec.side.map(([label,value])=>`<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join("")}</dl><div class="policy-seal"><i></i><span><b>ЛОКАЛЬНЫЙ УПРАВЛЯЕМЫЙ РЕЖИМ</b><small>Без внешнего исполнения и движения средств</small></span></div></aside></section>`;
+  const rows = screen.key === "brands" ? [...spec.rows,...state.brandProfiles.map((brand)=>[brand.name,brand.primaryValueEvent,"Исследование","Контекст принят"])] : spec.rows;
+  return `<section class="strategy-surface"><header class="strategy-bar"><div><small>${esc(spec.eyebrow)}</small><b>${esc(spec.status)}</b></div><button data-route="${esc(byKey(spec.next)?.route ?? "/command")}">${esc(spec.action)} →</button></header><div class="strategy-stages">${spec.stages.map(([label,value,note],index)=>`<button data-route="${screen.route}"><i>${String(index+1).padStart(2,"0")}</i><span><small>${esc(label)}</small><b>${esc(value)}</b><em>${esc(note)}</em></span></button>`).join("")}</div><article class="module strategy-table"><div class="module-title">${esc(spec.title)} <span>${tr("ПОД УПРАВЛЕНИЕМ","GOVERNED")}</span></div><div class="strategy-head">${spec.columns.map(column=>`<b>${esc(column)}</b>`).join("")}</div>${rows.map((row,index)=>`<button class="strategy-row" data-route="${esc(byKey(screen.linksTo[index % screen.linksTo.length])?.route ?? screen.route)}">${row.map(cell=>`<span>${esc(cell)}</span>`).join("")}</button>`).join("")}</article><aside class="module strategy-side"><div class="module-title">${esc(spec.sideTitle)} <span>${tr("ПОЛИТИКА","POLICY")}</span></div><dl>${spec.side.map(([label,value])=>`<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join("")}</dl><div class="policy-seal"><i></i><span><b>ЛОКАЛЬНЫЙ УПРАВЛЯЕМЫЙ РЕЖИМ</b><small>Без внешнего исполнения и движения средств</small></span></div></aside></section>`;
+}
+
+function brandOnboardingMarkup() {
+  const brandId = location.pathname.split("/")[2];
+  const brand = state.brandProfiles.find((item)=>item.id===brandId);
+  if (!brand) return `<section class="module onboarding-empty"><h2>${tr("Профиль бренда не найден","Brand profile not found")}</h2><button data-route="/brands">${tr("ВЕРНУТЬСЯ К БРЕНДАМ","BACK TO BRANDS")}</button></section>`;
+  const stages = [
+    [tr("Паспорт и задачи","Profile and objectives"),"COMPLETE",brand.objectives.join(" · ")],
+    [tr("Изучение продукта","Product intelligence"),"NEXT",tr("Репозиторий, сайт, аналитика, интервью и материалы","Repository, website, analytics, interviews and collateral")],
+    [tr("Диагноз продукта","Product diagnosis"),"LOCKED",tr("Ценность, аудитории, барьеры, конкуренты и доказательства","Value, audiences, barriers, competitors and evidence")],
+    [tr("Тезис экспансии","Expansion thesis"),"LOCKED",tr("Приоритетные страны, территории и последовательность","Priority countries, territories and sequence")],
+    [tr("Тестовый портфель","Test portfolio"),"LOCKED",tr("Бюджет, каналы, прогноз, stop conditions и authority","Budget, channels, forecast, stop conditions and authority")],
+    [tr("Исходные материалы","Source materials"),"LOCKED",tr("Claims, брендбук, фото, видео, права и ограничения","Claims, brand book, photos, video, rights and constraints")],
+    [tr("Производство и запуск","Production and launch"),"LOCKED",tr("Контент, QA, дистрибуция и атрибуция","Content, QA, distribution and attribution")],
+    [tr("Обучение и следующий цикл","Learning and next cycle"),"LOCKED",tr("Вовлечение, удержание, экономика и перераспределение бюджета","Engagement, retention, economics and budget reallocation")],
+  ];
+  return `<section class="brand-journey"><article class="module brand-brief"><div class="module-title">${tr("ИСХОДНЫЙ КОНТЕКСТ","SOURCE CONTEXT")} <span>DISCOVERY</span></div><h2>${esc(brand.name)}</h2><p>${esc(brand.offering)}</p><dl><div><dt>${tr("АУДИТОРИЯ","AUDIENCE")}</dt><dd>${esc(brand.audience)}</dd></div><div><dt>${tr("БИЗНЕС-МОДЕЛЬ","BUSINESS MODEL")}</dt><dd>${esc(brand.businessModel)}</dd></div><div><dt>${tr("ЦЕННОСТНОЕ СОБЫТИЕ","VALUE EVENT")}</dt><dd>${esc(brand.primaryValueEvent)}</dd></div><div><dt>${tr("ГЕОГРАФИИ И ЯЗЫКИ","GEOGRAPHIES AND LANGUAGES")}</dt><dd>${esc([...brand.targetGeographies,...brand.languages].join(" · "))}</dd></div></dl></article><article class="module journey-flow"><div class="module-title">${tr("МАРШРУТ ЗАПУСКА БРЕНДА","BRAND LAUNCH JOURNEY")} <span>${tr("ШАГ 2 ИЗ 8","STEP 2 OF 8")}</span></div>${stages.map(([title,status,note],index)=>`<button class="journey-step ${status.toLowerCase()}" data-route="${status==="NEXT"?"/factory-config":location.pathname}"><i>${String(index+1).padStart(2,"0")}</i><span><b>${esc(title)}</b><small>${esc(note)}</small></span><em>${status}</em></button>`).join("")}</article><aside class="module journey-next"><div class="module-title">${tr("СЛЕДУЮЩЕЕ ДЕЙСТВИЕ","NEXT ACTION")} <span>GOVERNED</span></div><h3>${tr("Передайте системе источники о продукте","Provide product source material")}</h3><p>${tr("Система не предложит рынок или бюджет до фиксации продуктовых фактов и источников. Предположения будут отделены от доказательств.","The system will not recommend a market or budget until product facts and sources are recorded. Assumptions remain separate from evidence.")}</p><button data-route="/factory-config">${tr("ДОБАВИТЬ ИСТОЧНИКИ ПРОДУКТА","ADD PRODUCT SOURCES")} →</button></aside></section>`;
 }
 
 function render() {
   const screen = current();
   if (!screen) return;
   const blueprint = blueprints[screen.key] ?? blueprints.command;
+  const metrics = screen.key === "brand-onboarding" ? [[tr("ЭТАП","STAGE"),"2 / 8"],[tr("ИСТОЧНИКИ","SOURCES"),"0"],[tr("РЫНКИ-КАНДИДАТЫ","MARKET CANDIDATES"),"—"],[tr("ТЕСТОВЫЙ БЮДЖЕТ","TEST BUDGET"),tr("НЕ ПРЕДЛОЖЕН","NOT PROPOSED")]] : blueprint.metrics;
   const groups = navGroups();
   document.title = `${screen.title} — LATTICE`;
   document.getElementById("app").innerHTML = `
@@ -275,15 +302,16 @@ function render() {
     <div class="workspace">
       <aside class="side-nav"><small>НАВИГАЦИЯ</small>${groups.map(([label,keys])=>`<details ${keys.includes(screen.key)?"open":""}><summary>${label}<i>⌄</i></summary><section>${keys.map(key=>{const item=byKey(key);return item?`<button class="${item.key===screen.key?"active":""}" data-route="${item.route}">${esc(item.title)}<span>${String(item.order).padStart(2,"0")}</span></button>`:""}).join("")}</section></details>`).join("")}<div class="health"><span>ЗДОРОВЬЕ <b>99.97%</b></span><span>ПОЛИТИКИ <b>GATED</b></span><span>РЕЖИМ <b>DRY RUN</b></span></div></aside>
       <main>
-        <div class="page-head"><div><p>${screen.domain} / SCREEN ${String(screen.order).padStart(2,"0")}</p><h1>${esc(screen.title)}</h1><span>${esc(blueprint.subtitle)}</span></div><div class="head-actions">${screen.domain==="MARKET"?'<button class="primary" data-action="add-country">＋ ДОБАВИТЬ СТРАНУ</button>':""}<button data-action="filter">${state.selectedFilter} ▾</button><button data-action="refresh">ОБНОВИТЬ</button></div></div>
-        <div class="metric-ribbon">${blueprint.metrics.map(([label,value])=>`<div><small>${esc(label)}</small><b>${esc(value)}</b><span>факт</span></div>`).join("")}</div>
-        ${screen.key === "command" ? commandCenterMarkup(screen, blueprint) : productionScreens[screen.key] ? productionSurfaceMarkup(screen) : strategyScreens[screen.key] ? strategySurfaceMarkup(screen) : `<div class="screen-grid ${state.executive?"executive-grid":""}">${blueprint.panels.map(panel=>panelMarkup(panel,screen)).join("")}</div>`}
+        <div class="page-head"><div><p>${screen.domain} / SCREEN ${String(screen.order).padStart(2,"0")}</p><h1>${esc(screen.title)}</h1><span>${esc(blueprint.subtitle)}</span></div><div class="head-actions">${screen.domain==="MARKET"?'<button class="primary" data-action="add-country">＋ ДОБАВИТЬ СТРАНУ</button>':""}${screen.key==="brands"?`<button class="primary" data-action="add-brand">＋ ${tr("ДОБАВИТЬ БРЕНД","ADD BRAND")}</button>`:""}<button data-action="filter">${state.selectedFilter} ▾</button><button data-action="refresh">ОБНОВИТЬ</button></div></div>
+        <div class="metric-ribbon">${metrics.map(([label,value])=>`<div><small>${esc(label)}</small><b>${esc(value)}</b><span>${screen.key === "brand-onboarding" ? tr("СТАТУС","STATUS") : tr("ФАКТ","FACT")}</span></div>`).join("")}</div>
+        ${screen.key === "command" ? commandCenterMarkup(screen, blueprint) : screen.key === "brand-onboarding" ? brandOnboardingMarkup() : productionScreens[screen.key] ? productionSurfaceMarkup(screen) : strategyScreens[screen.key] ? strategySurfaceMarkup(screen) : `<div class="screen-grid ${state.executive?"executive-grid":""}">${blueprint.panels.map(panel=>panelMarkup(panel,screen)).join("")}</div>`}
         <section class="linked"><div class="module-title">СВЯЗАННЫЕ ПОВЕРХНОСТИ <span>INTERACTION GRAPH</span></div>${screen.linksTo.map(key=>{const item=byKey(key);return item?`<button data-route="${item.route}"><small>${String(item.order).padStart(2,"0")}</small><b>${esc(item.title)}</b><span>${item.domain} →</span></button>`:""}).join("")}</section>
       </main>
     </div>
     <footer><span>АКТИВНЫХ ОПЕРАЦИЙ: 237</span><span>ОЧЕРЕДИ: 12</span><span>ОШИБКИ: 2</span><span>ПОЛИТИКИ: GATED</span><b>OWN THE LOGIC. RENT THE CAPABILITY.</b></footer>
     ${state.addCountry?countryModal():""}
     ${state.pendingArea?areaModal():""}
+    ${state.addBrand?brandModal():""}
     ${state.notice?`<div class="toast"><i>✓</i><span><b>${tr("ДЕЙСТВИЕ ЗАПИСАНО","ACTION RECORDED")}</b><small>${esc(state.notice)}</small></span></div>`:""}`;
   renderChoropleths().catch((error) => { state.notice = error.message; console.error("Map rendering failed", error); });
 }
@@ -291,13 +319,17 @@ function render() {
 function countryModal() {
   const existing = new Set([...geographies,...state.addedMarkets].map(item=>item.countryCode));
   const [pendingAlpha2="",pendingAlpha3=""] = String(state.pendingCountry ?? "").split(":");
-  return `<div class="modal-backdrop"><form class="modal" id="country-form"><div class="module-title">${tr("ИССЛЕДОВАНИЕ НОВОГО РЫНКА","NEW MARKET DISCOVERY")} <button type="button" data-action="close-country">×</button></div><h2>${tr("Добавить в экспансию","Add to expansion")}</h2><p>${tr("Страна начнёт с нулевой глубины проникновения в режиме исследования. Расходы, публикации и внешние подключения останутся заблокированы.","The country starts at zero penetration in discovery mode. Spending, publishing and external connections remain blocked.")}</p><input type="hidden" name="worldCode" value="${esc(pendingAlpha3)}"><label>${tr("СТРАНА","COUNTRY")}<select name="country" required><option value="">${tr("Выберите страну","Select a country")}</option>${countryCatalog.map(item=>`<option value="${item.code}" ${existing.has(item.code)?"disabled":""} ${pendingAlpha2===item.code?"selected":""}>${esc(item.name)} (${item.code})</option>`).join("")}</select></label><label>${tr("БРЕНД","BRAND")}<select name="brand" required><option>RigZip</option><option>Evorios</option><option>Books</option><option>Travel</option><option>Smart Navigator</option></select></label><label>${tr("НАПРАВЛЕНИЕ ДЕЯТЕЛЬНОСТИ","ACTIVITY")}<input name="activity" required placeholder="${tr("Например: аренда коммерческого транспорта","For example: commercial vehicle rental")}"></label><div class="modal-actions"><button type="button" data-action="close-country">${tr("ОТМЕНА","CANCEL")}</button><button type="submit">${tr("ДОБАВИТЬ В ЭКСПАНСИЮ","ADD TO EXPANSION")}</button></div></form></div>`;
+  return `<div class="modal-backdrop"><form class="modal" id="country-form"><div class="module-title">${tr("ИССЛЕДОВАНИЕ НОВОГО РЫНКА","NEW MARKET DISCOVERY")} <button type="button" data-action="close-country">×</button></div><h2>${tr("Добавить в экспансию","Add to expansion")}</h2><p>${tr("Страна начнёт с нулевой глубины проникновения в режиме исследования. Расходы, публикации и внешние подключения останутся заблокированы.","The country starts at zero penetration in discovery mode. Spending, publishing and external connections remain blocked.")}</p><input type="hidden" name="worldCode" value="${esc(pendingAlpha3)}"><label>${tr("СТРАНА","COUNTRY")}<select name="country" required><option value="">${tr("Выберите страну","Select a country")}</option>${countryCatalog.map(item=>`<option value="${item.code}" ${existing.has(item.code)?"disabled":""} ${pendingAlpha2===item.code?"selected":""}>${esc(item.name)} (${item.code})</option>`).join("")}</select></label><label>${tr("БРЕНД","BRAND")}<select name="brand" required>${brandOptions()}</select></label><label>${tr("НАПРАВЛЕНИЕ ДЕЯТЕЛЬНОСТИ","ACTIVITY")}<input name="activity" required placeholder="${tr("Например: аренда коммерческого транспорта","For example: commercial vehicle rental")}"></label><div class="modal-actions"><button type="button" data-action="close-country">${tr("ОТМЕНА","CANCEL")}</button><button type="submit">${tr("ДОБАВИТЬ В ЭКСПАНСИЮ","ADD TO EXPANSION")}</button></div></form></div>`;
 }
 
 function areaModal() {
   const area = state.pendingArea;
   const exists = state.expansionAreas.some((item)=>item.countryCode===area.countryCode && item.adminUnitId===area.adminUnitId);
-  return `<div class="modal-backdrop"><form class="modal" id="area-form"><div class="module-title">${tr("УПРАВЛЕНИЕ ТЕРРИТОРИЕЙ","TERRITORY CONTROL")} <button type="button" data-action="close-area">×</button></div><h2>${esc(area.name)}</h2><p>${tr("Территория будет добавлена как исследуемая зона. Система подготовит следующий административный уровень, но не запустит расходы или публикации.","The territory will be added as a discovery area. The system will prepare the next administrative level without spending or publishing.")}</p><dl><div><dt>${tr("ТИП ЕДИНИЦЫ","UNIT TYPE")}</dt><dd>${esc(area.unitType)}</dd></div><div><dt>${tr("СТАТУС","STATUS")}</dt><dd>${exists?tr("УЖЕ В ЭКСПАНСИИ","ALREADY IN EXPANSION"):"DISCOVERY"}</dd></div></dl><label>${tr("БРЕНД","BRAND")}<select name="brand" required><option>RigZip</option><option>Evorios</option><option>Books</option><option>Travel</option><option>Smart Navigator</option></select></label><div class="modal-actions"><button type="button" data-action="close-area">${tr("ОТМЕНА","CANCEL")}</button><button type="button" data-route="${esc(area.route)}">${tr("ОТКРЫТЬ ГЛУБИНУ","OPEN DRILL-DOWN")}</button>${exists?"":`<button type="submit">${tr("ДОБАВИТЬ ТЕРРИТОРИЮ","ADD TERRITORY")}</button>`}</div></form></div>`;
+  return `<div class="modal-backdrop"><form class="modal" id="area-form"><div class="module-title">${tr("УПРАВЛЕНИЕ ТЕРРИТОРИЕЙ","TERRITORY CONTROL")} <button type="button" data-action="close-area">×</button></div><h2>${esc(area.name)}</h2><p>${tr("Территория будет добавлена как исследуемая зона. Система подготовит следующий административный уровень, но не запустит расходы или публикации.","The territory will be added as a discovery area. The system will prepare the next administrative level without spending or publishing.")}</p><dl><div><dt>${tr("ТИП ЕДИНИЦЫ","UNIT TYPE")}</dt><dd>${esc(area.unitType)}</dd></div><div><dt>${tr("СТАТУС","STATUS")}</dt><dd>${exists?tr("УЖЕ В ЭКСПАНСИИ","ALREADY IN EXPANSION"):"DISCOVERY"}</dd></div></dl><label>${tr("БРЕНД","BRAND")}<select name="brand" required>${brandOptions()}</select></label><div class="modal-actions"><button type="button" data-action="close-area">${tr("ОТМЕНА","CANCEL")}</button><button type="button" data-route="${esc(area.route)}">${tr("ОТКРЫТЬ ГЛУБИНУ","OPEN DRILL-DOWN")}</button>${exists?"":`<button type="submit">${tr("ДОБАВИТЬ ТЕРРИТОРИЮ","ADD TERRITORY")}</button>`}</div></form></div>`;
+}
+
+function brandModal() {
+  return `<div class="modal-backdrop"><form class="modal brand-modal" id="brand-form"><div class="module-title">${tr("ПАСПОРТ БРЕНДА","BRAND INTAKE")} <button type="button" data-action="close-brand">×</button></div><h2>${tr("Добавить бренд в фабрику","Add a brand to the factory")}</h2><p>${tr("Система использует этот контекст для построения контракта роста, исследования рынков, выбора каналов и метрик. Новый бренд начинает в DISCOVERY без внешних действий.","The factory uses this context to form a growth contract, scout markets, choose channels and metrics. New brands start in DISCOVERY with no external execution.")}</p><div class="form-grid"><label>${tr("НАЗВАНИЕ","NAME")}<input name="name" required minlength="2" placeholder="Acme"></label><label>${tr("ТИП ПРОДУКТА","PRODUCT ARCHETYPE")}<select name="archetype" required><option value="LOCAL_TWO_SIDED_MARKETPLACE">${tr("Локальный двусторонний маркетплейс","Local two-sided marketplace")}</option><option value="INTERNATIONAL_NEIGHBORHOOD_MARKETPLACE">${tr("Международный соседский маркетплейс","International neighborhood marketplace")}</option><option value="CONTENT_IP_PORTFOLIO">${tr("Контент и интеллектуальная собственность","Content and IP portfolio")}</option><option value="TRAVEL_PLATFORM">${tr("Платформа путешествий","Travel platform")}</option><option value="RECURRING_UTILITY">${tr("Регулярный цифровой сервис","Recurring utility")}</option><option value="OTHER">${tr("Другая модель","Other model")}</option></select></label><label>${tr("ЧТО ПРЕДЛАГАЕТ ПРОДУКТ","OFFERING")}<textarea name="offering" required placeholder="${tr("Продукт или услуга и решаемая проблема","Product, service and problem solved")}"></textarea></label><label>${tr("ДЛЯ КОГО","TARGET AUDIENCE")}<textarea name="audience" required placeholder="${tr("Покупатели, поставщики, сегменты","Buyers, suppliers and segments")}"></textarea></label><label>${tr("БИЗНЕС-МОДЕЛЬ","BUSINESS MODEL")}<input name="businessModel" required placeholder="${tr("Комиссия, подписка, продажа…","Commission, subscription, sale…")}"></label><label>${tr("ГЛАВНОЕ ЦЕННОСТНОЕ СОБЫТИЕ","PRIMARY VALUE EVENT")}<input name="primaryValueEvent" required placeholder="completed_booking"></label><label class="form-span">${tr("ЗАДАЧИ БРЕНДА","BRAND OBJECTIVES")}<textarea name="objectives" required placeholder="${tr("Например: проверить спрос; привлечь поставщиков; выйти в новый штат","For example: validate demand; acquire suppliers; enter a new state")}"></textarea></label><label>${tr("ЦЕЛЕВЫЕ ГЕОГРАФИИ","TARGET GEOGRAPHIES")}<input name="targetGeographies" required placeholder="US, CZ, EU"></label><label>${tr("ЯЗЫКИ","LANGUAGES")}<input name="languages" required placeholder="ru, en"></label><label class="form-span">${tr("ОГРАНИЧЕНИЯ И ЗАПРЕТЫ","CONSTRAINTS AND PROHIBITIONS")}<textarea name="constraints" placeholder="${tr("Регулирование, запрещённые claims, возрастные ограничения, риски","Regulation, prohibited claims, age restrictions and risks")}"></textarea></label></div><div class="modal-actions"><button type="button" data-action="close-brand">${tr("ОТМЕНА","CANCEL")}</button><button type="submit">${tr("СОЗДАТЬ ПРОФИЛЬ БРЕНДА","CREATE BRAND PROFILE")}</button></div></form></div>`;
 }
 
 function navigate(route) { history.pushState({},"",route); render(); window.scrollTo(0,0); }
@@ -314,7 +346,9 @@ document.addEventListener("click", async (event) => {
     if (target.dataset.action === "refresh") { await sendCommand({kind:"REFRESH_READ_MODELS"}); state.notice=tr("Данные обновлены локально. Внешние вызовы не выполнялись","Read models refreshed locally. No external calls were made"); }
     if (target.dataset.region) { state.selectedRegion=target.dataset.region; state.notice=tr("Географический охват изменён","Geographic scope changed"); }
   if (target.dataset.action === "add-country") state.addCountry=true;
+  if (target.dataset.action === "add-brand") state.addBrand=true;
   if (target.dataset.action === "close-country") { state.addCountry=false; state.pendingCountry=null; }
+    if (target.dataset.action === "close-brand") state.addBrand=false;
     if (target.dataset.action === "close-area") state.pendingArea=null;
     if (target.dataset.action === "approve") { await sendCommand({kind:"RESOLVE_DECISION",outcome:"APPROVED"}); state.notice=tr("Решение сохранено в режиме проверки. Средства не перемещались","Dry-run approval recorded. No funds moved"); }
     if (target.dataset.action === "reject") { await sendCommand({kind:"RESOLVE_DECISION",outcome:"REJECTED"}); state.notice=tr("Предложение отклонено и сохранено локально","Proposal rejected and recorded locally"); }
@@ -322,6 +356,22 @@ document.addEventListener("click", async (event) => {
   render(); setTimeout(()=>{state.notice="";render();},2200);
 });
 document.addEventListener("submit", async (event) => {
+  if (event.target.id === "brand-form") {
+    event.preventDefault();
+    const form = new FormData(event.target);
+    const split = (name) => String(form.get(name) ?? "").split(/[,;\n]/).map((item)=>item.trim()).filter(Boolean);
+    const name = String(form.get("name") ?? "").trim();
+    const id = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-zа-я0-9]+/gi,"-").replace(/^-|-$/g,"");
+    const brand = { id, name, archetype:String(form.get("archetype")), offering:String(form.get("offering")), audience:String(form.get("audience")), businessModel:String(form.get("businessModel")), objectives:split("objectives"), primaryValueEvent:String(form.get("primaryValueEvent")), targetGeographies:split("targetGeographies"), languages:split("languages"), constraints:split("constraints"), status:"DISCOVERY" };
+    try {
+      await sendCommand({kind:"ADD_BRAND_PROFILE",brand});
+      state.addBrand=false;
+      navigate(`/brands/${id}/onboarding`);
+      state.notice=tr(`${name}: профиль создан, начато изучение продукта`,`${name}: profile created, product intelligence started`);
+      render();
+    } catch (error) { state.notice=`COMMAND REJECTED: ${error.message}`; render(); }
+    return;
+  }
   if (event.target.id === "area-form") {
     event.preventDefault();
     if (!state.pendingArea) return;

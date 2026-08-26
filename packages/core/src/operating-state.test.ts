@@ -31,4 +31,12 @@ describe("governed local operating state", () => {
     expect(state.mode).toBe("DRY_RUN");
     expect(() => applyOperatingCommand(state, command, "2026-08-26T12:01:00.000Z")).toThrow(/already exists/);
   });
+
+  it("registers a brand with the minimum context required by the factory", () => {
+    const command = { kind:"ADD_BRAND_PROFILE", brand:{ id:"neighborhood-tools", name:"Neighborhood Tools", archetype:"INTERNATIONAL_NEIGHBORHOOD_MARKETPLACE", offering:"Rental of household tools", audience:"Neighbors and local owners", businessModel:"Transaction commission", objectives:["Validate local liquidity"], primaryValueEvent:"completed_rental", targetGeographies:["US"], languages:["en"], constraints:["No regulated equipment"], status:"DISCOVERY" } } as const;
+    const state = applyOperatingCommand(initialOperatingState(), command, "2026-08-26T12:00:00.000Z");
+    expect(state.brandProfiles[0]?.primaryValueEvent).toBe("completed_rental");
+    expect(state.brandProfiles[0]?.status).toBe("DISCOVERY");
+    expect(() => applyOperatingCommand(state, command, "2026-08-26T12:01:00.000Z")).toThrow(/already exists/);
+  });
 });
