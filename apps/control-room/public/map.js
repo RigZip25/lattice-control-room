@@ -1,4 +1,4 @@
-const palette = ["#e7edf2", "#c4dbe3", "#8abecb", "#4e96aa", "#226a82", "#0b3d55"];
+const palette = ["#293044", "#4b4428", "#74611d", "#a38412", "#d1a507", "#ffc400"];
 
 function slug(value) {
   return value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
