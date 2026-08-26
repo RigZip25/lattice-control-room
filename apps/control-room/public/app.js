@@ -1,7 +1,7 @@
 import { blueprints } from "/screen-blueprints.js";
 import { renderChoropleths } from "/map.js";
 
-const state = { executive:false, locale:"RU", notice:"", decisions:3, selectedFilter:"ВСЕ", selectedRegion:"WORLD", welcome:location.pathname==="/", factoryStatus:null, backendStatus:null, authOpen:false, session:null, cloudContext:null, addCountry:false, addBrand:false, pendingCountry:null, pendingArea:null, addedMarkets:[], expansionAreas:[], brandProfiles:[], version:0 };
+const state = { executive:false, locale:"RU", notice:"", decisions:3, selectedFilter:"ВСЕ", selectedRegion:"WORLD", welcome:location.pathname==="/", factoryStatus:null, backendStatus:null, authOpen:false, otpEmail:null, session:null, cloudContext:null, addCountry:false, addBrand:false, pendingCountry:null, pendingArea:null, addedMarkets:[], expansionAreas:[], brandProfiles:[], version:0 };
 let screens = [];
 let control = null;
 let geographies = [];
@@ -330,7 +330,8 @@ function countryModal() {
 function authModal() {
   const workspace=state.cloudContext?.workspace;
   if (state.session) return `<div class="modal-backdrop"><section class="modal auth-modal"><div class="module-title">${tr("ОБЛАЧНЫЙ ПРОФИЛЬ","CLOUD PROFILE")} <button type="button" data-action="close-auth">×</button></div><h2>${esc(workspace?.name ?? tr("Подключение подтверждено","Connection verified"))}</h2><p>${tr("Бренды сохраняются в Supabase от имени текущего пользователя. Доступ ограничен политиками workspace.","Brands are stored in Supabase as the current user. Workspace policies restrict access.")}</p><dl><div><dt>WORKSPACE</dt><dd>${esc(workspace?.workspace_id ?? "LOADING")}</dd></div><div><dt>ROLE</dt><dd>${esc(state.cloudContext?.membership?.member_role ?? "OWNER")}</dd></div><div><dt>MODE</dt><dd>${esc(workspace?.mode ?? "DRY_RUN")}</dd></div></dl><div class="modal-actions"><button type="button" data-action="sign-out">${tr("ВЫЙТИ","SIGN OUT")}</button><button type="button" data-action="close-auth">${tr("ГОТОВО","DONE")}</button></div></section></div>`;
-  return `<div class="modal-backdrop"><form class="modal auth-modal" id="auth-form"><div class="module-title">${tr("БЕЗОПАСНЫЙ ВХОД","SECURE SIGN IN")} <button type="button" data-action="close-auth">×</button></div><h2>${tr("Подключить облачный workspace","Connect cloud workspace")}</h2><p>${tr("При первой регистрации Supabase автоматически создаст изолированный workspace владельца. Фабрика останется в режиме DRY RUN.","On first registration Supabase creates an isolated owner workspace automatically. The factory remains in DRY RUN.")}</p><label>EMAIL<input name="email" type="email" autocomplete="email" required></label><label>${tr("ПАРОЛЬ","PASSWORD")}<input name="password" type="password" autocomplete="current-password" minlength="10" required></label><label class="auth-choice"><input name="create" type="checkbox"> ${tr("Создать новый аккаунт","Create a new account")}</label><div class="modal-actions"><button type="button" data-action="close-auth">${tr("ОТМЕНА","CANCEL")}</button><button type="submit">${tr("ПОДКЛЮЧИТЬ","CONNECT")}</button></div></form></div>`;
+  if (state.otpEmail) return `<div class="modal-backdrop"><form class="modal auth-modal" id="otp-form"><div class="module-title">${tr("ПОДТВЕРЖДЕНИЕ EMAIL","EMAIL VERIFICATION")} <button type="button" data-action="close-auth">×</button></div><h2>${tr("Введите 6 цифр","Enter the 6-digit code")}</h2><p>${tr("Код отправлен на","Code sent to")} <b>${esc(state.otpEmail)}</b></p><label>${tr("КОД ИЗ ПИСЬМА","EMAIL CODE")}<input name="token" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required autofocus></label><div class="modal-actions"><button type="button" data-action="change-email">${tr("ИЗМЕНИТЬ EMAIL","CHANGE EMAIL")}</button><button type="submit">${tr("ПОДТВЕРДИТЬ","VERIFY")}</button></div></form></div>`;
+  return `<div class="modal-backdrop"><form class="modal auth-modal" id="auth-form"><div class="module-title">${tr("ВХОД БЕЗ ПАРОЛЯ","PASSWORDLESS SIGN IN")} <button type="button" data-action="close-auth">×</button></div><h2>${tr("Получить код на email","Get a code by email")}</h2><p>${tr("Мы отправим одноразовый шестизначный код. При первом входе Supabase автоматически создаст изолированный workspace владельца.","We will send a one-time six-digit code. On first sign-in Supabase automatically creates an isolated owner workspace.")}</p><label>EMAIL<input name="email" type="email" autocomplete="email" required></label><div class="future-auth"><button type="button" disabled>Google · ${tr("СКОРО","SOON")}</button><button type="button" disabled>Face ID / Passkey · ${tr("СКОРО","SOON")}</button></div><div class="modal-actions"><button type="button" data-action="close-auth">${tr("ОТМЕНА","CANCEL")}</button><button type="submit">${tr("ОТПРАВИТЬ КОД","SEND CODE")}</button></div></form></div>`;
 }
 
 async function loadCloudContext() {
@@ -372,6 +373,7 @@ document.addEventListener("click", async (event) => {
     if (target.dataset.action === "welcome-factory") { state.welcome=false; navigate("/factory"); return; }
     if (target.dataset.action === "auth") state.authOpen=true;
     if (target.dataset.action === "close-auth") state.authOpen=false;
+    if (target.dataset.action === "change-email") state.otpEmail=null;
     if (target.dataset.action === "sign-out") { localStorage.removeItem("lattice-session"); state.session=null; state.cloudContext=null; state.authOpen=false; state.notice=tr("Облачная сессия завершена","Cloud session ended"); }
     if (target.dataset.action === "executive") { await sendCommand({kind:"SET_EXECUTIVE_VIEW",enabled:!state.executive}); state.notice=tr(state.executive?"Включён обзор для владельца":"Включён рабочий обзор",state.executive?"Executive view enabled":"Operator view enabled"); }
     if (target.dataset.action === "locale") { await sendCommand({kind:"SET_LOCALE",locale:state.locale==="RU"?"EN":"RU"}); state.notice=tr("Выбран русский язык","English interface selected"); }
@@ -392,20 +394,28 @@ document.addEventListener("submit", async (event) => {
   if (event.target.id === "auth-form") {
     event.preventDefault();
     const form=new FormData(event.target);
-    const endpoint=form.get("create")?"/api/v1/auth/sign-up":"/api/v1/auth/sign-in";
     try {
-      const response=await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:String(form.get("email")),password:String(form.get("password"))})});
+      const email=String(form.get("email")).trim();
+      const response=await fetch("/api/v1/auth/request-otp",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email})});
       const payload=await response.json();
-      if (!response.ok) throw new Error(payload.msg ?? payload.error_description ?? payload.error ?? "Authentication failed");
-      if (!payload.access_token) throw new Error(tr("Подтвердите email, затем выполните вход","Confirm your email, then sign in"));
-      state.session=payload;
-      localStorage.setItem("lattice-session",JSON.stringify(payload));
-      await loadCloudContext();
-      state.authOpen=false;
-      state.notice=tr("Облачный workspace подключён","Cloud workspace connected");
+      if (!response.ok) throw new Error(payload.msg ?? payload.error ?? "OTP request failed");
+      state.otpEmail=email;
+      state.notice=tr("Код отправлен на email","Code sent by email");
     } catch (error) { state.notice=error.message; }
     render();
     return;
+  }
+  if (event.target.id === "otp-form") {
+    event.preventDefault();
+    const form=new FormData(event.target);
+    try {
+      const response=await fetch("/api/v1/auth/verify-otp",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:state.otpEmail,token:String(form.get("token"))})});
+      const payload=await response.json();
+      if (!response.ok) throw new Error(payload.msg ?? payload.error ?? "Invalid code");
+      state.session=payload; localStorage.setItem("lattice-session",JSON.stringify(payload)); await loadCloudContext();
+      state.authOpen=false; state.otpEmail=null; state.notice=tr("Облачный workspace подключён","Cloud workspace connected");
+    } catch (error) { state.notice=error.message; }
+    render(); return;
   }
   if (event.target.id === "brand-form") {
     event.preventDefault();

@@ -4,7 +4,7 @@ import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import { applyOperatingCommand, factoryCadenceAt, initialOperatingState, productScreens, referenceGeographies, runRigZipDryRun, type OperatingCommand } from "@lattice/core";
 import { createFileOperatingStateStore } from "./state-store.js";
-import { authenticateWithPassword, bearerToken, fetchCloudContext, persistBrand, supabaseRuntimeConfig } from "./supabase-gateway.js";
+import { bearerToken, fetchCloudContext, persistBrand, requestEmailOtp, supabaseRuntimeConfig, verifyEmailOtp } from "./supabase-gateway.js";
 
 const host = "127.0.0.1";
 const port = Number(process.env.LATTICE_PORT ?? 4310);
@@ -43,17 +43,20 @@ createServer(async (request, response) => {
     json(response, 200, { provider: "SUPABASE", configured: Boolean(supabase), authentication: "PASSWORD", mode: operatingState.mode });
     return;
   }
-  if (request.method === "POST" && (requestUrl.pathname === "/api/v1/auth/sign-in" || requestUrl.pathname === "/api/v1/auth/sign-up")) {
+  if (request.method === "POST" && (requestUrl.pathname === "/api/v1/auth/request-otp" || requestUrl.pathname === "/api/v1/auth/verify-otp")) {
     if (!supabase) {
       json(response, 503, { error: "Supabase runtime configuration is not available" });
       return;
     }
     try {
-      const body = await readJson(request) as { email?: unknown; password?: unknown };
+      const body = await readJson(request) as { email?: unknown; token?: unknown };
       const email = typeof body.email === "string" ? body.email.trim() : "";
-      const password = typeof body.password === "string" ? body.password : "";
-      if (!/^\S+@\S+\.\S+$/.test(email) || password.length < 10) throw new Error("Valid email and a password of at least 10 characters are required");
-      const result = await authenticateWithPassword(supabase, requestUrl.pathname.endsWith("sign-in") ? "SIGN_IN" : "SIGN_UP", email, password);
+      if (!/^\S+@\S+\.\S+$/.test(email)) throw new Error("Valid email is required");
+      const token = typeof body.token === "string" ? body.token.trim() : "";
+      if (requestUrl.pathname.endsWith("verify-otp") && !/^\d{6}$/.test(token)) throw new Error("A six-digit code is required");
+      const result = requestUrl.pathname.endsWith("verify-otp")
+        ? await verifyEmailOtp(supabase, email, token)
+        : await requestEmailOtp(supabase, email);
       json(response, result.status, result.body);
     } catch (error) {
       json(response, 400, { error: error instanceof Error ? error.message : "Invalid authentication request" });

@@ -39,14 +39,19 @@ async function request(config: SupabaseRuntimeConfig, path: string, init: Reques
   return { status: response.status, body };
 }
 
-export async function authenticateWithPassword(
+export async function requestEmailOtp(
   config: SupabaseRuntimeConfig,
-  mode: "SIGN_IN" | "SIGN_UP",
   email: string,
-  password: string,
 ): Promise<SupabaseResponse> {
-  const path = mode === "SIGN_IN" ? "/auth/v1/token?grant_type=password" : "/auth/v1/signup";
-  return request(config, path, { method: "POST", body: JSON.stringify({ email, password }) });
+  return request(config, "/auth/v1/otp", { method: "POST", body: JSON.stringify({ email, create_user: true }) });
+}
+
+export async function verifyEmailOtp(
+  config: SupabaseRuntimeConfig,
+  email: string,
+  token: string,
+): Promise<SupabaseResponse> {
+  return request(config, "/auth/v1/verify", { method: "POST", body: JSON.stringify({ email, token, type: "email" }) });
 }
 
 export async function fetchCloudContext(config: SupabaseRuntimeConfig, accessToken: string): Promise<SupabaseResponse> {

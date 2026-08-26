@@ -1,19 +1,23 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { authenticateWithPassword, bearerToken, persistBrand, type SupabaseRuntimeConfig } from "./supabase-gateway.js";
+import { bearerToken, persistBrand, requestEmailOtp, verifyEmailOtp, type SupabaseRuntimeConfig } from "./supabase-gateway.js";
 
 const config: SupabaseRuntimeConfig = { url: "https://project.supabase.co", publishableKey: "sb_publishable_test" };
 
 afterEach(() => vi.unstubAllGlobals());
 
 describe("supabase gateway", () => {
-  it("sends password authentication without exposing credentials in the URL", async () => {
-    const mockedFetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ access_token: "token" }), { status: 200 }));
+  it("requests and verifies an email OTP without putting it in the URL", async () => {
+    const mockedFetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
     vi.stubGlobal("fetch", mockedFetch);
-    await authenticateWithPassword(config, "SIGN_IN", "owner@example.com", "secure-password");
+    await requestEmailOtp(config, "owner@example.com");
+    await verifyEmailOtp(config, "owner@example.com", "123456");
     const [url, init] = mockedFetch.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe("https://project.supabase.co/auth/v1/token?grant_type=password");
-    expect(init.body).toBe(JSON.stringify({ email: "owner@example.com", password: "secure-password" }));
+    expect(url).toBe("https://project.supabase.co/auth/v1/otp");
+    expect(init.body).toBe(JSON.stringify({ email: "owner@example.com", create_user: true }));
     expect((init.headers as Record<string, string>).apikey).toBe("sb_publishable_test");
+    const [verifyUrl, verifyInit] = mockedFetch.mock.calls[1] as [string, RequestInit];
+    expect(verifyUrl).toBe("https://project.supabase.co/auth/v1/verify");
+    expect(JSON.parse(String(verifyInit.body)).token).toBe("123456");
   });
 
   it("persists a brand using the caller token and workspace boundary", async () => {
