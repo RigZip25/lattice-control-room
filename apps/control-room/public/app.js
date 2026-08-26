@@ -1,4 +1,5 @@
 import { blueprints } from "/screen-blueprints.js";
+import { renderChoropleths } from "/map.js";
 
 const savedMarkets = JSON.parse(localStorage.getItem("lattice.discovery-markets") ?? "[]");
 const state = { executive:false, locale:"RU", notice:"", decisions:3, selectedFilter:"ВСЕ", addCountry:false, addedMarkets:savedMarkets };
@@ -14,6 +15,11 @@ const referenceMapAssets = {
   czechia: "/assets/maps/czechia-1.png",
   italy: "/assets/maps/italy-1.png",
   colombia: "/assets/maps/colombia-1.png",
+};
+const interactiveMaps = {
+  command: { source:"/data/maps/us-states.geojson", mode:"states" },
+  markets: { source:"/data/maps/us-states.geojson", mode:"states" },
+  nebraska: { source:"/data/maps/nebraska-counties.geojson", mode:"counties" },
 };
 
 const esc = (value) => String(value).replace(/[&<>'"]/g, (char) => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"})[char]);
@@ -50,8 +56,11 @@ function panelMarkup(panel, screen) {
   const rows = panel.rows.map((row,index) => `<button class="data-row" data-route="${esc(byKey(screen.linksTo[index % screen.linksTo.length])?.route ?? screen.route)}"><span class="row-dot"></span><span>${esc(row)}</span><b>↗</b></button>`).join("");
   if (panel.kind === "flow") return `<article class="module module-wide"><div class="module-title">${esc(panel.title)}<span>LIVE</span></div><div class="flowline">${panel.rows.map((row,index)=>`<button data-route="${esc(byKey(screen.linksTo[index % screen.linksTo.length])?.route ?? screen.route)}"><i>${String(index+1).padStart(2,"0")}</i>${esc(row)}</button>`).join("<em>→</em>")}</div></article>`;
   if (panel.kind === "map") {
+    const interactive = screen.figmaNodeId === "PARAMETERIZED_GEOGRAPHIC_DRILLDOWN" ? null : interactiveMaps[screen.key];
     const asset = screen.figmaNodeId === "PARAMETERIZED_GEOGRAPHIC_DRILLDOWN" ? null : referenceMapAssets[screen.key];
-    const map = asset
+    const map = interactive
+      ? `<div class="geo-vector" data-geo-source="${interactive.source}" data-geo-mode="${interactive.mode}"></div>`
+      : asset
       ? `<img src="${asset}" alt="${esc(panel.title)}: административные границы" loading="eager">`
       : `<div class="boundary-pending"><b>ГРАНИЦЫ ЗАГРУЖАЮТСЯ</b><span>Система определяет принятый административный уровень и проверяет набор полигонов перед публикацией.</span><small>DISCOVERY · NO SYNTHETIC CELLS</small></div>`;
     return `<article class="module map-module"><div class="module-title">${esc(panel.title)}<span>ADMINISTRATIVE BOUNDARIES</span></div><div class="geo-map">${map}</div><div class="module-rows">${rows}</div></article>`;
@@ -92,6 +101,7 @@ function render() {
     <footer><span>АКТИВНЫХ ОПЕРАЦИЙ: 237</span><span>ОЧЕРЕДИ: 12</span><span>ОШИБКИ: 2</span><span>ПОЛИТИКИ: GATED</span><b>OWN THE LOGIC. RENT THE CAPABILITY.</b></footer>
     ${state.addCountry?countryModal():""}
     ${state.notice?`<div class="toast">${esc(state.notice)}</div>`:""}`;
+  renderChoropleths().catch((error) => { state.notice = error.message; });
 }
 
 function countryModal() {
@@ -101,7 +111,7 @@ function countryModal() {
 
 function navigate(route) { history.pushState({},"",route); render(); window.scrollTo(0,0); }
 document.addEventListener("click", (event) => {
-  const target = event.target.closest("button"); if (!target) return;
+  const target = event.target.closest("[data-route],button"); if (!target) return;
   if (target.dataset.route) { navigate(target.dataset.route); return; }
   if (target.dataset.action === "executive") { state.executive=!state.executive; state.notice=state.executive?"EXECUTIVE VIEW ENABLED":"OPERATOR VIEW ENABLED"; }
   if (target.dataset.action === "locale") { state.locale=state.locale==="RU"?"EN":"RU"; state.notice="LANGUAGE LAYER SWITCHED"; }
