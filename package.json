@@ -1,0 +1,16 @@
+{
+  "name": "lattice-control-room",
+  "private": true,
+  "packageManager": "pnpm@11.19.0",
+  "scripts": {
+    "test": "pnpm --filter @lattice/core test",
+    "typecheck": "pnpm -r typecheck",
+    "build": "pnpm --filter @lattice/core build && pnpm --filter @lattice/demo build",
+    "demo": "pnpm build && node apps/demo/dist/main.js"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

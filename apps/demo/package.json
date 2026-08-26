@@ -1,0 +1,17 @@
+{
+  "name": "@lattice/demo",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc --outDir dist",
+    "typecheck": "pnpm --filter @lattice/core build && tsc --noEmit"
+  },
+  "dependencies": {
+    "@lattice/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "typescript": "^5.9.2"
+  }
+}
