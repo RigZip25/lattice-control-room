@@ -152,3 +152,13 @@ body{color:#f1f3f8}.page-head span,.data-row,.production-row span,.command-decis
 .map-chip{padding:7px 10px}.head-actions button{font-size:10px}.production-toolbar button{font-size:10px;padding:7px 10px}.linked>button b{color:#eef1f6;font-size:12px;font-weight:650}.linked>button span{font-size:9px;font-weight:650}.linked>button small{font-size:9px;color:#9da7ba}
 .map-control-block>b,.region-ranking h3{color:#b7c0d0;font-size:9px;font-weight:700}.region-ranking button{color:#e3e7ee}.region-ranking span{font-size:10px;font-weight:650}
 @media(max-width:760px){.stats-ribbon{display:none}.map-chip,.head-actions button,.production-toolbar button,.linked>button,.decision-actions button,.text-link{font-size:10px}}
+
+/* Bring operational labels up to the navigation readability standard. */
+.metric-ribbon small{color:#bac3d3;font-size:10px;font-weight:700;letter-spacing:.075em}.metric-ribbon span{color:#b5bece;border-color:#46516a;font-size:9px;font-weight:700;padding:3px 6px}.metric-ribbon b{font-weight:750}
+.factory-state{font-size:11px;font-weight:700}.attention{height:27px;font-size:10px;font-weight:700}.signal{gap:3px}.signal small,.capital-mini small{color:#aab4c6;font-size:9px;font-weight:700}.signal b{color:#f5f7fa;font-size:11px;font-weight:700}.signal span{font-size:10px;font-weight:700}.capital-mini b{font-weight:750}.exec,.locale{height:32px;color:#d4dae5;font-size:10px;font-weight:650}.avatar{color:#e7eaf0;font-size:10px;font-weight:700}
+.spine-list span small{color:#bac3d2;font-size:10px;font-weight:600}.spine-list i{font-size:9px;font-weight:700}.health span{font-size:9px;font-weight:600}.health b{font-weight:750}
+.map-source{color:#a8b1c1;font-size:8px;font-weight:600}.uncertainty-legend{color:#b8c1d0;font-weight:600}.legend-scale div{color:#b8c1d0;font-weight:600}
+
+/* Ranked territories remain a compact, horizontally scrollable data rail. */
+.region-ranking{min-width:0}.region-ranking>div{display:flex;grid-template-columns:none;gap:6px;overflow-x:auto;overflow-y:hidden;padding:0 0 5px;scrollbar-width:thin;scrollbar-color:#657188 #161e30}.region-ranking button{flex:0 0 178px}.region-ranking>div::-webkit-scrollbar{height:5px}.region-ranking>div::-webkit-scrollbar-track{background:#161e30;border-radius:5px}.region-ranking>div::-webkit-scrollbar-thumb{background:#657188;border-radius:5px}.geo-vector{grid-template-rows:minmax(270px,1fr) auto auto auto auto}.command-map .geo-map:has(.geo-vector){height:535px;overflow:hidden}
+@media(max-width:760px){.factory-state,.attention,.signal,.capital-mini,.exec{display:none}.metric-ribbon small{font-size:9px}.metric-ribbon span{font-size:8px}.region-ranking button{flex-basis:160px}.command-map .geo-map:has(.geo-vector){height:555px}}
