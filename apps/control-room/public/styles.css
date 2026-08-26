@@ -101,3 +101,20 @@ main{background:transparent}.page-head p,.module-title span,.linked>button span{
 .decision-facts span{background:#0b1120;border-color:#2e3850}.decision-facts b{color:#fff}
 .modal{background:#12192a;border-color:#38435b}.modal select,.modal input{background:#0b1120;border-color:#354059;color:#fff}
 footer{background:#060a16;border-color:#252d43;color:#727d93}footer b{color:#ffc400}
+
+/* Readability pass: keep the night shell, lift working surfaces and reserve
+   yellow luminance for the objects an operator must notice first. */
+.module,.metric-ribbon,.linked{background:linear-gradient(180deg,#1c253a,#151d31);border-color:#37425c}
+.metric-ribbon{box-shadow:inset 0 1px rgb(255 255 255 / .035),0 18px 48px rgb(0 0 0 / .2)}
+.metric-ribbon div:first-child{background:linear-gradient(135deg,rgb(255 196 0 / .13),transparent 70%)}
+.metric-ribbon b{color:#fff}.metric-ribbon div:first-child b{color:#ffd229;text-shadow:0 0 22px rgb(255 196 0 / .16)}
+.production-table{background:#182136}.production-head{background:#212b41}.production-row:nth-child(odd){background:rgb(255 255 255 / .018)}.production-row:hover{background:#263149}
+.production-detail{background:linear-gradient(160deg,#202a40,#171f33)}.production-detail .module-title span{padding:3px 6px;border:1px solid rgb(255 196 0 / .35);border-radius:999px;background:rgb(255 196 0 / .08)}
+.production-detail dd{color:#fff}.production-detail dl div:first-child dd{color:#ffd229}
+.command-spine,.command-decision,.capital-position{background:linear-gradient(160deg,#202a40,#171f33)}
+.command-decision{border-color:#665824;box-shadow:inset 0 1px rgb(255 215 64 / .08),var(--shadow)}.command-decision h2{color:#ffd229}
+.capital-total b{color:#ffd229}.spine-list button{border-color:#354059}.spine-list button:first-child{background:linear-gradient(90deg,rgb(255 196 0 / .1),transparent)}
+.data-row:nth-child(odd){background:rgb(255 255 255 / .018)}.decision{border-color:#354059}.decision>b{color:#fff}
+.map-module{background:linear-gradient(180deg,#1b263b,#121a2d)}.geo-map:has(.geo-vector){border-color:#3a465f;box-shadow:inset 0 0 45px rgb(0 0 0 / .18)}
+.page-head h1{color:#fff}.page-head span{color:#a9b2c3}.module-title{color:#aab3c3}.production-head b{color:#aab3c3}
+@media(max-width:760px){.module,.metric-ribbon,.linked{background:linear-gradient(180deg,#1b2438,#141c2f)}}
