@@ -8,3 +8,4 @@ coverage/
 work-*.json
 work/
 apps/control-room/.runtime/
+.local-credentials/
