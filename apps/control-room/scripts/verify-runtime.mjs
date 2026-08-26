@@ -1,11 +1,15 @@
 import { spawn } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const port = 4391;
 const base = `http://127.0.0.1:${port}`;
+const stateRoot = await mkdtemp(join(tmpdir(),"lattice-runtime-"));
 const server = spawn(process.execPath, ["dist/server.js"], {
   cwd: new URL("..", import.meta.url),
-  env: { ...process.env, LATTICE_PORT:String(port) },
+  env: { ...process.env, LATTICE_PORT:String(port), LATTICE_STATE_PATH:join(stateRoot,"operating-state.json") },
   stdio:["ignore", "pipe", "pipe"],
 });
 
@@ -49,4 +53,5 @@ try {
   process.stdout.write("Verified 22 routes and governed DRY_RUN command API.\n");
 } finally {
   server.kill("SIGTERM");
+  await rm(stateRoot,{recursive:true,force:true});
 }

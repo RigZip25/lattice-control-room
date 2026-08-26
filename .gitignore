@@ -7,3 +7,4 @@ coverage/
 *.log
 work-*.json
 work/
+apps/control-room/.runtime/

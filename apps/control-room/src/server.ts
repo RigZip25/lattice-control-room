@@ -3,12 +3,15 @@ import { readFile } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import { applyOperatingCommand, factoryCadenceAt, initialOperatingState, productScreens, referenceGeographies, runRigZipDryRun, type OperatingCommand } from "@lattice/core";
+import { createFileOperatingStateStore } from "./state-store.js";
 
 const host = "127.0.0.1";
 const port = Number(process.env.LATTICE_PORT ?? 4310);
 const publicRoot = fileURLToPath(new URL("../public/", import.meta.url));
 const mime: Record<string, string> = { ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".geojson": "application/geo+json; charset=utf-8", ".png": "image/png" };
-let operatingState = initialOperatingState();
+const statePath = process.env.LATTICE_STATE_PATH ?? fileURLToPath(new URL("../.runtime/operating-state.json", import.meta.url));
+const stateStore = createFileOperatingStateStore(statePath);
+let operatingState = stateStore.load();
 
 function json(response: import("node:http").ServerResponse, status: number, payload: unknown): void {
   response.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
@@ -59,6 +62,7 @@ createServer(async (request, response) => {
     try {
       const command = await readJson(request) as OperatingCommand;
       operatingState = applyOperatingCommand(operatingState, command, new Date().toISOString());
+      stateStore.save(operatingState);
       json(response, 200, operatingState);
     } catch (error) {
       json(response, 400, { error: error instanceof Error ? error.message : "Invalid command" });
