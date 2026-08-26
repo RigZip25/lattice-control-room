@@ -32,9 +32,9 @@ are implemented and verified.
 | 16 | `/capital-allocator` | Generic composition | Allocation curve, constraints, scenarios and proposal creation. |
 | 17 | `/learning` | Generic composition | Knowledge graph, causal evidence and model promotion. |
 | 18 | `/owner` | Generic composition | Executive exception queue and portfolio controls. |
-| 19 | `/experiments` | Generic composition | Hypothesis contract, frozen forecast, stops and evaluation. |
-| 20 | `/content-factory` | Generic composition | Brief/recipe/job/QA workflow and asset lineage. |
-| 21 | `/distribution` | Generic composition | Authorization, pacing, delivery and reconciliation. |
+| 19 | `/experiments` | Individual composition implemented | Persist experiment contracts and evaluation events. |
+| 20 | `/content-factory` | Individual composition implemented | Persist jobs, QA outcomes and versioned asset lineage. |
+| 21 | `/distribution` | Individual composition implemented | Persist provider delivery and reconciliation events. |
 | 22 | `/factory-config` | Generic composition | Safe editor for capabilities, providers and policy bounds. |
 
 ## Non-negotiable completion rules
