@@ -31,6 +31,10 @@ export interface MarketingActionDraft {
 export interface ComplianceDecision {
   readonly id: string;
   readonly state: "ALLOW" | "BLOCK" | "REQUIRE_REVIEW";
+  readonly decidedBy: "LEGAL_POLICY_AGENT";
+  readonly executionAuthority: "AUTONOMOUS" | "WITHHELD";
+  readonly confidence: "HIGH" | "INSUFFICIENT";
+  readonly nextAction: "EXECUTE" | "REMEDIATE_AUTOMATICALLY" | "REFRESH_POLICY_AUTOMATICALLY";
   readonly reasonCodes: readonly string[];
   readonly policyId: string;
   readonly evidence: readonly string[];
@@ -50,5 +54,15 @@ export function evaluateMarketingAction(policy:MarketingPolicySnapshot,action:Ma
   if (action.automatedActionsToday>=policy.maximumAutomatedActionsPerDay) reasons.push("CHANNEL_AUTOMATION_LIMIT_REACHED");
   const hardBlock=reasons.some((reason)=>["POLICY_SCOPE_MISMATCH","PROHIBITED_CATEGORY","PROHIBITED_CLAIM","CONTENT_RIGHTS_MISSING","AUDIENCE_CONSENT_MISSING","CHANNEL_AUTOMATION_LIMIT_REACHED"].includes(reason));
   const state=reasons.length===0?"ALLOW":hardBlock?"BLOCK":"REQUIRE_REVIEW";
-  return {id:deterministicId("compliance_decision",{policy,action,reasons}),state,reasonCodes:reasons,policyId:policy.id,evidence:[policy.version,policy.reviewedAt]};
+  return {
+    id:deterministicId("compliance_decision",{policy,action,reasons}),
+    state,
+    decidedBy:"LEGAL_POLICY_AGENT",
+    executionAuthority:state==="ALLOW"?"AUTONOMOUS":"WITHHELD",
+    confidence:state==="REQUIRE_REVIEW"?"INSUFFICIENT":"HIGH",
+    nextAction:state==="ALLOW"?"EXECUTE":state==="BLOCK"?"REMEDIATE_AUTOMATICALLY":"REFRESH_POLICY_AUTOMATICALLY",
+    reasonCodes:reasons,
+    policyId:policy.id,
+    evidence:[policy.version,policy.reviewedAt],
+  };
 }

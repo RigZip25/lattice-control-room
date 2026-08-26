@@ -77,10 +77,11 @@ export function approveProducedAsset(brief: ProductionBrief, request: ProviderPr
   return { id: deterministicId("brand_asset", draft), ...draft, status:"APPROVED" };
 }
 
-export function queueApprovedAsset(input: { readonly asset: ProducedAsset; readonly channel: string; readonly requestedPromotionUsd: number; readonly authorizedPromotionUsd: number; readonly complianceState: "ALLOW" | "BLOCK" | "REQUIRE_REVIEW"; readonly productionMode: boolean }): DistributionQueueItem {
+export function queueApprovedAsset(input: { readonly asset: ProducedAsset; readonly channel: string; readonly requestedPromotionUsd: number; readonly authorizedPromotionUsd: number; readonly compliance: { readonly state:"ALLOW"|"BLOCK"|"REQUIRE_REVIEW"; readonly decidedBy:"LEGAL_POLICY_AGENT"; readonly executionAuthority:"AUTONOMOUS"|"WITHHELD" }; readonly productionMode: boolean }): DistributionQueueItem {
   if (input.asset.status !== "APPROVED") throw new Error("Only approved assets may enter distribution");
   if (input.requestedPromotionUsd < 0 || input.requestedPromotionUsd > input.authorizedPromotionUsd) throw new Error("Promotion budget exceeds authority");
-  const state = input.productionMode && input.complianceState === "ALLOW" ? "QUEUED" : "BLOCKED";
+  const legallyAuthorized = input.compliance.state === "ALLOW" && input.compliance.decidedBy === "LEGAL_POLICY_AGENT" && input.compliance.executionAuthority === "AUTONOMOUS";
+  const state = input.productionMode && legallyAuthorized ? "QUEUED" : "BLOCKED";
   return {
     id: deterministicId("distribution_queue_item", input),
     assetId: input.asset.id,
@@ -88,6 +89,6 @@ export function queueApprovedAsset(input: { readonly asset: ProducedAsset; reado
     channel: input.channel,
     promotionBudgetUsd: input.requestedPromotionUsd,
     state,
-    reason: input.complianceState !== "ALLOW" ? "COMPLIANCE_PREFLIGHT_NOT_ALLOWED" : state === "BLOCKED" ? "DRY_RUN_PREVENTS_EXTERNAL_DISTRIBUTION" : "WITHIN_AUTHORIZED_ENVELOPE",
+    reason: !legallyAuthorized ? "LEGAL_AGENT_DID_NOT_AUTHORIZE" : state === "BLOCKED" ? "DRY_RUN_PREVENTS_EXTERNAL_DISTRIBUTION" : "WITHIN_AUTHORIZED_ENVELOPE",
   };
 }

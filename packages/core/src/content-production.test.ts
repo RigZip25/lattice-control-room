@@ -14,7 +14,7 @@ describe("governed content production loop", () => {
   it("approves only traceable compliant output and gates its promotion budget", () => {
     const request = prepareProviderRequest(brief);
     const asset = approveProducedAsset(brief, request, { requestId:request.id, brandId:"rigzip", format:"SHORT_VIDEO", version:1, providerId:"video-provider-a", storageRef:"library://rigzip/video-001", actualCostUsd:18, usedClaims:["Verified trailer availability"] });
-    const queued = queueApprovedAsset({ asset, channel:"youtube", requestedPromotionUsd:100, authorizedPromotionUsd:250, complianceState:"ALLOW", productionMode:false });
+    const queued = queueApprovedAsset({ asset, channel:"youtube", requestedPromotionUsd:100, authorizedPromotionUsd:250, compliance:{state:"ALLOW",decidedBy:"LEGAL_POLICY_AGENT",executionAuthority:"AUTONOMOUS"}, productionMode:false });
     expect(asset.status).toBe("APPROVED");
     expect(queued.state).toBe("BLOCKED");
     expect(queued.promotionBudgetUsd).toBe(100);
