@@ -146,15 +146,15 @@ const productionScreens = {
     next:"content-factory", nextLabel:"ОТКРЫТЬ CONTENT BRIEF"
   },
   "content-factory": {
-    label:"CONTENT PRODUCTION SYSTEM", primary:"ACTIVE JOBS", primaryValue:"48",
-    tabs:["QUEUE 48","GENERATING 12","QA 9","APPROVED 143","BLOCKED 4"],
+    label:"AUTONOMOUS CONTENT PRODUCTION", primary:"DAILY CAPACITY", primaryValue:"500",
+    tabs:["QUEUE 248","GENERATING 96","AUTO-QA 74","APPROVED 143","ESCALATED 4"],
     columns:["JOB / ASSET","RECIPE","CLAIM COVERAGE","QUALITY","СТАТУС"],
     rows:[
       ["CNT-RGZ-042","SHORT_VIDEO_v3 / Trailer availability","4/4 VERIFIED","92 / 100","QA"],
       ["CNT-EVR-018","META_STATIC_v4 / Neighbor proof","3/3 VERIFIED","89 / 100","GENERATING"],
       ["CNT-TRV-011","SEO_ARTICLE_v2 / 48-hour city guide","5/6 VERIFIED","84 / 100","REVIEW"],
     ],
-    detailTitle:"ASSET LINEAGE", detail:["Experiment","EXP-RGZ-014","Brief → Recipe","BRF-014 → SHORT_VIDEO_v3","Provider mode","LOCAL STUB / NO EXTERNAL CALL"],
+    detailTitle:"PRODUCTION CONTROL", detail:["Prompt + references","Versioned / immutable","Provider adapters","Photo · Video · Text · SEO","Autonomous QA","Claims · Brand · Rights · Cost"],
     next:"distribution", nextLabel:"ПЕРЕДАТЬ В DISTRIBUTION"
   },
   distribution: {
@@ -201,10 +201,10 @@ const strategyScreens = {
     sideTitle:"МАТРИЦА АВТОНОМНОСТИ", side:[["Создать гипотезу","Автономно"],["Запустить dry-run","Автономно"],["Изменить claims","Подтверждение человека"],["Списать деньги","Жёсткая блокировка"]]
   },
   audit: {
-    eyebrow:"ВОСПРОИЗВОДИМЫЙ СЛЕД РЕШЕНИЙ", status:"18,4 ТЫС. СОБЫТИЙ · 99,97% ПОКРЫТИЕ", action:"ОТКРЫТЬ ОПЕРАЦИИ", next:"operations",
-    stages:[["Команды","312","Приняты"],["Решения","184","Зафиксированы"],["Политики","31","Сработали"],["Доказательства","1 806","Связаны"],["Повтор","100%","Воспроизводим"]],
+    eyebrow:"ПРАВОВОЙ КОНТУР И ВОСПРОИЗВОДИМЫЙ СЛЕД", status:"31 ПОЛИТИКА · 4 КАНАЛА ЗАБЛОКИРОВАНЫ", action:"ОТКРЫТЬ ОПЕРАЦИИ", next:"operations",
+    stages:[["Юрисдикции","18","Версионируются"],["Правила каналов","29","Preflight"],["Права / consent","98%","Покрытие"],["Блокировки","4","До исправления"],["Журнал","18,4 тыс.","Воспроизводим"]],
     title:"ЖУРНАЛ УПРАВЛЯЕМЫХ СОБЫТИЙ", columns:["ВРЕМЯ / СОБЫТИЕ","ОБЛАСТЬ","РЕЗУЛЬТАТ","ДОКАЗАТЕЛЬСТВО"], rows:[["14:07 · AUTHORITY_EVALUATED","RigZip / Nebraska","Разрешено до $100","POLICY-v3"],["14:07 · DISTRIBUTION_GATED","Meta / RigZip","Заблокировано","DRY_RUN"],["14:06 · CLAIM_VERIFIED","Asset RGZ-042","4 из 4","EVIDENCE-88"],["14:05 · MODEL_PROPOSED","Response Ranker v4","Challenger","EVAL-214"]],
-    sideTitle:"ПОКРЫТИЕ ПОЛИТИК", side:[["Финансы","100%"],["Утверждения","96%"],["Конфиденциальность","100%"],["Хранение данных","92%"]]
+    sideTitle:"COMPLIANCE PREFLIGHT", side:[["Юрисдикция","Обязательна"],["Политика канала","Свежая версия"],["Claims / disclosure","До публикации"],["Неизвестное правило","BLOCK + REVIEW"]]
   },
   campaigns: {
     eyebrow:"УПРАВЛЕНИЕ КАМПАНИЯМИ", status:"24 АКТИВНЫ · 3 ТРЕБУЮТ РЕШЕНИЯ", action:"ОТКРЫТЬ КАНАЛЫ", next:"channels",
@@ -215,14 +215,14 @@ const strategyScreens = {
   channels: {
     eyebrow:"РЕЕСТР СПОСОБОВ ДИСТРИБУЦИИ", status:"29 КАНАЛОВ · 10 СЕМЕЙСТВ", action:"ОТКРЫТЬ РАСПРЕДЕЛЕНИЕ", next:"distribution",
     stages:[["Платные","6","Аукцион"],["Контент","4","SEO и статьи"],["Социальные","7","Органика"],["Партнёрства","8","Авторы и affiliates"],["Локальные","4","Рынки и события"]],
-    title:"КАНАЛЫ И ИХ ЭКОНОМИКА", columns:["СЕМЕЙСТВО","ПРИМЕРЫ","МОДЕЛЬ ЗАТРАТ","ГОТОВНОСТЬ"], rows:[["Платная реклама","Meta, Google, TikTok, YouTube","Аукцион","5 из 6"],["Контент и поиск","SEO-статьи, local SEO, guides","Производство","4 из 4"],["Инфлюенсеры","YouTube creators, micro-influencers","Фикс. / комиссия","2 из 5"],["Маркетплейсы","Региональные площадки, каталоги","Комиссия","1 из 2"],["Удержание","Email, push, referral","Собственный","3 из 3"]],
-    sideTitle:"КОНТРАКТ КАНАЛА", side:[["Обязательные поля","География и метрики"],["Права на контент","Версия и срок"],["Атрибуция","Нативная → value event"],["Новый канал","Без изменения ядра"]]
+    title:"КАНАЛЫ И ИХ ЭКОНОМИКА", columns:["СЕМЕЙСТВО","ПРИМЕРЫ","МОДЕЛЬ ЗАТРАТ","ГОТОВНОСТЬ"], rows:[["Платная реклама","Meta, Google, TikTok, YouTube","Аукцион","5 из 6"],["Контент и поиск","SEO-статьи, local SEO, guides","Производство","4 из 4"],["Инфлюенсеры","YouTube creators, micro-influencers","Фикс. / комиссия","CRM · 1 240"],["Маркетплейсы","Региональные площадки, каталоги","Комиссия","1 из 2"],["Удержание","Email, push, referral","Собственный","3 из 3"]],
+    sideTitle:"INFLUENCER OPERATIONS", side:[["Обнаружены","1 240 профилей"],["Контакт разрешён","486"],["В переговорах","38"],["Права / disclosure","Обязательная проверка"]]
   },
   assets: {
-    eyebrow:"РЕЕСТР КРЕАТИВОВ И ДОКАЗАТЕЛЬСТВ", status:"1 284 МАТЕРИАЛА · 143 НА ПРОВЕРКЕ", action:"ОТКРЫТЬ КОНТЕНТ-ФАБРИКУ", next:"content-factory",
-    stages:[["Задание","48","В очереди"],["Утверждения","96%","Покрыты"],["Создание","186","Версии"],["Контроль","143","Одобрены"],["Реестр","1 284","С происхождением"]],
+    eyebrow:"ОБЛАЧНАЯ БИБЛИОТЕКА КРЕАТИВОВ", status:"1 284 МАТЕРИАЛА · 4,8 TB · 100% LINEAGE", action:"ОТКРЫТЬ КОНТЕНТ-ФАБРИКУ", next:"content-factory",
+    stages:[["Объекты","1 284","Фото · видео · тексты"],["Версии","3 846","Неизменяемые"],["Права","98%","Проверены"],["Дедупликация","214","Повторы исключены"],["Выдача","143","Готовы к каналам"]],
     title:"МАТЕРИАЛЫ И ПРОИСХОЖДЕНИЕ", columns:["МАТЕРИАЛ","ФОРМАТ / ВЕРСИЯ","ДОКАЗАТЕЛЬСТВА","СОСТОЯНИЕ"], rows:[["RGZ_TRAILER_042","Короткое видео · v3","4 из 4","Одобрен"],["EVR_NEIGHBOR_018","Статичный пост · v4","3 из 3","Проверка"],["TRV_CITY_011","SEO-статья · v2","5 из 6","Доработка"]],
-    sideTitle:"ЦЕПОЧКА ПРОИСХОЖДЕНИЯ", side:[["Эксперимент","EXP-RGZ-014"],["Задание","BRF-014"],["Рецепт","SHORT_VIDEO_v3"],["Провайдер","Локальная заглушка"]]
+    sideTitle:"ХРАНЕНИЕ И ПРОИСХОЖДЕНИЕ", side:[["Object storage","Адаптер не подключён"],["Каталог","Brand · locale · territory"],["Цепочка","Brief → Prompt → Provider"],["Права","Owner · usage · expiry"]]
   },
   operations: {
     eyebrow:"НАДЁЖНОЕ ИСПОЛНЕНИЕ", status:"237 В РАБОТЕ · 2 ОШИБКИ", action:"ОТКРЫТЬ АУДИТ", next:"audit",

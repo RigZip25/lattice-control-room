@@ -1,4 +1,5 @@
 export * from "./brand-package.js";
+export * from "./asset-library.js";
 export * from "./capabilities.js";
 export * from "./capital.js";
 export * from "./control-room.js";
@@ -11,7 +12,9 @@ export * from "./financial-authority.js";
 export * from "./geography.js";
 export * from "./identity.js";
 export * from "./intelligence.js";
+export * from "./influencer-operations.js";
 export * from "./metrics.js";
+export * from "./marketing-compliance.js";
 export * from "./model.js";
 export * from "./policy.js";
 export * from "./opportunity-scout.js";
