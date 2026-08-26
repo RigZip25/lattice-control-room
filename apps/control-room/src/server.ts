@@ -4,14 +4,17 @@ import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import { applyOperatingCommand, factoryCadenceAt, initialOperatingState, productScreens, referenceGeographies, runRigZipDryRun, type OperatingCommand } from "@lattice/core";
 import { createFileOperatingStateStore } from "./state-store.js";
+import { authenticateWithPassword, bearerToken, fetchCloudContext, persistBrand, supabaseRuntimeConfig } from "./supabase-gateway.js";
 
 const host = "127.0.0.1";
 const port = Number(process.env.LATTICE_PORT ?? 4310);
 const publicRoot = fileURLToPath(new URL("../public/", import.meta.url));
 const mime: Record<string, string> = { ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".geojson": "application/geo+json; charset=utf-8", ".png": "image/png" };
 const statePath = process.env.LATTICE_STATE_PATH ?? fileURLToPath(new URL("../.runtime/operating-state.json", import.meta.url));
+const supabaseConfigPath = process.env.LATTICE_SUPABASE_CONFIG_PATH ?? fileURLToPath(new URL("../.runtime/supabase-config.json", import.meta.url));
 const stateStore = createFileOperatingStateStore(statePath);
 let operatingState = stateStore.load();
+const supabase = supabaseRuntimeConfig(supabaseConfigPath);
 
 function json(response: import("node:http").ServerResponse, status: number, payload: unknown): void {
   response.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
@@ -36,6 +39,41 @@ createServer(async (request, response) => {
   response.setHeader("X-Frame-Options", "DENY");
   response.setHeader("Content-Security-Policy", "default-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self' data:");
   const requestUrl = new URL(request.url ?? "/", `http://${host}:${port}`);
+  if (request.method === "GET" && requestUrl.pathname === "/api/v1/backend-status") {
+    json(response, 200, { provider: "SUPABASE", configured: Boolean(supabase), authentication: "PASSWORD", mode: operatingState.mode });
+    return;
+  }
+  if (request.method === "POST" && (requestUrl.pathname === "/api/v1/auth/sign-in" || requestUrl.pathname === "/api/v1/auth/sign-up")) {
+    if (!supabase) {
+      json(response, 503, { error: "Supabase runtime configuration is not available" });
+      return;
+    }
+    try {
+      const body = await readJson(request) as { email?: unknown; password?: unknown };
+      const email = typeof body.email === "string" ? body.email.trim() : "";
+      const password = typeof body.password === "string" ? body.password : "";
+      if (!/^\S+@\S+\.\S+$/.test(email) || password.length < 10) throw new Error("Valid email and a password of at least 10 characters are required");
+      const result = await authenticateWithPassword(supabase, requestUrl.pathname.endsWith("sign-in") ? "SIGN_IN" : "SIGN_UP", email, password);
+      json(response, result.status, result.body);
+    } catch (error) {
+      json(response, 400, { error: error instanceof Error ? error.message : "Invalid authentication request" });
+    }
+    return;
+  }
+  if (request.method === "GET" && requestUrl.pathname === "/api/v1/cloud-context") {
+    if (!supabase) {
+      json(response, 503, { error: "Supabase runtime configuration is not available" });
+      return;
+    }
+    const token = bearerToken(request.headers.authorization);
+    if (!token) {
+      json(response, 401, { error: "Authentication required" });
+      return;
+    }
+    const result = await fetchCloudContext(supabase, token);
+    json(response, result.status, result.body);
+    return;
+  }
   if (request.method === "GET" && requestUrl.pathname === "/api/v1/runtime-state") {
     json(response, 200, operatingState);
     return;
@@ -61,7 +99,19 @@ createServer(async (request, response) => {
   if (request.method === "POST" && requestUrl.pathname === "/api/v1/commands") {
     try {
       const command = await readJson(request) as OperatingCommand;
-      operatingState = applyOperatingCommand(operatingState, command, new Date().toISOString());
+      const nextState = applyOperatingCommand(operatingState, command, new Date().toISOString());
+      if (supabase && command.kind === "ADD_BRAND_PROFILE") {
+        const token = bearerToken(request.headers.authorization);
+        const workspaceId = request.headers["x-lattice-workspace-id"];
+        if (token && typeof workspaceId === "string") {
+          const cloudResult = await persistBrand(supabase, token, workspaceId, command.brand);
+          if (cloudResult.status >= 400) {
+            json(response, cloudResult.status, cloudResult.body);
+            return;
+          }
+        }
+      }
+      operatingState = nextState;
       stateStore.save(operatingState);
       json(response, 200, operatingState);
     } catch (error) {

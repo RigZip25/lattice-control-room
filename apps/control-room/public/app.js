@@ -1,7 +1,7 @@
 import { blueprints } from "/screen-blueprints.js";
 import { renderChoropleths } from "/map.js";
 
-const state = { executive:false, locale:"RU", notice:"", decisions:3, selectedFilter:"ВСЕ", selectedRegion:"WORLD", welcome:location.pathname==="/", factoryStatus:null, addCountry:false, addBrand:false, pendingCountry:null, pendingArea:null, addedMarkets:[], expansionAreas:[], brandProfiles:[], version:0 };
+const state = { executive:false, locale:"RU", notice:"", decisions:3, selectedFilter:"ВСЕ", selectedRegion:"WORLD", welcome:location.pathname==="/", factoryStatus:null, backendStatus:null, authOpen:false, session:null, cloudContext:null, addCountry:false, addBrand:false, pendingCountry:null, pendingArea:null, addedMarkets:[], expansionAreas:[], brandProfiles:[], version:0 };
 let screens = [];
 let control = null;
 let geographies = [];
@@ -55,7 +55,10 @@ function applyRuntime(runtime) {
   state.version = runtime.version;
 }
 async function sendCommand(command) {
-  const response = await fetch("/api/v1/commands", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify(command) });
+  const headers = { "Content-Type":"application/json" };
+  if (state.session?.access_token) headers.Authorization = `Bearer ${state.session.access_token}`;
+  if (state.cloudContext?.workspace?.workspace_id) headers["X-Lattice-Workspace-Id"] = state.cloudContext.workspace.workspace_id;
+  const response = await fetch("/api/v1/commands", { method:"POST", headers, body:JSON.stringify(command) });
   const payload = await response.json();
   if (!response.ok) throw new Error(payload.error ?? "Command rejected");
   applyRuntime(payload);
@@ -296,7 +299,7 @@ function render() {
       <div class="capital-mini"><small>${tr("КАПИТАЛ В РАБОТЕ","CAPITAL DEPLOYED")}</small><b>$684K</b></div>
       <button class="exec ${state.executive?"on":""}" data-action="executive">${tr("Обзор владельца","Executive view")}</button>
       <button class="locale" data-action="locale" aria-label="${tr("Переключить интерфейс на английский","Switch interface to Russian")}"><span class="${state.locale==="RU"?"active":""}">RU</span><i></i><span class="${state.locale==="EN"?"active":""}">EN</span></button>
-      <span class="avatar">OP</span>
+      <button class="avatar" data-action="auth" title="${tr("Облачный профиль","Cloud profile")}">${state.session?"ON":"OP"}</button>
     </header>
     <div class="stats-ribbon"><span>5 БРЕНДОВ • 87 ЯЧЕЕК • 29 КАНАЛОВ • $684K КАПИТАЛ</span><b>DRY RUN / LOCAL GOVERNED STATE</b></div>
     <div class="workspace">
@@ -312,6 +315,7 @@ function render() {
     ${state.addCountry?countryModal():""}
     ${state.pendingArea?areaModal():""}
     ${state.addBrand?brandModal():""}
+    ${state.authOpen?authModal():""}
     ${state.welcome?welcomeMarkup():""}
     ${state.notice?`<div class="toast"><i>✓</i><span><b>${tr("ДЕЙСТВИЕ ЗАПИСАНО","ACTION RECORDED")}</b><small>${esc(state.notice)}</small></span></div>`:""}`;
   renderChoropleths().catch((error) => { state.notice = error.message; console.error("Map rendering failed", error); });
@@ -321,6 +325,20 @@ function countryModal() {
   const existing = new Set([...geographies,...state.addedMarkets].map(item=>item.countryCode));
   const [pendingAlpha2="",pendingAlpha3=""] = String(state.pendingCountry ?? "").split(":");
   return `<div class="modal-backdrop"><form class="modal" id="country-form"><div class="module-title">${tr("ИССЛЕДОВАНИЕ НОВОГО РЫНКА","NEW MARKET DISCOVERY")} <button type="button" data-action="close-country">×</button></div><h2>${tr("Добавить в экспансию","Add to expansion")}</h2><p>${tr("Страна начнёт с нулевой глубины проникновения в режиме исследования. Расходы, публикации и внешние подключения останутся заблокированы.","The country starts at zero penetration in discovery mode. Spending, publishing and external connections remain blocked.")}</p><input type="hidden" name="worldCode" value="${esc(pendingAlpha3)}"><label>${tr("СТРАНА","COUNTRY")}<select name="country" required><option value="">${tr("Выберите страну","Select a country")}</option>${countryCatalog.map(item=>`<option value="${item.code}" ${existing.has(item.code)?"disabled":""} ${pendingAlpha2===item.code?"selected":""}>${esc(item.name)} (${item.code})</option>`).join("")}</select></label><label>${tr("БРЕНД","BRAND")}<select name="brand" required>${brandOptions()}</select></label><label>${tr("НАПРАВЛЕНИЕ ДЕЯТЕЛЬНОСТИ","ACTIVITY")}<input name="activity" required placeholder="${tr("Например: аренда коммерческого транспорта","For example: commercial vehicle rental")}"></label><div class="modal-actions"><button type="button" data-action="close-country">${tr("ОТМЕНА","CANCEL")}</button><button type="submit">${tr("ДОБАВИТЬ В ЭКСПАНСИЮ","ADD TO EXPANSION")}</button></div></form></div>`;
+}
+
+function authModal() {
+  const workspace=state.cloudContext?.workspace;
+  if (state.session) return `<div class="modal-backdrop"><section class="modal auth-modal"><div class="module-title">${tr("ОБЛАЧНЫЙ ПРОФИЛЬ","CLOUD PROFILE")} <button type="button" data-action="close-auth">×</button></div><h2>${esc(workspace?.name ?? tr("Подключение подтверждено","Connection verified"))}</h2><p>${tr("Бренды сохраняются в Supabase от имени текущего пользователя. Доступ ограничен политиками workspace.","Brands are stored in Supabase as the current user. Workspace policies restrict access.")}</p><dl><div><dt>WORKSPACE</dt><dd>${esc(workspace?.workspace_id ?? "LOADING")}</dd></div><div><dt>ROLE</dt><dd>${esc(state.cloudContext?.membership?.member_role ?? "OWNER")}</dd></div><div><dt>MODE</dt><dd>${esc(workspace?.mode ?? "DRY_RUN")}</dd></div></dl><div class="modal-actions"><button type="button" data-action="sign-out">${tr("ВЫЙТИ","SIGN OUT")}</button><button type="button" data-action="close-auth">${tr("ГОТОВО","DONE")}</button></div></section></div>`;
+  return `<div class="modal-backdrop"><form class="modal auth-modal" id="auth-form"><div class="module-title">${tr("БЕЗОПАСНЫЙ ВХОД","SECURE SIGN IN")} <button type="button" data-action="close-auth">×</button></div><h2>${tr("Подключить облачный workspace","Connect cloud workspace")}</h2><p>${tr("При первой регистрации Supabase автоматически создаст изолированный workspace владельца. Фабрика останется в режиме DRY RUN.","On first registration Supabase creates an isolated owner workspace automatically. The factory remains in DRY RUN.")}</p><label>EMAIL<input name="email" type="email" autocomplete="email" required></label><label>${tr("ПАРОЛЬ","PASSWORD")}<input name="password" type="password" autocomplete="current-password" minlength="10" required></label><label class="auth-choice"><input name="create" type="checkbox"> ${tr("Создать новый аккаунт","Create a new account")}</label><div class="modal-actions"><button type="button" data-action="close-auth">${tr("ОТМЕНА","CANCEL")}</button><button type="submit">${tr("ПОДКЛЮЧИТЬ","CONNECT")}</button></div></form></div>`;
+}
+
+async function loadCloudContext() {
+  if (!state.session?.access_token) return;
+  const response=await fetch("/api/v1/cloud-context",{headers:{Authorization:`Bearer ${state.session.access_token}`}});
+  const payload=await response.json();
+  if (!response.ok) throw new Error(payload.error ?? "Cloud context unavailable");
+  state.cloudContext=payload;
 }
 
 function areaModal() {
@@ -352,6 +370,9 @@ document.addEventListener("click", async (event) => {
   try {
     if (target.dataset.action === "welcome-command") { state.welcome=false; navigate("/command"); return; }
     if (target.dataset.action === "welcome-factory") { state.welcome=false; navigate("/factory"); return; }
+    if (target.dataset.action === "auth") state.authOpen=true;
+    if (target.dataset.action === "close-auth") state.authOpen=false;
+    if (target.dataset.action === "sign-out") { localStorage.removeItem("lattice-session"); state.session=null; state.cloudContext=null; state.authOpen=false; state.notice=tr("Облачная сессия завершена","Cloud session ended"); }
     if (target.dataset.action === "executive") { await sendCommand({kind:"SET_EXECUTIVE_VIEW",enabled:!state.executive}); state.notice=tr(state.executive?"Включён обзор для владельца":"Включён рабочий обзор",state.executive?"Executive view enabled":"Operator view enabled"); }
     if (target.dataset.action === "locale") { await sendCommand({kind:"SET_LOCALE",locale:state.locale==="RU"?"EN":"RU"}); state.notice=tr("Выбран русский язык","English interface selected"); }
     if (target.dataset.action === "filter") { const values=["ВСЕ","RIGZIP","EVORIOS","TRAVEL"]; const filter=values[(values.indexOf(state.selectedFilter)+1)%values.length]; await sendCommand({kind:"SET_FILTER",filter}); state.notice=tr(`Выбран фильтр: ${state.selectedFilter}`,`Filter selected: ${state.selectedFilter}`); }
@@ -368,6 +389,24 @@ document.addEventListener("click", async (event) => {
   render(); setTimeout(()=>{state.notice="";render();},2200);
 });
 document.addEventListener("submit", async (event) => {
+  if (event.target.id === "auth-form") {
+    event.preventDefault();
+    const form=new FormData(event.target);
+    const endpoint=form.get("create")?"/api/v1/auth/sign-up":"/api/v1/auth/sign-in";
+    try {
+      const response=await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:String(form.get("email")),password:String(form.get("password"))})});
+      const payload=await response.json();
+      if (!response.ok) throw new Error(payload.msg ?? payload.error_description ?? payload.error ?? "Authentication failed");
+      if (!payload.access_token) throw new Error(tr("Подтвердите email, затем выполните вход","Confirm your email, then sign in"));
+      state.session=payload;
+      localStorage.setItem("lattice-session",JSON.stringify(payload));
+      await loadCloudContext();
+      state.authOpen=false;
+      state.notice=tr("Облачный workspace подключён","Cloud workspace connected");
+    } catch (error) { state.notice=error.message; }
+    render();
+    return;
+  }
   if (event.target.id === "brand-form") {
     event.preventDefault();
     const form = new FormData(event.target);
@@ -426,4 +465,5 @@ Promise.all([
   fetch("/api/v1/country-catalog").then(response=>response.json()),
   fetch("/api/v1/runtime-state").then(response=>response.json()),
   fetch("/api/v1/factory-status").then(response=>response.json()),
-]).then(([registry,readModel,geographyRegistry,catalog,runtime,factoryStatus])=>{screens=registry.screens;control=readModel;geographies=geographyRegistry.geographies;countryCatalog=catalog.countries;state.factoryStatus=factoryStatus;applyRuntime(runtime);render();}).catch(error=>{document.getElementById("app").innerHTML=`<div class="fatal">CONTROL ROOM UNAVAILABLE<br>${esc(error.message)}</div>`;});
+  fetch("/api/v1/backend-status").then(response=>response.json()),
+]).then(async ([registry,readModel,geographyRegistry,catalog,runtime,factoryStatus,backendStatus])=>{screens=registry.screens;control=readModel;geographies=geographyRegistry.geographies;countryCatalog=catalog.countries;state.factoryStatus=factoryStatus;state.backendStatus=backendStatus;applyRuntime(runtime);try{state.session=JSON.parse(localStorage.getItem("lattice-session"));if(state.session)await loadCloudContext();}catch{localStorage.removeItem("lattice-session");state.session=null;}render();}).catch(error=>{document.getElementById("app").innerHTML=`<div class="fatal">CONTROL ROOM UNAVAILABLE<br>${esc(error.message)}</div>`;});

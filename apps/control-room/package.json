@@ -8,7 +8,7 @@
     "typecheck": "pnpm --filter @lattice/core build && tsc --noEmit",
     "verify": "pnpm --filter @lattice/core build && node scripts/verify-ui.mjs",
     "verify:runtime": "pnpm build && node scripts/verify-runtime.mjs",
-    "test": "vitest run src/state-store.test.ts",
+    "test": "vitest run src/state-store.test.ts src/supabase-gateway.test.ts",
     "start": "node dist/server.js"
   },
   "dependencies": { "@lattice/core": "workspace:*" },
