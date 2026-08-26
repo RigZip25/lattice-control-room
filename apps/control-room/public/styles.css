@@ -63,3 +63,41 @@ footer{background:#081421;border-color:#203246;color:#8297aa}footer b{color:#6fc
   .production-surface{grid-template-columns:minmax(0,1fr)}.production-table{overflow-x:auto}.production-head,.production-row{min-width:720px}.production-toolbar nav{width:100%}.production-toolbar button{flex:0 0 auto}.production-detail{min-height:300px}
   .modal{padding:16px}.modal-actions{display:grid;grid-template-columns:1fr}.modal-actions button{width:100%}
 }
+
+/* LATTICE night-signal palette: deep global infrastructure with a single
+   high-visibility action colour. Inspired by the supplied tonal reference,
+   while preserving LATTICE information density and semantic states. */
+:root{
+  --canvas:#080d1c;--canvas-soft:#101627;--sidebar:#060a16;
+  --surface:#11182a;--surface-warm:#151d31;
+  --border:#273047;--border-strong:#38435d;--sidebar-border:#20283c;
+  --ink:#f7f8fb;--text:#d6daE5;--muted:#8f98ad;--faint:#667087;
+  --teal:#ffc400;--green:#4fd1a5;--green-dark:#54dbb0;--blue:#6ea8ff;
+  --amber:#ffc400;--orange:#ff9f43;--red:#ff667a;--red-dark:#ff8292;
+  --shadow:0 22px 60px rgb(0 0 0 / .26),0 3px 12px rgb(0 0 0 / .2);
+}
+body{background:radial-gradient(circle at 82% 25%,rgb(255 196 0 / .08),transparent 28%),var(--canvas)}
+.command-bar{background:#070b18;border-color:#252d43;color:var(--ink)}
+.brand strong{color:#ffc400;letter-spacing:.055em}.brand small{color:#7f899f}
+.factory-state{color:#ffc400}.factory-state i{background:#ffc400;box-shadow:0 0 12px rgb(255 196 0 / .55)}
+.signal b,.capital-mini b{color:#f8fafc}.signal span{color:#ffc400}
+.attention{border-color:#59303a;background:#24131c;color:#ff8292}
+.exec,.locale,.avatar{border-color:#333d56;background:#12192b;color:#b3bbcb}.exec.on{border-color:#ffc400;color:#ffc400}
+.stats-ribbon{background:#0b1120;border-color:#252d43;color:#778198}.stats-ribbon b{color:#ffc400}
+.side-nav{background:#060a16}.side-nav button{color:#9ca6ba}.side-nav button:hover{background:#12192a;color:#fff}.side-nav button.active{background:#171d2f;color:#fff;box-shadow:inset 3px 0 #ffc400,0 10px 24px rgb(0 0 0 / .22)}
+.health{background:#0d1323;border-color:#252e44}.health b{color:#ffc400}
+main{background:transparent}.page-head p,.module-title span,.linked>button span{color:#ffc400}.page-head span{color:#929bae}
+.module,.metric-ribbon,.linked{background:linear-gradient(180deg,#151c2e,#101728);border-color:#2b354d;box-shadow:var(--shadow)}
+.metric-ribbon div+div,.metric-ribbon div:nth-child(3),.metric-ribbon div:nth-child(4){border-color:#2b354d}.metric-ribbon span{background:#0a1020;border-color:#303a51;color:#818ba0}
+.head-actions button,.linked>button,.data-row,.flowline button,.decision button,.map-chip{background:#11182a;border-color:#333d55;color:#b7bfce}.head-actions button.primary,.production-detail>button{border-color:#ffc400;background:#ffc400;color:#111522;font-weight:800}
+.data-row{border-color:#293249}.data-row:hover,.spine-list button:hover,.production-row:hover{background:#1a2236;color:#fff}.row-dot{background:#ffc400}
+.module-title{border-color:#2c354c;color:#929bae}.bars i,.capital-track{background:#090f1e;border-color:#283149}.bars i b{background:linear-gradient(90deg,#806500,#ffc400)}
+.map-canvas{background:radial-gradient(circle at 52% 42%,#202a3c 0,#101728 66%,#090f1d 100%)}.geo-map:has(.geo-vector),.geo-map{background:#0c1222;border-color:#2b354c}.choropleth path{stroke:#0a0f1d}.metric-badge{background:rgb(9 14 27 / .86);border-color:#38435b;color:#aab3c4}.metric-badge b{color:#ffc400}
+.legend-scale .swatch-0{background:#292f3e}.legend-scale .swatch-1{background:#554918}.legend-scale .swatch-2{background:#806c10}.legend-scale .swatch-3{background:#ad8f08}.legend-scale .swatch-4{background:#d9ad00}.legend-scale .swatch-5{background:#ffc400}.uncertainty-legend i{background:#ffc400}
+.map-chip.selected{border-color:#ffc400;background:#3b3211;color:#ffd740}.decision-actions button:first-child{border-color:#ffc400;background:#3b3211;color:#ffd740}
+.capital-track i{background:linear-gradient(90deg,#806500,#ffc400)}.text-link{color:#ffc400}
+.production-toolbar{background:#070b18;border-color:#2b354c}.production-toolbar span{color:#ffc400}.production-toolbar button.active{border-color:#ffc400;color:#ffc400}.production-head{background:#0d1424;border-color:#2c354b}.production-head b{color:#8f98ab}.production-row{border-color:#293249}.production-row span{color:#c6ccda}.production-row .cell-0{color:#fff}.production-row .cell-0 i{color:#ffc400}
+.production-detail dl div{border-color:#2b354c}.policy-seal{border-color:#315b50;background:#102720}.policy-seal small{color:#91a69f}
+.decision-facts span{background:#0b1120;border-color:#2e3850}.decision-facts b{color:#fff}
+.modal{background:#12192a;border-color:#38435b}.modal select,.modal input{background:#0b1120;border-color:#354059;color:#fff}
+footer{background:#060a16;border-color:#252d43;color:#727d93}footer b{color:#ffc400}
