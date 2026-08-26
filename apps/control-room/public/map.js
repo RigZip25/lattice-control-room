@@ -1,4 +1,4 @@
-const palette = ["#293044", "#4b4428", "#74611d", "#a38412", "#d1a507", "#ffc400"];
+const palette = ["#273044", "#34425a", "#465970", "#63748a", "#9b8338", "#e2b51a"];
 
 function slug(value) {
   return value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -48,15 +48,18 @@ export async function renderChoropleths(root = document) {
     const offsetX = (width - usedWidth) / 2;
     const offsetY = (height - usedHeight) / 2;
     const project = ([x,y]) => [offsetX + (x - bounds.minX) * scale, height - offsetY - (y - bounds.minY) * scale];
-    const paths = collection.features.map((feature) => {
+    const scoredFeatures = collection.features.map((feature) => {
       const name = feature.properties.NAME ?? feature.properties.shapeName;
       const id = feature.properties.GEOID ?? feature.properties.shapeID;
       const value = score(id);
       const bucket = bucketFor(value);
       const route = mode === "states" && feature.properties.STUSPS === "NE" ? "/markets/nebraska" : `${container.dataset.geoBase}/${slug(name)}`;
-      return `<path d="${pathFor(feature, project, feature.properties.STUSPS)}" fill="${palette[bucket]}" data-route="${route}" tabindex="0" role="link" aria-label="${name}: проникновение ${value.toFixed(1)}%"><title>${name} · проникновение ${value.toFixed(1)}% · demo</title></path>`;
-    }).join("");
+      return { feature, name, value, bucket, route };
+    });
+    const paths = scoredFeatures.map(({feature,name,value,bucket,route}) => `<path d="${pathFor(feature, project, feature.properties.STUSPS)}" fill="${palette[bucket]}" data-route="${route}" tabindex="0" role="link" aria-label="${name}: проникновение ${value.toFixed(1)}%"><title>${name} · проникновение ${value.toFixed(1)}% · demo</title></path>`).join("");
+    const rankingLabel = mode === "states" ? "ШТАТЫ С НАИБОЛЬШИМ СИГНАЛОМ" : mode === "counties" ? "ТЕРРИТОРИИ С НАИБОЛЬШИМ СИГНАЛОМ" : "РЕГИОНЫ С НАИБОЛЬШИМ СИГНАЛОМ";
+    const ranking = scoredFeatures.toSorted((a,b)=>b.value-a.value).slice(0,8).map(({name,value,route},index)=>`<button data-route="${route}"><i>${String(index+1).padStart(2,"0")}</i><span>${name}</span><b>${value.toFixed(1)}%</b></button>`).join("");
     const ranges = ["< 1%","1–3%","3–5%","5–10%","10–20%","> 20%"];
-    container.innerHTML = `<div class="map-canvas"><span class="metric-badge">АНАЛИТИЧЕСКИЙ СЛОЙ: <b>OPPORTUNITY</b></span><svg class="choropleth" viewBox="0 0 ${width} ${height}" aria-label="Интерактивная карта административных единиц">${paths}</svg></div><div class="legend-scale">${palette.map((color,index)=>`<div><i class="swatch-${index}"></i><span>${ranges[index]}</span></div>`).join("")}</div><div class="uncertainty-legend"><span><i></i>Прямые данные</span><span class="limited"><i></i>Ограниченные данные</span><span class="modelled"><i></i>Модельная оценка</span><b>Наведите или выберите область</b></div><small class="map-source">${container.dataset.geoAttribution} · METRIC DATA: DEMO</small>`;
+    container.innerHTML = `<div class="map-canvas"><span class="metric-badge">АНАЛИТИЧЕСКИЙ СЛОЙ: <b>OPPORTUNITY</b></span><svg class="choropleth" viewBox="0 0 ${width} ${height}" aria-label="Интерактивная карта административных единиц">${paths}</svg></div><section class="region-ranking"><h3>${rankingLabel}</h3><div>${ranking}</div></section><div class="legend-scale">${palette.map((color,index)=>`<div><i class="swatch-${index}"></i><span>${ranges[index]}</span></div>`).join("")}</div><div class="uncertainty-legend"><span><i></i>Прямые данные</span><span class="limited"><i></i>Ограниченные данные</span><span class="modelled"><i></i>Модельная оценка</span><b>Наведите или выберите область</b></div><small class="map-source">${container.dataset.geoAttribution} · METRIC DATA: DEMO</small>`;
   }));
 }
