@@ -20,12 +20,12 @@ are implemented and verified.
 | 01 | `/command` | Individual composition implemented | Replace remaining demonstration aggregates with event/read-model projections. |
 | 02 | `/factory` | Generic composition | Factory topology, queue lanes, capacity and bottleneck states. |
 | 03 | `/markets` | Interactive reference map | Opportunity ranking and discovery workflow require dedicated structures. |
-| 04 | `/campaigns` | Generic composition | Campaign lifecycle, budget pacing and experiment lineage. |
-| 05 | `/channels` | Generic composition | Provider health, marginal response curves and channel constraints. |
-| 06 | `/assets` | Generic composition | Searchable registry, claims, provenance and version history. |
+| 04 | `/campaigns` | Individual composition implemented | Persist lifecycle transitions, pacing and stop events. |
+| 05 | `/channels` | Individual composition implemented | Connect registry definitions to provider/cost read models. |
+| 06 | `/assets` | Individual composition implemented | Persist searchable claims, provenance and version history. |
 | 07 | `/venture` | Individual composition implemented | Persist memo decisions and post-funding evaluations. |
 | 08 | `/treasury` | Individual composition implemented | Persist double-entry ledger, reservations and reconciliation. |
-| 09 | `/operations` | Generic composition | Durable job stream, retries, reconciliation and incidents. |
+| 09 | `/operations` | Individual composition implemented | Persist durable jobs, retries, reconciliation and incidents. |
 | 10 | `/audit` | Generic composition | Immutable event trail, policy evidence and replay. |
 | 11 | `/brands` | Generic composition | Growth-contract editor and readiness validation. |
 | 12–15 | Geographic references | Interactive polygons | Detail drawer and metric-driven layer switching. |
