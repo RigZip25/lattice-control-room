@@ -10,6 +10,7 @@ export * from "./decision-packet-store.js";
 export * from "./decision-service.js";
 export * from "./distribution-channel.js";
 export * from "./financial-authority.js";
+export * from "./factory-scheduler.js";
 export * from "./geography.js";
 export * from "./identity.js";
 export * from "./intelligence.js";
