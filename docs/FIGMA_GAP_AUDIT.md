@@ -23,14 +23,14 @@ are implemented and verified.
 | 04 | `/campaigns` | Generic composition | Campaign lifecycle, budget pacing and experiment lineage. |
 | 05 | `/channels` | Generic composition | Provider health, marginal response curves and channel constraints. |
 | 06 | `/assets` | Generic composition | Searchable registry, claims, provenance and version history. |
-| 07 | `/venture` | Generic composition | Investment memos, tranche gates and portfolio frontier. |
-| 08 | `/treasury` | Generic composition | Wallet ledger, envelopes, reservations and authority history. |
+| 07 | `/venture` | Individual composition implemented | Persist memo decisions and post-funding evaluations. |
+| 08 | `/treasury` | Individual composition implemented | Persist double-entry ledger, reservations and reconciliation. |
 | 09 | `/operations` | Generic composition | Durable job stream, retries, reconciliation and incidents. |
 | 10 | `/audit` | Generic composition | Immutable event trail, policy evidence and replay. |
 | 11 | `/brands` | Generic composition | Growth-contract editor and readiness validation. |
 | 12–15 | Geographic references | Interactive polygons | Detail drawer and metric-driven layer switching. |
-| 16 | `/capital-allocator` | Generic composition | Allocation curve, constraints, scenarios and proposal creation. |
-| 17 | `/learning` | Generic composition | Knowledge graph, causal evidence and model promotion. |
+| 16 | `/capital-allocator` | Individual composition implemented | Replace scenario fixtures with calibrated marginal-value projections. |
+| 17 | `/learning` | Individual composition implemented | Persist causal evidence and champion/challenger promotion events. |
 | 18 | `/owner` | Generic composition | Executive exception queue and portfolio controls. |
 | 19 | `/experiments` | Individual composition implemented | Persist experiment contracts and evaluation events. |
 | 20 | `/content-factory` | Individual composition implemented | Persist jobs, QA outcomes and versioned asset lineage. |
