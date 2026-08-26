@@ -186,3 +186,9 @@ body{color:#f1f3f8}.page-head span,.data-row,.production-row span,.command-decis
 .flow-module{min-height:225px;padding:18px}.flowline{justify-content:center;margin-top:36px;gap:8px}.flowline button{display:grid;align-content:center;gap:5px;min-width:145px;height:92px;padding:12px;border-color:#44506a;background:linear-gradient(160deg,#202a40,#151d30);color:#eef1f6}.flowline button:first-child{border-color:#8f7936;background:linear-gradient(160deg,#28291f,#181e2d)}.flowline button i{margin:0;color:#e2b51a;font-size:10px;font-weight:750}.flowline button b{font-size:12px;font-weight:700;line-height:1.25}.flowline button small{color:#aab4c5;font-size:9px;font-weight:600}.flowline em{margin:0;color:#8994a8;font-size:16px;font-weight:600}.flowline button:hover{border-color:#e2b51a;background:#242d40}
 @media(max-width:1300px){.flowline{justify-content:flex-start;overflow-x:auto;padding-bottom:8px}.flowline button{flex:0 0 138px}}
 @media(max-width:760px){.flow-module{min-height:210px}.flowline{margin-top:28px}.flowline button{flex-basis:132px;height:86px}.flowline button b{font-size:11px}}
+
+/* Territory ranking is an at-a-glance grid, not a hidden horizontal rail. */
+.region-ranking>div{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;overflow:visible;padding:0}.region-ranking button{min-width:0;width:100%;display:grid;grid-template-columns:19px minmax(0,1fr) auto}.geo-map:has(.geo-vector){height:560px}.command-map .geo-map:has(.geo-vector){height:575px}.command-map>.map-module{min-height:700px}
+@media(max-width:1500px){.region-ranking>div{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:1100px){.region-ranking>div{grid-template-columns:repeat(2,minmax(0,1fr))}.geo-map:has(.geo-vector),.command-map .geo-map:has(.geo-vector){height:640px}}
+@media(max-width:560px){.region-ranking>div{grid-template-columns:1fr}.geo-map:has(.geo-vector),.command-map .geo-map:has(.geo-vector){height:820px}}
