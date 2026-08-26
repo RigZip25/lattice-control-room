@@ -147,14 +147,14 @@ const productionScreens = {
   },
   "content-factory": {
     label:"AUTONOMOUS CONTENT PRODUCTION", primary:"DAILY CAPACITY", primaryValue:"500",
-    tabs:["QUEUE 248","GENERATING 96","AUTO-QA 74","APPROVED 143","ESCALATED 4"],
+    tabs:["EVIDENCE 248","PROMPTS 96","LEGAL 74","EXECUTION 61","QA / REWORK 18","LIBRARY 143"],
     columns:["JOB / ASSET","RECIPE","CLAIM COVERAGE","QUALITY","СТАТУС"],
     rows:[
       ["CNT-RGZ-042","SHORT_VIDEO_v3 / Trailer availability","4/4 VERIFIED","92 / 100","QA"],
       ["CNT-EVR-018","META_STATIC_v4 / Neighbor proof","3/3 VERIFIED","89 / 100","GENERATING"],
       ["CNT-TRV-011","SEO_ARTICLE_v2 / 48-hour city guide","5/6 VERIFIED","84 / 100","REVIEW"],
     ],
-    detailTitle:"PRODUCTION CONTROL", detail:["Prompt + references","Versioned / immutable","Provider adapters","Photo · Video · Text · SEO","Autonomous QA","Claims · Brand · Rights · Cost"],
+    detailTitle:"AGENT CONTROL CHAIN", detail:["Creator Agent","Winners → cited research fallback","Legal Agent","Claims · culture · channel policy","Executor + Critic","Generate → QA → rework → library"],
     next:"distribution", nextLabel:"ПЕРЕДАТЬ В DISTRIBUTION"
   },
   distribution: {
@@ -232,7 +232,7 @@ const strategyScreens = {
   },
   "learning-engine": {
     eyebrow:"КОНТУР УПРАВЛЯЕМОГО ОБУЧЕНИЯ", status:"7 МОДЕЛЕЙ НА ПРОВЕРКЕ", action:"ОТКРЫТЬ CAPITAL ALLOCATOR", next:"capital-allocator",
-    stages:[["События","18,4 тыс.","Канонические факты"],["Атрибуция","97,8%","Связь с решением"],["Оценка","1 806","Окна результатов"],["Калибровка","91%","Точность основной модели"],["Предложение","7","Конкурирующие модели"]],
+    stages:[["Creative genome","18,4 тыс.","Hooks · formats · regions"],["Атрибуция","97,8%","Причинный эффект"],["Fatigue","26","Автоостановлены"],["Exploration","20%","Новые концепции"],["Предложение","7","Следующий бюджет"]],
     title:"НОВЫЕ ЗНАНИЯ", columns:["ОБЛАСТЬ","ВЫВОД","КАЧЕСТВО","ПРИМЕНИМОСТЬ"], rows:[["RigZip / Nebraska","Доказанная доступность повышает конверсию в заявку","Сильное · 91%","Trailers / counties"],["Evorios / Czechia","Подтверждение соседями снижает барьер доверия","Пригодное · 79%","Home / urban"],["Travel / Italy","Маршрут на 48 часов повышает намерение","Ограниченное · 64%","City breaks"]],
     sideTitle:"ОСНОВНАЯ И КОНКУРИРУЮЩАЯ МОДЕЛИ", side:[["Основная модель","Response Ranker v4"],["Конкурирующая модель","Causal Ranker v1"],["Условие повышения","Ошибка калибровки < 8%"],["Изоляция","Только это рабочее пространство"]]
   },

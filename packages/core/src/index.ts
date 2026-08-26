@@ -4,6 +4,7 @@ export * from "./capabilities.js";
 export * from "./capital.js";
 export * from "./control-room.js";
 export * from "./content-production.js";
+export * from "./creative-agent-orchestration.js";
 export * from "./decision-loop.js";
 export * from "./decision-packet-store.js";
 export * from "./decision-service.js";
