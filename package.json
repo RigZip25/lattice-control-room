@@ -5,8 +5,9 @@
   "scripts": {
     "test": "pnpm --filter @lattice/core test",
     "typecheck": "pnpm -r typecheck",
-    "build": "pnpm --filter @lattice/core build && pnpm --filter @lattice/demo build",
-    "demo": "pnpm build && node apps/demo/dist/main.js"
+    "build": "pnpm --filter @lattice/core build && pnpm --filter @lattice/demo build && pnpm --filter @lattice/control-room build",
+    "demo": "pnpm build && node apps/demo/dist/main.js",
+    "control-room": "pnpm build && pnpm --filter @lattice/control-room start"
   },
   "devDependencies": {
     "@types/node": "^24.3.0",

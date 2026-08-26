@@ -24,6 +24,11 @@ inside both the envelope and the owner's versioned Financial Authority Policy.
 Every derived record preserves its inputs and semantic class (`FACT`,
 `INFERRED`, or `FORECAST`). External side effects fail closed.
 
+The local Control Room exposes the frozen RigZip scenario through a read-only,
+loopback-only API and responsive operator dashboard. It shows portfolio state,
+Treasury availability, delegated authority, the active market decision and
+every gate requiring attention.
+
 ## Commands
 
 ```bash
@@ -31,10 +36,15 @@ pnpm install
 pnpm test
 pnpm typecheck
 pnpm demo
+pnpm control-room
 ```
+
+Then open `http://127.0.0.1:4310`. The service accepts GET requests only,
+binds to the local machine and runs entirely from deterministic fixtures.
 
 ## Structure
 
 - `docs/` — product foundation and durable architecture decisions.
 - `packages/core/` — provider-neutral domain and application logic.
 - `apps/demo/` — deterministic executable scenario.
+- `apps/control-room/` — local read-only API and operator interface.

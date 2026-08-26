@@ -18,6 +18,19 @@ importers:
         specifier: ^3.2.4
         version: 3.2.7(@types/node@24.13.3)(tsx@4.23.12)
 
+  apps/control-room:
+    dependencies:
+      '@lattice/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+    devDependencies:
+      '@types/node':
+        specifier: ^24.3.0
+        version: 24.13.3
+      typescript:
+        specifier: ^5.9.2
+        version: 5.9.3
+
   apps/demo:
     dependencies:
       '@lattice/core':

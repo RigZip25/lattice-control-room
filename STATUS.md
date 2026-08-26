@@ -21,8 +21,11 @@ Foundation and first governed decision vertical slice.
 - bounded Opportunity Scout proposals with evidence gaps;
 - governed model artifacts, evaluation and champion/challenger promotion;
 - initial portable PostgreSQL foundation migration;
+- operating ledger migration for Wallet, Venture, project envelopes, metrics
+  and outcome evaluation lineage;
 - executable RigZip dry-run demo;
-- strict TypeScript checks and 30 deterministic tests.
+- loopback-only read API and responsive Control Room interface;
+- strict TypeScript checks and 31 deterministic tests.
 
 ## Verified vertical
 
@@ -36,13 +39,11 @@ blocked by policy even when Venture capital is approved.
 
 ## Next implementation sequence
 
-1. Expand PostgreSQL migrations for Venture, Treasury Wallet, metrics, intelligence
-   lineage and financial authority.
-3. Add transport-neutral API schemas and an authenticated local HTTP adapter.
-4. Build canonical read models for Command Center and Venture surfaces.
-5. Extract Figma tokens/context and implement the Control Room shell.
-6. Add Evorios and a non-marketplace product fixture to prove funnel isolation.
-7. Add outcome evaluation linking canonical events back to frozen forecasts.
+1. Add Evorios and a non-marketplace product fixture to prove funnel isolation.
+2. Implement outcome evaluation against canonical metric events and frozen forecasts.
+3. Add authenticated write commands while preserving the read-only dashboard boundary.
+4. Extract the approved Figma design system into reusable UI tokens/components.
+5. Connect sandbox PostgreSQL and provider adapters only after approval.
 
 ## External prerequisites
 

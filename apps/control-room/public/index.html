@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LATTICE Control Room</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="rail">
+      <div class="mark" aria-label="LATTICE">L</div>
+      <nav aria-label="Primary">
+        <button class="nav active" aria-label="Command center">⌁</button>
+        <button class="nav" aria-label="Experiments">◇</button>
+        <button class="nav" aria-label="Capital">◫</button>
+        <button class="nav" aria-label="Intelligence">◎</button>
+      </nav>
+      <div class="avatar">ER</div>
+    </aside>
+    <main>
+      <header>
+        <div><p class="eyebrow">LATTICE / COMMAND</p><h1>Control Room</h1></div>
+        <div class="system-state"><span class="pulse"></span><span>System nominal</span><b id="mode">DRY RUN</b></div>
+      </header>
+
+      <section class="hero-grid">
+        <article class="panel capital">
+          <div class="panel-head"><span>CAPITAL CONTROL</span><span class="live">● LIVE LEDGER</span></div>
+          <div class="balance"><small>AVAILABLE CAPITAL</small><strong id="available">—</strong><em>USD</em></div>
+          <div class="capital-stats">
+            <div><small>SETTLED</small><b id="settled">—</b></div>
+            <div><small>RESERVED</small><b id="reserved">—</b></div>
+            <div><small>AUTONOMY / DECISION</small><b id="limit">—</b></div>
+          </div>
+          <div class="limit-track"><span id="limit-track"></span></div>
+          <p class="fine">Authority policy <span id="policy">—</span> · Owner-controlled limits · Withdrawals disabled</p>
+        </article>
+
+        <article class="panel attention">
+          <div class="panel-head"><span>NEEDS ATTENTION</span><span id="approval-count" class="count">0</span></div>
+          <div id="approval" class="approval"></div>
+        </article>
+      </section>
+
+      <section class="decision-section">
+        <div class="section-title"><div><p class="eyebrow">ACTIVE DECISION</p><h2>RigZip / Nebraska trailer cell</h2></div><span class="badge approved">VENTURE APPROVED</span></div>
+        <article class="decision-card">
+          <div class="decision-copy">
+            <small>MARKET HYPOTHESIS</small>
+            <h3 id="hypothesis">Loading governed decision…</h3>
+            <div class="tags"><span>RIGZIP</span><span>PROVE</span><span id="evidence">— EVIDENCE</span></div>
+          </div>
+          <div class="metric"><small>TRANCHE</small><strong id="tranche">—</strong><span>USD</span></div>
+          <div class="metric"><small>DISTRIBUTION</small><strong id="distribution" class="blocked">—</strong><span>policy gate</span></div>
+          <div class="flow" aria-label="Decision flow">
+            <span class="done">Snapshot</span><i></i><span class="done">Evidence</span><i></i><span class="done">Venture</span><i></i><span class="waiting">Distribution</span>
+          </div>
+        </article>
+      </section>
+
+      <section class="portfolio-section">
+        <div class="section-title"><div><p class="eyebrow">PORTFOLIO</p><h2>Market systems</h2></div><span class="muted" id="generated">—</span></div>
+        <div id="portfolio" class="portfolio-grid"></div>
+      </section>
+    </main>
+  </div>
+  <script src="app.js" defer></script>
+</body>
+</html>
