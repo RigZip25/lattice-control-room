@@ -1,6 +1,7 @@
 export * from "./brand-package.js";
 export * from "./capabilities.js";
 export * from "./capital.js";
+export * from "./control-room.js";
 export * from "./decision-loop.js";
 export * from "./decision-packet-store.js";
 export * from "./decision-service.js";
@@ -12,4 +13,5 @@ export * from "./model.js";
 export * from "./policy.js";
 export * from "./opportunity-scout.js";
 export * from "./product-line.js";
+export * from "./rigzip-scenario.js";
 export * from "./wallet.js";
