@@ -26,16 +26,16 @@ are implemented and verified.
 | 07 | `/venture` | Individual composition implemented | Persist memo decisions and post-funding evaluations. |
 | 08 | `/treasury` | Individual composition implemented | Persist double-entry ledger, reservations and reconciliation. |
 | 09 | `/operations` | Individual composition implemented | Persist durable jobs, retries, reconciliation and incidents. |
-| 10 | `/audit` | Generic composition | Immutable event trail, policy evidence and replay. |
-| 11 | `/brands` | Generic composition | Growth-contract editor and readiness validation. |
+| 10 | `/audit` | Individual composition implemented | Persist immutable event trail, evidence and replay projections. |
+| 11 | `/brands` | Individual composition implemented | Persist growth-contract editing and readiness validation. |
 | 12–15 | Geographic references | Interactive polygons | Detail drawer and metric-driven layer switching. |
 | 16 | `/capital-allocator` | Individual composition implemented | Replace scenario fixtures with calibrated marginal-value projections. |
 | 17 | `/learning` | Individual composition implemented | Persist causal evidence and champion/challenger promotion events. |
-| 18 | `/owner` | Generic composition | Executive exception queue and portfolio controls. |
+| 18 | `/owner` | Individual composition implemented | Connect exception queue to governed owner decisions. |
 | 19 | `/experiments` | Individual composition implemented | Persist experiment contracts and evaluation events. |
 | 20 | `/content-factory` | Individual composition implemented | Persist jobs, QA outcomes and versioned asset lineage. |
 | 21 | `/distribution` | Individual composition implemented | Persist provider delivery and reconciliation events. |
-| 22 | `/factory-config` | Generic composition | Safe editor for capabilities, providers and policy bounds. |
+| 22 | `/factory-config` | Individual composition implemented | Persist safe capability, provider and policy configuration changes. |
 
 ## Non-negotiable completion rules
 
