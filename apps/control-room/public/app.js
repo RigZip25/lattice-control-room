@@ -33,6 +33,8 @@ const mapPanelConfig = {
 };
 
 const esc = (value) => String(value).replace(/[&<>'"]/g, (char) => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"})[char]);
+const tr = (ru, en) => state.locale === "RU" ? ru : en;
+const pendingDecisionLabel = (count) => state.locale === "EN" ? `${count} ${count === 1 ? "decision" : "decisions"} pending` : `${count} ${count === 1 ? "решение ожидает" : count < 5 ? "решения ожидают" : "решений ожидают"}`;
 function applyRuntime(runtime) {
   state.executive = runtime.executive;
   state.locale = runtime.locale;
@@ -78,7 +80,11 @@ function navGroups() {
 
 function panelMarkup(panel, screen) {
   const rows = panel.rows.map((row,index) => `<button class="data-row" data-route="${esc(byKey(screen.linksTo[index % screen.linksTo.length])?.route ?? screen.route)}"><span class="row-dot"></span><span>${esc(row)}</span><b>↗</b></button>`).join("");
-  if (panel.kind === "flow") return `<article class="module module-wide"><div class="module-title">${esc(panel.title)}<span>LIVE</span></div><div class="flowline">${panel.rows.map((row,index)=>`<button data-route="${esc(byKey(screen.linksTo[index % screen.linksTo.length])?.route ?? screen.route)}"><i>${String(index+1).padStart(2,"0")}</i>${esc(row)}</button>`).join("<em>→</em>")}</div></article>`;
+  if (panel.kind === "flow") {
+    const flowLabels = {"Product Intel":["Аналитика продукта","Product intelligence"],"Market Scout":["Разведка рынков","Market scouting"],"Experiment":["Эксперименты","Experiments"],"Creative":["Производство контента","Content production"],"Distribution":["Дистрибуция","Distribution"],"Learning":["Обучение системы","System learning"],"Market":["Рынок","Market"],"Audience":["Аудитория","Audience"],"Claim":["Утверждение","Claim"],"Channel":["Канал","Channel"],"Outcome":["Результат","Outcome"]};
+    const flowTitle = screen.key === "factory" ? tr("ПРОИЗВОДСТВЕННЫЙ КОНТУР","FACTORY FLOW") : screen.key === "learning-engine" ? tr("КОНТУР ЗНАНИЙ","KNOWLEDGE FLOW") : panel.title;
+    return `<article class="module module-wide flow-module"><div class="module-title">${esc(flowTitle)}<span>${tr("РАБОТАЕТ","LIVE")}</span></div><div class="flowline">${panel.rows.map((row,index)=>`<button data-route="${esc(byKey(screen.linksTo[index % screen.linksTo.length])?.route ?? screen.route)}"><i>${String(index+1).padStart(2,"0")}</i><b>${esc(flowLabels[row]?.[state.locale === "RU" ? 0 : 1] ?? row)}</b><small>${index === 0 ? tr("в работе","active") : tr("следующий этап","next stage")}</small></button>`).join("<em>→</em>")}</div></article>`;
+  }
   if (panel.kind === "map") {
     const interactive = screen.figmaNodeId === "PARAMETERIZED_GEOGRAPHIC_DRILLDOWN" ? null : interactiveMaps[screen.key];
     const asset = screen.figmaNodeId === "PARAMETERIZED_GEOGRAPHIC_DRILLDOWN" ? null : referenceMapAssets[screen.key];
@@ -168,13 +174,13 @@ function render() {
   document.getElementById("app").innerHTML = `
     <header class="command-bar">
       <button class="brand" data-route="/command"><strong>LATTICE</strong><small>MARKET FACTORY OS</small></button>
-      <div class="factory-state"><i></i> ФАБРИКА АКТИВНА</div>
-      <button class="attention" data-route="/owner">${state.decisions} РЕШЕНИЯ ТРЕБУЮТ ВНИМАНИЯ</button>
-      <div class="signal"><small>ЛУЧШИЙ СЛЕД. $100</small><b>RigZip / Nebraska → +87 рег.</b><span>83% · прогноз</span></div>
-      <div class="signal"><small>ЛУЧШИЙ СЛЕД. $1,000</small><b>Evorios / Czechia → +312 рег.</b><span>79% · прогноз</span></div>
-      <div class="capital-mini"><small>КАПИТАЛ В РАБОТЕ</small><b>$684K</b></div>
-      <button class="exec ${state.executive?"on":""}" data-action="executive">Executive View</button>
-      <button class="locale" data-action="locale">${state.locale} | ${state.locale==="RU"?"EN":"RU"}</button>
+      <div class="factory-state"><i></i> ${tr("ФАБРИКА РАБОТАЕТ","FACTORY ONLINE")}</div>
+      <button class="attention" data-route="/owner"><i></i><span>${pendingDecisionLabel(state.decisions)}</span><em>→</em></button>
+      <div class="signal"><small>${tr("ЛУЧШЕЕ ВЛОЖЕНИЕ $100","BEST NEXT $100")}</small><b>RigZip / Nebraska → +87 ${tr("рег.","sign-ups")}</b><span>83% · ${tr("прогноз","forecast")}</span></div>
+      <div class="signal"><small>${tr("ЛУЧШЕЕ ВЛОЖЕНИЕ $1,000","BEST NEXT $1,000")}</small><b>Evorios / Czechia → +312 ${tr("рег.","sign-ups")}</b><span>79% · ${tr("прогноз","forecast")}</span></div>
+      <div class="capital-mini"><small>${tr("КАПИТАЛ В РАБОТЕ","CAPITAL DEPLOYED")}</small><b>$684K</b></div>
+      <button class="exec ${state.executive?"on":""}" data-action="executive">${tr("Обзор владельца","Executive view")}</button>
+      <button class="locale" data-action="locale" aria-label="${tr("Переключить интерфейс на английский","Switch interface to Russian")}"><span class="${state.locale==="RU"?"active":""}">RU</span><i></i><span class="${state.locale==="EN"?"active":""}">EN</span></button>
       <span class="avatar">OP</span>
     </header>
     <div class="stats-ribbon"><span>5 БРЕНДОВ • 87 ЯЧЕЕК • 8 КАНАЛОВ • $684K КАПИТАЛ</span><b>DRY RUN / LOCAL GOVERNED STATE</b></div>
@@ -189,13 +195,13 @@ function render() {
     </div>
     <footer><span>АКТИВНЫХ ОПЕРАЦИЙ: 237</span><span>ОЧЕРЕДИ: 12</span><span>ОШИБКИ: 2</span><span>ПОЛИТИКИ: GATED</span><b>OWN THE LOGIC. RENT THE CAPABILITY.</b></footer>
     ${state.addCountry?countryModal():""}
-    ${state.notice?`<div class="toast">${esc(state.notice)}</div>`:""}`;
+    ${state.notice?`<div class="toast"><i>✓</i><span><b>${tr("ДЕЙСТВИЕ ЗАПИСАНО","ACTION RECORDED")}</b><small>${esc(state.notice)}</small></span></div>`:""}`;
   renderChoropleths().catch((error) => { state.notice = error.message; });
 }
 
 function countryModal() {
   const existing = new Set([...geographies,...state.addedMarkets].map(item=>item.countryCode));
-  return `<div class="modal-backdrop"><form class="modal" id="country-form"><div class="module-title">NEW MARKET DISCOVERY <button type="button" data-action="close-country">×</button></div><h2>Добавить страну</h2><p>География создаётся в discovery-режиме. Расходы и внешние подключения остаются заблокированы.</p><label>СТРАНА<select name="country" required><option value="">Выберите страну</option>${countryCatalog.map(item=>`<option value="${item.code}" ${existing.has(item.code)?"disabled":""}>${esc(item.name)} (${item.code})</option>`).join("")}</select></label><label>БРЕНД<select name="brand" required><option>RigZip</option><option>Evorios</option><option>Books</option><option>Travel</option><option>Smart Navigator</option></select></label><label>НАПРАВЛЕНИЕ<input name="activity" required placeholder="Например: commercial transport"></label><div class="modal-actions"><button type="button" data-action="close-country">ОТМЕНА</button><button type="submit">СОЗДАТЬ DISCOVERY MARKET</button></div></form></div>`;
+  return `<div class="modal-backdrop"><form class="modal" id="country-form"><div class="module-title">${tr("ИССЛЕДОВАНИЕ НОВОГО РЫНКА","NEW MARKET DISCOVERY")} <button type="button" data-action="close-country">×</button></div><h2>${tr("Добавить страну","Add a country")}</h2><p>${tr("Страна добавляется в режиме исследования. Расходы, публикации и внешние подключения останутся заблокированы.","The country starts in discovery mode. Spending, publishing and external connections remain blocked.")}</p><label>${tr("СТРАНА","COUNTRY")}<select name="country" required><option value="">${tr("Выберите страну","Select a country")}</option>${countryCatalog.map(item=>`<option value="${item.code}" ${existing.has(item.code)?"disabled":""}>${esc(item.name)} (${item.code})</option>`).join("")}</select></label><label>${tr("БРЕНД","BRAND")}<select name="brand" required><option>RigZip</option><option>Evorios</option><option>Books</option><option>Travel</option><option>Smart Navigator</option></select></label><label>${tr("НАПРАВЛЕНИЕ ДЕЯТЕЛЬНОСТИ","ACTIVITY")}<input name="activity" required placeholder="${tr("Например: аренда коммерческого транспорта","For example: commercial vehicle rental")}"></label><div class="modal-actions"><button type="button" data-action="close-country">${tr("ОТМЕНА","CANCEL")}</button><button type="submit">${tr("ДОБАВИТЬ ДЛЯ ИССЛЕДОВАНИЯ","START DISCOVERY")}</button></div></form></div>`;
 }
 
 function navigate(route) { history.pushState({},"",route); render(); window.scrollTo(0,0); }
@@ -203,14 +209,14 @@ document.addEventListener("click", async (event) => {
   const target = event.target.closest("[data-route],button"); if (!target) return;
   if (target.dataset.route) { navigate(target.dataset.route); return; }
   try {
-    if (target.dataset.action === "executive") { await sendCommand({kind:"SET_EXECUTIVE_VIEW",enabled:!state.executive}); state.notice=state.executive?"EXECUTIVE VIEW ENABLED":"OPERATOR VIEW ENABLED"; }
-    if (target.dataset.action === "locale") { await sendCommand({kind:"SET_LOCALE",locale:state.locale==="RU"?"EN":"RU"}); state.notice="LANGUAGE LAYER SWITCHED"; }
-    if (target.dataset.action === "filter") { const values=["ВСЕ","RIGZIP","EVORIOS","TRAVEL"]; const filter=values[(values.indexOf(state.selectedFilter)+1)%values.length]; await sendCommand({kind:"SET_FILTER",filter}); state.notice=`FILTER: ${state.selectedFilter}`; }
-    if (target.dataset.action === "refresh") { await sendCommand({kind:"REFRESH_READ_MODELS"}); state.notice="READ MODELS REFRESHED / NO EXTERNAL CALLS"; }
+    if (target.dataset.action === "executive") { await sendCommand({kind:"SET_EXECUTIVE_VIEW",enabled:!state.executive}); state.notice=tr(state.executive?"Включён обзор для владельца":"Включён рабочий обзор",state.executive?"Executive view enabled":"Operator view enabled"); }
+    if (target.dataset.action === "locale") { await sendCommand({kind:"SET_LOCALE",locale:state.locale==="RU"?"EN":"RU"}); state.notice=tr("Выбран русский язык","English interface selected"); }
+    if (target.dataset.action === "filter") { const values=["ВСЕ","RIGZIP","EVORIOS","TRAVEL"]; const filter=values[(values.indexOf(state.selectedFilter)+1)%values.length]; await sendCommand({kind:"SET_FILTER",filter}); state.notice=tr(`Выбран фильтр: ${state.selectedFilter}`,`Filter selected: ${state.selectedFilter}`); }
+    if (target.dataset.action === "refresh") { await sendCommand({kind:"REFRESH_READ_MODELS"}); state.notice=tr("Данные обновлены локально. Внешние вызовы не выполнялись","Read models refreshed locally. No external calls were made"); }
   if (target.dataset.action === "add-country") state.addCountry=true;
   if (target.dataset.action === "close-country") state.addCountry=false;
-    if (target.dataset.action === "approve") { await sendCommand({kind:"RESOLVE_DECISION",outcome:"APPROVED"}); state.notice="DRY-RUN APPROVAL RECORDED / NO FUNDS MOVED"; }
-    if (target.dataset.action === "reject") { await sendCommand({kind:"RESOLVE_DECISION",outcome:"REJECTED"}); state.notice="PROPOSAL REJECTED IN LOCAL STATE"; }
+    if (target.dataset.action === "approve") { await sendCommand({kind:"RESOLVE_DECISION",outcome:"APPROVED"}); state.notice=tr("Решение сохранено в режиме проверки. Средства не перемещались","Dry-run approval recorded. No funds moved"); }
+    if (target.dataset.action === "reject") { await sendCommand({kind:"RESOLVE_DECISION",outcome:"REJECTED"}); state.notice=tr("Предложение отклонено и сохранено локально","Proposal rejected and recorded locally"); }
   } catch (error) { state.notice = `COMMAND REJECTED: ${error.message}`; }
   render(); setTimeout(()=>{state.notice="";render();},2200);
 });
