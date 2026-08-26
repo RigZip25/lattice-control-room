@@ -14,9 +14,14 @@ import {
   evaluateDistributionAuthorization,
   type DistributionPolicy,
 } from "./policy.js";
+import {
+  assertMetricBelongsToContract,
+  type GrowthContract,
+} from "./product-line.js";
 
 export interface DecisionLoopInput {
   readonly productSnapshot: ProductSnapshot;
+  readonly growthContract: GrowthContract;
   readonly brandPackageDraft: BrandPackageDraft;
   readonly marketCell: MarketCell;
   readonly hypothesis: Omit<MarketHypothesis, "id" | "brandPackageId" | "status">;
@@ -83,6 +88,12 @@ function makeCapitalDecision(
 }
 
 export function runDecisionLoop(input: DecisionLoopInput): DecisionPacket {
+  if (input.growthContract.workspaceId !== input.productSnapshot.workspaceId) {
+    throw new Error("Growth Contract belongs to another workspace");
+  }
+  if (input.growthContract.brandId !== input.productSnapshot.brandId) {
+    throw new Error("Growth Contract belongs to another brand");
+  }
   if (input.productSnapshot.workspaceId !== input.marketCell.workspaceId) {
     throw new Error("Workspace isolation violation between product and MarketCell");
   }
@@ -98,6 +109,7 @@ export function runDecisionLoop(input: DecisionLoopInput): DecisionPacket {
   if (!Number.isFinite(input.requestedUsd) || input.requestedUsd <= 0) {
     throw new Error("Requested tranche must be a positive finite amount");
   }
+  assertMetricBelongsToContract(input.growthContract, input.hypothesis.successMetric);
 
   const brandPackage = buildBrandPackage(
     input.productSnapshot,

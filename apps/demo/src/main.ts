@@ -1,5 +1,6 @@
 import {
   runDecisionLoop,
+  defineGrowthContract,
   type BrandId,
   type MarketCellId,
   type WorkspaceId,
@@ -26,6 +27,18 @@ const packet = runDecisionLoop({
       },
     ],
   },
+  growthContract: defineGrowthContract({
+    workspaceId,
+    brandId,
+    version: 1,
+    archetype: "LOCAL_TWO_SIDED_MARKETPLACE",
+    valueEvent: "completed_asset_match",
+    marketCellDimensions: ["geography", "asset_vertical"],
+    lifecycleStages: ["SCOUT", "PROVE", "SCALE", "MAINTAIN"],
+    constraintMetrics: ["qualified_supply", "qualified_demand"],
+    outcomeMetrics: ["qualified_registrations_per_usd", "completed_asset_matches"],
+    eligiblePlaybooks: ["SUPPLY_FIRST", "DEMAND_FIRST"],
+  }),
   brandPackageDraft: {
     problem: "Operators lose time when required equipment is unavailable.",
     audiences: ["small fleet operators"],

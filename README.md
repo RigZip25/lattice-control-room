@@ -17,6 +17,10 @@ spend or publication:
 
 `ProductSnapshot -> BrandPackage -> MarketHypothesis -> ScoutEvidence -> CapitalDecision -> ContentBrief -> DistributionAuthorization`
 
+Capital is funded through a provider-neutral Treasury Wallet. Settled bank or
+PayPal deposits may be divided into project envelopes; agents can act only
+inside both the envelope and the owner's versioned Financial Authority Policy.
+
 Every derived record preserves its inputs and semantic class (`FACT`,
 `INFERRED`, or `FORECAST`). External side effects fail closed.
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { runDecisionLoop } from "./decision-loop.js";
+import { defineGrowthContract } from "./product-line.js";
 import type { BrandId, MarketCellId, WorkspaceId } from "./model.js";
 
 const brandId = "rigzip" as BrandId;
@@ -24,6 +25,18 @@ function fixture() {
         },
       ],
     },
+    growthContract: defineGrowthContract({
+      workspaceId,
+      brandId,
+      version: 1,
+      archetype: "LOCAL_TWO_SIDED_MARKETPLACE",
+      valueEvent: "completed_asset_match",
+      marketCellDimensions: ["geography", "asset_vertical"],
+      lifecycleStages: ["SCOUT", "PROVE", "SCALE", "MAINTAIN"],
+      constraintMetrics: ["qualified_supply"],
+      outcomeMetrics: ["qualified_registrations_per_usd", "completed_asset_matches"],
+      eligiblePlaybooks: ["SUPPLY_FIRST", "DEMAND_FIRST"],
+    }),
     brandPackageDraft: {
       problem: "Commercial operators lose time when required equipment is unavailable.",
       audiences: ["small fleet operators"],

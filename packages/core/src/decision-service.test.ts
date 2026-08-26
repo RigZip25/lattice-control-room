@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DecisionService, type Principal } from "./decision-service.js";
 import { InMemoryDecisionPacketStore } from "./decision-packet-store.js";
+import { defineGrowthContract } from "./product-line.js";
 import type { BrandId, MarketCellId, WorkspaceId } from "./model.js";
 
 const workspaceId = "lafwiron" as WorkspaceId;
@@ -25,6 +26,18 @@ function input() {
       capturedAt: "2026-08-26T00:00:00.000Z",
       facts: [],
     },
+    growthContract: defineGrowthContract({
+      workspaceId,
+      brandId,
+      version: 1,
+      archetype: "LOCAL_TWO_SIDED_MARKETPLACE",
+      valueEvent: "completed_asset_match",
+      marketCellDimensions: ["geography", "asset_vertical"],
+      lifecycleStages: ["SCOUT", "PROVE"],
+      constraintMetrics: [],
+      outcomeMetrics: ["value_per_usd"],
+      eligiblePlaybooks: ["SCOUT"],
+    }),
     brandPackageDraft: {
       problem: "problem",
       audiences: ["audience"],
@@ -113,4 +126,3 @@ describe("decision application service", () => {
     ).rejects.toThrow(/workspace/);
   });
 });
-

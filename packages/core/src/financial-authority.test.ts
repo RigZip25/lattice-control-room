@@ -50,12 +50,18 @@ describe("dynamic financial authority", () => {
   });
 
   it("denies all new authority when the kill switch is active", () => {
+    const base = policy(500);
     const stopped = defineFinancialAuthorityPolicy({
-      ...policy(500),
+      workspaceId: base.workspaceId,
       version: 2,
+      effectiveAt: base.effectiveAt,
+      currency: base.currency,
+      maximumAutonomousDecisionUsd: base.maximumAutonomousDecisionUsd,
+      maximumAutonomousDailyUsd: base.maximumAutonomousDailyUsd,
+      maximumReservedExposureUsd: base.maximumReservedExposureUsd,
+      brandLimitsUsd: base.brandLimitsUsd,
       killSwitch: true,
     });
     expect(evaluate(100, stopped).result).toBe("DENIED");
   });
 });
-
