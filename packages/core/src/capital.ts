@@ -1,4 +1,5 @@
 import { deterministicId } from "./identity.js";
+import type { CapitalAuthority } from "./financial-authority.js";
 import type { BrandId, MarketCellId, WorkspaceId } from "./model.js";
 
 export interface CapitalRequest {
@@ -39,6 +40,7 @@ export interface TreasuryReservation {
   readonly workspaceId: WorkspaceId;
   readonly envelopeId: string;
   readonly ventureDecisionId: string;
+  readonly authorityId: string;
   readonly amountUsd: number;
   readonly state: "RESERVED" | "RELEASED" | "SETTLED";
 }
@@ -57,6 +59,7 @@ export function reserveApprovedCapital(
   request: CapitalRequest,
   decision: VentureDecision,
   envelope: TreasuryEnvelope,
+  authority: CapitalAuthority,
 ): { reservation: TreasuryReservation; ticket: AllocationTicket } {
   if (
     request.workspaceId !== decision.workspaceId ||
@@ -69,6 +72,22 @@ export function reserveApprovedCapital(
   }
   if (decision.requestId !== request.id) {
     throw new Error("Venture decision does not reference request");
+  }
+  if (authority.workspaceId !== request.workspaceId) {
+    throw new Error("Capital authority belongs to another workspace");
+  }
+  if (authority.ventureDecisionId !== decision.id) {
+    throw new Error("Capital authority does not reference Venture decision");
+  }
+  if ("result" in authority) {
+    if (authority.result !== "AUTONOMOUSLY_AUTHORIZED") {
+      throw new Error("Autonomous financial authority is insufficient");
+    }
+    if (authority.evaluatedAmountUsd < decision.approvedUsd) {
+      throw new Error("Autonomous authority amount is below Venture decision");
+    }
+  } else if (authority.approvedAmountUsd < decision.approvedUsd) {
+    throw new Error("Human approval amount is below Venture decision");
   }
   if (decision.kind !== "APPROVE" && decision.kind !== "MODIFY") {
     throw new Error("Capital cannot be reserved without an approval");
@@ -83,6 +102,7 @@ export function reserveApprovedCapital(
     workspaceId: request.workspaceId,
     envelopeId: envelope.id,
     ventureDecisionId: decision.id,
+    authorityId: authority.id,
     amountUsd: decision.approvedUsd,
     state: "RESERVED" as const,
   };
@@ -103,4 +123,3 @@ export function reserveApprovedCapital(
     ticket: { id: deterministicId("allocation_ticket", ticketPayload), ...ticketPayload },
   };
 }
-
