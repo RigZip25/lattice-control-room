@@ -6,6 +6,7 @@ export * from "./decision-loop.js";
 export * from "./decision-packet-store.js";
 export * from "./decision-service.js";
 export * from "./financial-authority.js";
+export * from "./geography.js";
 export * from "./identity.js";
 export * from "./intelligence.js";
 export * from "./metrics.js";

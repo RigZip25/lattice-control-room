@@ -25,3 +25,12 @@ Supporting control paths:
 
 External writes remain disabled. Screen interactions operate on local governed
 state until provider adapters and production authority are explicitly enabled.
+
+## Extensibility rule
+
+The Nebraska, Czechia, Italy and Colombia frames are reference configurations
+of one parameterized Geographic Drill-Down, not hard-coded country products.
+Countries register their administrative hierarchy and supported activity
+dimensions through `GeographyRegistry`. New industries similarly enter through
+Brand and Growth Contracts; neither extension creates a new factory or forks
+core decision logic.
