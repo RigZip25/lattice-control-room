@@ -23,4 +23,12 @@ describe("governed local operating state", () => {
     expect(() => applyOperatingCommand(initialOperatingState(), { kind:"SET_FILTER", filter:"UNKNOWN" } as never, "2026-08-26T12:00:00.000Z")).toThrow(/Filter command/);
     expect(() => applyOperatingCommand(initialOperatingState(), { kind:"SPEND_FUNDS" } as never, "2026-08-26T12:00:00.000Z")).toThrow(/kind/);
   });
+
+  it("adds a governed administrative area without executing market activity", () => {
+    const command = { kind:"ADD_EXPANSION_AREA", area:{ countryCode:"US", adminUnitId:"31", name:"Nebraska", unitType:"state", route:"/markets/nebraska", brand:"RigZip", status:"DISCOVERY" } } as const;
+    const state = applyOperatingCommand(initialOperatingState(), command, "2026-08-26T12:00:00.000Z");
+    expect(state.expansionAreas).toEqual([command.area]);
+    expect(state.mode).toBe("DRY_RUN");
+    expect(() => applyOperatingCommand(state, command, "2026-08-26T12:01:00.000Z")).toThrow(/already exists/);
+  });
 });

@@ -1,7 +1,7 @@
 import { blueprints } from "/screen-blueprints.js";
 import { renderChoropleths } from "/map.js";
 
-const state = { executive:false, locale:"RU", notice:"", decisions:3, selectedFilter:"ВСЕ", selectedRegion:"WORLD", addCountry:false, pendingCountry:null, addedMarkets:[], version:0 };
+const state = { executive:false, locale:"RU", notice:"", decisions:3, selectedFilter:"ВСЕ", selectedRegion:"WORLD", addCountry:false, pendingCountry:null, pendingArea:null, addedMarkets:[], expansionAreas:[], version:0 };
 let screens = [];
 let control = null;
 let geographies = [];
@@ -19,9 +19,9 @@ const interactiveMaps = {
   command: { source:"/data/maps/world-countries.geojson", mode:"countries", base:"/markets", attribution:"world.geo.json · Natural Earth" },
   markets: { source:"/data/maps/us-states.geojson", mode:"states", base:"/markets/united-states", attribution:"US Census Bureau · 2024" },
   nebraska: { source:"/data/maps/nebraska-counties.geojson", mode:"counties", base:"/markets/nebraska", attribution:"US Census Bureau · 2024" },
-  czechia: { source:"/data/maps/czechia-regions.geojson", mode:"regions", base:"/markets/czechia", attribution:"geoBoundaries · 2021 · CC BY 4.0" },
-  italy: { source:"/data/maps/italy-regions.geojson", mode:"regions", base:"/markets/italy", attribution:"geoBoundaries · 2023 · CC BY 3.0" },
-  colombia: { source:"/data/maps/colombia-departments.geojson", mode:"regions", base:"/markets/colombia", attribution:"geoBoundaries · 2017 · ODbL 1.0" },
+  czechia: { source:"/data/maps/czechia-regions.geojson", mode:"regions", country:"CZ", base:"/markets/czechia", attribution:"geoBoundaries · 2021 · CC BY 4.0" },
+  italy: { source:"/data/maps/italy-regions.geojson", mode:"regions", country:"IT", base:"/markets/italy", attribution:"geoBoundaries · 2023 · CC BY 3.0" },
+  colombia: { source:"/data/maps/colombia-departments.geojson", mode:"regions", country:"CO", base:"/markets/colombia", attribution:"geoBoundaries · 2017 · ODbL 1.0" },
 };
 const mapPanelConfig = {
   command: { title:"ГЛОБАЛЬНАЯ ТОПОЛОГИЯ РЫНОЧНЫХ СИГНАЛОВ", segment:"МИР / МАКРОРЕГИОН", pills:["Весь мир","Северная Америка","Европа","Латинская Америка","Азия","Африка","Ближний Восток","Океания"], regions:["WORLD","NORTH_AMERICA","EUROPE","LATAM","ASIA","AFRICA","MIDDLE_EAST","OCEANIA"] },
@@ -48,6 +48,7 @@ function applyRuntime(runtime) {
   state.decisions = runtime.openDecisions;
   state.selectedFilter = runtime.selectedFilter;
   state.addedMarkets = runtime.discoveryMarkets.map((market) => ({ ...market, administrativeLevels:["country","subdivision"], supportedActivityDimensions:[market.activity] }));
+  state.expansionAreas = runtime.expansionAreas ?? [];
   state.version = runtime.version;
 }
 async function sendCommand(command) {
@@ -96,7 +97,7 @@ function panelMarkup(panel, screen) {
     const interactive = screen.figmaNodeId === "PARAMETERIZED_GEOGRAPHIC_DRILLDOWN" ? null : interactiveMaps[screen.key];
     const asset = screen.figmaNodeId === "PARAMETERIZED_GEOGRAPHIC_DRILLDOWN" ? null : referenceMapAssets[screen.key];
     const map = interactive
-      ? `<div class="geo-vector" data-geo-source="${interactive.source}" data-geo-mode="${interactive.mode}" data-geo-base="${interactive.base}" data-geo-attribution="${interactive.attribution}" data-geo-region="${screen.key === "command" ? state.selectedRegion : "ALL"}" data-active-countries="${screen.key === "command" ? activeCountrySpec() : ""}"></div>`
+      ? `<div class="geo-vector" data-geo-source="${interactive.source}" data-geo-mode="${interactive.mode}" data-geo-country="${interactive.country ?? (interactive.mode === "states" || interactive.mode === "counties" ? "US" : "")}" data-geo-base="${interactive.base}" data-geo-attribution="${interactive.attribution}" data-geo-region="${screen.key === "command" ? state.selectedRegion : "ALL"}" data-active-countries="${screen.key === "command" ? activeCountrySpec() : ""}"></div>`
       : asset
       ? `<img src="${asset}" alt="${esc(panel.title)}: административные границы" loading="eager">`
       : `<div class="boundary-pending"><b>ГРАНИЦЫ ЗАГРУЖАЮТСЯ</b><span>Система определяет принятый административный уровень и проверяет набор полигонов перед публикацией.</span><small>DISCOVERY · NO SYNTHETIC CELLS</small></div>`;
@@ -282,6 +283,7 @@ function render() {
     </div>
     <footer><span>АКТИВНЫХ ОПЕРАЦИЙ: 237</span><span>ОЧЕРЕДИ: 12</span><span>ОШИБКИ: 2</span><span>ПОЛИТИКИ: GATED</span><b>OWN THE LOGIC. RENT THE CAPABILITY.</b></footer>
     ${state.addCountry?countryModal():""}
+    ${state.pendingArea?areaModal():""}
     ${state.notice?`<div class="toast"><i>✓</i><span><b>${tr("ДЕЙСТВИЕ ЗАПИСАНО","ACTION RECORDED")}</b><small>${esc(state.notice)}</small></span></div>`:""}`;
   renderChoropleths().catch((error) => { state.notice = error.message; console.error("Map rendering failed", error); });
 }
@@ -292,11 +294,19 @@ function countryModal() {
   return `<div class="modal-backdrop"><form class="modal" id="country-form"><div class="module-title">${tr("ИССЛЕДОВАНИЕ НОВОГО РЫНКА","NEW MARKET DISCOVERY")} <button type="button" data-action="close-country">×</button></div><h2>${tr("Добавить в экспансию","Add to expansion")}</h2><p>${tr("Страна начнёт с нулевой глубины проникновения в режиме исследования. Расходы, публикации и внешние подключения останутся заблокированы.","The country starts at zero penetration in discovery mode. Spending, publishing and external connections remain blocked.")}</p><input type="hidden" name="worldCode" value="${esc(pendingAlpha3)}"><label>${tr("СТРАНА","COUNTRY")}<select name="country" required><option value="">${tr("Выберите страну","Select a country")}</option>${countryCatalog.map(item=>`<option value="${item.code}" ${existing.has(item.code)?"disabled":""} ${pendingAlpha2===item.code?"selected":""}>${esc(item.name)} (${item.code})</option>`).join("")}</select></label><label>${tr("БРЕНД","BRAND")}<select name="brand" required><option>RigZip</option><option>Evorios</option><option>Books</option><option>Travel</option><option>Smart Navigator</option></select></label><label>${tr("НАПРАВЛЕНИЕ ДЕЯТЕЛЬНОСТИ","ACTIVITY")}<input name="activity" required placeholder="${tr("Например: аренда коммерческого транспорта","For example: commercial vehicle rental")}"></label><div class="modal-actions"><button type="button" data-action="close-country">${tr("ОТМЕНА","CANCEL")}</button><button type="submit">${tr("ДОБАВИТЬ В ЭКСПАНСИЮ","ADD TO EXPANSION")}</button></div></form></div>`;
 }
 
+function areaModal() {
+  const area = state.pendingArea;
+  const exists = state.expansionAreas.some((item)=>item.countryCode===area.countryCode && item.adminUnitId===area.adminUnitId);
+  return `<div class="modal-backdrop"><form class="modal" id="area-form"><div class="module-title">${tr("УПРАВЛЕНИЕ ТЕРРИТОРИЕЙ","TERRITORY CONTROL")} <button type="button" data-action="close-area">×</button></div><h2>${esc(area.name)}</h2><p>${tr("Территория будет добавлена как исследуемая зона. Система подготовит следующий административный уровень, но не запустит расходы или публикации.","The territory will be added as a discovery area. The system will prepare the next administrative level without spending or publishing.")}</p><dl><div><dt>${tr("ТИП ЕДИНИЦЫ","UNIT TYPE")}</dt><dd>${esc(area.unitType)}</dd></div><div><dt>${tr("СТАТУС","STATUS")}</dt><dd>${exists?tr("УЖЕ В ЭКСПАНСИИ","ALREADY IN EXPANSION"):"DISCOVERY"}</dd></div></dl><label>${tr("БРЕНД","BRAND")}<select name="brand" required><option>RigZip</option><option>Evorios</option><option>Books</option><option>Travel</option><option>Smart Navigator</option></select></label><div class="modal-actions"><button type="button" data-action="close-area">${tr("ОТМЕНА","CANCEL")}</button><button type="button" data-route="${esc(area.route)}">${tr("ОТКРЫТЬ ГЛУБИНУ","OPEN DRILL-DOWN")}</button>${exists?"":`<button type="submit">${tr("ДОБАВИТЬ ТЕРРИТОРИЮ","ADD TERRITORY")}</button>`}</div></form></div>`;
+}
+
 function navigate(route) { history.pushState({},"",route); render(); window.scrollTo(0,0); }
 document.addEventListener("click", async (event) => {
   const target = event.target.closest("[data-route],[data-geo-action],button"); if (!target) return;
   if (target.dataset.geoAction === "add-expansion") { state.pendingCountry=String(target.dataset.geoCode ?? ""); state.addCountry=true; render(); return; }
+  if (target.dataset.geoAction === "inspect-area") { try { state.pendingArea=JSON.parse(decodeURIComponent(String(target.dataset.geoArea ?? ""))); render(); } catch { state.notice=tr("Не удалось прочитать территорию","Unable to read territory"); render(); } return; }
   if (target.dataset.route) { navigate(target.dataset.route); return; }
+  if (target.matches('button[type="submit"]')) return;
   try {
     if (target.dataset.action === "executive") { await sendCommand({kind:"SET_EXECUTIVE_VIEW",enabled:!state.executive}); state.notice=tr(state.executive?"Включён обзор для владельца":"Включён рабочий обзор",state.executive?"Executive view enabled":"Operator view enabled"); }
     if (target.dataset.action === "locale") { await sendCommand({kind:"SET_LOCALE",locale:state.locale==="RU"?"EN":"RU"}); state.notice=tr("Выбран русский язык","English interface selected"); }
@@ -305,12 +315,27 @@ document.addEventListener("click", async (event) => {
     if (target.dataset.region) { state.selectedRegion=target.dataset.region; state.notice=tr("Географический охват изменён","Geographic scope changed"); }
   if (target.dataset.action === "add-country") state.addCountry=true;
   if (target.dataset.action === "close-country") { state.addCountry=false; state.pendingCountry=null; }
+    if (target.dataset.action === "close-area") state.pendingArea=null;
     if (target.dataset.action === "approve") { await sendCommand({kind:"RESOLVE_DECISION",outcome:"APPROVED"}); state.notice=tr("Решение сохранено в режиме проверки. Средства не перемещались","Dry-run approval recorded. No funds moved"); }
     if (target.dataset.action === "reject") { await sendCommand({kind:"RESOLVE_DECISION",outcome:"REJECTED"}); state.notice=tr("Предложение отклонено и сохранено локально","Proposal rejected and recorded locally"); }
   } catch (error) { state.notice = `COMMAND REJECTED: ${error.message}`; }
   render(); setTimeout(()=>{state.notice="";render();},2200);
 });
 document.addEventListener("submit", async (event) => {
+  if (event.target.id === "area-form") {
+    event.preventDefault();
+    if (!state.pendingArea) return;
+    const form = new FormData(event.target);
+    const area = { ...state.pendingArea, brand:String(form.get("brand")), status:"DISCOVERY" };
+    try {
+      await sendCommand({kind:"ADD_EXPANSION_AREA",area});
+      state.pendingArea=null;
+      state.notice=tr(`${area.name}: территория добавлена в исследование`,`${area.name}: discovery territory added`);
+    } catch (error) { state.notice=`COMMAND REJECTED: ${error.message}`; }
+    render();
+    setTimeout(()=>{state.notice="";render();},2200);
+    return;
+  }
   if (event.target.id !== "country-form") return;
   event.preventDefault();
   const form = new FormData(event.target);
