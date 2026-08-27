@@ -87,6 +87,13 @@ describe("supabase gateway", () => {
     expect(claimIndex).toBe(13);
     expect(mockedFetch.mock.calls.filter(([url])=>String(url).includes("/rpc/complete_execution_job"))).toHaveLength(13);
     const firstCompletion=mockedFetch.mock.calls.find(([url])=>String(url).includes("/rpc/complete_execution_job"));
-    expect(JSON.parse(String((firstCompletion?.[1] as RequestInit).body))).toMatchObject({p_lease_token:"lease-1"});
+    const firstPayload=JSON.parse(String((firstCompletion?.[1] as RequestInit).body));
+    expect(firstPayload).toMatchObject({p_lease_token:"lease-1",p_result_payload:{stage:"PRODUCT_INTELLIGENCE",mode:"DRY_RUN",externalEffects:0}});
+    expect(firstPayload.p_result_payload.agent).toMatchObject({implementation:"LOCAL_EVIDENCE_BOUND",version:1});
+    expect(firstPayload.p_result_payload.evidenceRefs.length).toBeGreaterThan(0);
+    const completions=mockedFetch.mock.calls.filter(([url])=>String(url).includes("/rpc/complete_execution_job"));
+    expect(JSON.parse(String((completions[1]?.[1] as RequestInit).body)).p_result_payload.stage).toBe("PRODUCT_DIAGNOSIS");
+    expect(JSON.parse(String((completions[2]?.[1] as RequestInit).body)).p_result_payload.stage).toBe("EXPANSION_THESIS");
+    expect(JSON.parse(String((completions[3]?.[1] as RequestInit).body)).p_result_payload).toMatchObject({stage:"EXPERIMENT_PLAN",mode:"DRY_RUN",externalEffects:0});
   });
 });

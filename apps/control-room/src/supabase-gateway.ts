@@ -1,4 +1,4 @@
-import type { BrandProfile, DryRunCycleRecord } from "@lattice/core";
+import { executeEvidenceBoundAgentChain, type BrandProfile, type DryRunCycleRecord } from "@lattice/core";
 import { readFileSync } from "node:fs";
 
 export interface SupabaseRuntimeConfig {
@@ -85,6 +85,12 @@ export async function executeStepwiseDryRunCycle(config:SupabaseRuntimeConfig,wo
   if (jobsSeed.status>=400) return jobsSeed;
 
   const workerId=`vercel:${cycle.cycleId}`;
+  const agentArtifacts=executeEvidenceBoundAgentChain({cycleId:cycle.cycleId,artifacts:cycle.artifacts,createdAt:cycle.createdAt});
+  const governedResults:Partial<Record<(typeof executionStageOrder)[number],unknown>>={
+    PRODUCT_INTELLIGENCE:agentArtifacts.intelligence,
+    PRODUCT_DIAGNOSIS:agentArtifacts.diagnosis,
+    EXPANSION_THESIS:agentArtifacts.expansion,
+  };
   let completed=0;
   for (let stage=0;stage<cycle.jobs.length;stage+=1) {
     const claim=await request(config,"/rest/v1/rpc/claim_execution_job",{method:"POST",headers:authorization,body:JSON.stringify({p_workspace_id:workspaceId,p_worker_id:workerId,p_lease_seconds:60})},config.secretKey);
@@ -96,7 +102,8 @@ export async function executeStepwiseDryRunCycle(config:SupabaseRuntimeConfig,wo
       await request(config,"/rest/v1/rpc/fail_execution_job",{method:"POST",headers:authorization,body:JSON.stringify({p_workspace_id:workspaceId,p_job_id:leased.job_id,p_lease_token:leased.lease_token,p_error:{message:"Deterministic stage result is unavailable"},p_retry_seconds:5})},config.secretKey);
       return {status:500,body:{error:`Stage ${leased.stage_order} result is unavailable`}};
     }
-    const completion=await request(config,"/rest/v1/rpc/complete_execution_job",{method:"POST",headers:authorization,body:JSON.stringify({p_workspace_id:workspaceId,p_job_id:leased.job_id,p_lease_token:leased.lease_token,p_result_ref:template.resultRef})},config.secretKey);
+    const resultPayload=governedResults[template.kind]??{stage:template.kind,resultRef:template.resultRef,mode:"DRY_RUN",externalEffects:0};
+    const completion=await request(config,"/rest/v1/rpc/complete_execution_job",{method:"POST",headers:authorization,body:JSON.stringify({p_workspace_id:workspaceId,p_job_id:leased.job_id,p_lease_token:leased.lease_token,p_result_ref:template.resultRef,p_result_payload:resultPayload})},config.secretKey);
     if (completion.status>=400) return completion;
     completed+=1;
   }

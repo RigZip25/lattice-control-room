@@ -1,5 +1,6 @@
 export * from "./brand-package.js";
 export * from "./asset-library.js";
+export * from "./agent-stage-executors.js";
 export * from "./capabilities.js";
 export * from "./capital.js";
 export * from "./control-room.js";
