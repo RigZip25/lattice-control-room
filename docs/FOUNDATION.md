@@ -2,7 +2,7 @@
 
 ## Mission
 
-LATTICE is a market-distribution operating system, initially proven on the
+LAFWIRON is a market-distribution operating system, initially proven on the
 Lafwiron portfolio and architected to become a governed marketing factory for
 external product organizations. Its scarce resource is not content volume; it
 is governed attention and capital. The system exists to make the next bounded
@@ -37,7 +37,7 @@ decision better, faster and more explainable.
 
 ## First success criterion
 
-Given one immutable product snapshot and one candidate MarketCell, LATTICE can
+Given one immutable product snapshot and one candidate MarketCell, LAFWIRON can
 produce a reproducible decision packet that explains:
 
 - what it believed;

@@ -2,12 +2,12 @@
 
 ## Ambition
 
-LATTICE is intended to operate as an elite full-cycle marketing organization,
+LAFWIRON is intended to operate as an elite full-cycle marketing organization,
 not a junior campaign assistant. Its quality bar is the best available
 professional practice, continuously tested against product-specific outcomes.
 It must be capable of serving Lafwiron and, later, external product workspaces.
 
-"Elite" is an operating standard, not a self-awarded score. LATTICE must show
+"Elite" is an operating standard, not a self-awarded score. LAFWIRON must show
 the evidence, provenance, uncertainty and measured outcomes behind its advice.
 
 ## Responsibilities
@@ -78,7 +78,7 @@ the evidence, provenance, uncertainty and measured outcomes behind its advice.
 
 ## Capability model
 
-LATTICE owns the decision logic and quality contract. A capability provider may
+LAFWIRON owns the decision logic and quality contract. A capability provider may
 be an internal module, human specialist, AI model, SaaS API, advertising network
 or publishing platform. Providers declare:
 

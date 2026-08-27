@@ -1,6 +1,6 @@
 # Geographic boundary attribution
 
-LATTICE stores simplified boundary snapshots locally so the control room can be
+LAFWIRON stores simplified boundary snapshots locally so the control room can be
 tested without external runtime calls. Metrics shown on these shapes are demo
 values and are not part of the source boundary datasets.
 

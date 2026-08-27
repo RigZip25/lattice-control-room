@@ -64,9 +64,9 @@ footer{background:#081421;border-color:#203246;color:#8297aa}footer b{color:#6fc
   .modal{padding:16px}.modal-actions{display:grid;grid-template-columns:1fr}.modal-actions button{width:100%}
 }
 
-/* LATTICE night-signal palette: deep global infrastructure with a single
+/* LAFWIRON night-signal palette: deep global infrastructure with a single
    high-visibility action colour. Inspired by the supplied tonal reference,
-   while preserving LATTICE information density and semantic states. */
+   while preserving LAFWIRON information density and semantic states. */
 :root{
   --canvas:#080d1c;--canvas-soft:#101627;--sidebar:#060a16;
   --surface:#11182a;--surface-warm:#151d31;

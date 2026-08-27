@@ -1,6 +1,6 @@
 # Portfolio model
 
-LATTICE serves one or more organization workspaces whose products have
+LAFWIRON serves one or more organization workspaces whose products have
 fundamentally different growth mechanisms. Lafwiron is the proving workspace;
 future external customers receive the same isolation guarantees. Shared
 infrastructure must not imply a shared funnel or shared data.
@@ -78,6 +78,6 @@ governed aggregates.
 
 ## Architectural consequence
 
-LATTICE is a portfolio decision operating system with product-specific growth
+LAFWIRON is a portfolio decision operating system with product-specific growth
 engines. It is not a universal campaign builder and not five separate products
 sharing only a dashboard.

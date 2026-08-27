@@ -1,13 +1,13 @@
-# LATTICE Control Room
+# LAFWIRON Control Room
 
-LATTICE is a full-cycle market-distribution operating system. It is initially
+LAFWIRON is a full-cycle market-distribution operating system. It is initially
 proven on Lafwiron's portfolio and designed to become a governed marketing
 factory for external product organizations. It turns versioned product
 knowledge into strategy, falsifiable experiments, creative production,
 governed capital decisions, authorized distribution and durable learning.
 
 This repository is a clean implementation baseline. The historical
-`LATTICE-Market-Distribution-OS` repository is research input, not an upstream
+`LATTICE-Market-Distribution-OS` repository is historical research input, not an upstream
 code dependency.
 
 ## First executable proof

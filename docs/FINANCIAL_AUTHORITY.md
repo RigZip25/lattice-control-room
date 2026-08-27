@@ -1,6 +1,6 @@
 # Financial authority policy
 
-The workspace owner may delegate bounded financial decisions to LATTICE and
+The workspace owner may delegate bounded financial decisions to LAFWIRON and
 change that delegation over time.
 
 Authority is expressed as a versioned policy, never as a hidden application

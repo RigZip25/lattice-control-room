@@ -2,14 +2,14 @@
 
 ## Principle
 
-LATTICE is a system of governed models, tools and durable evidence — not one
+LAFWIRON is a system of governed models, tools and durable evidence — not one
 opaque model. Language models may reason and generate; statistical models may
 forecast; deterministic policies own authority. All three remain replaceable
 and independently testable.
 
 ## Bootstrap Intelligence
 
-The bootstrap layer prevents LATTICE from behaving like a junior marketer with
+The bootstrap layer prevents LAFWIRON from behaving like a junior marketer with
 an empty memory. It contains:
 
 - versioned universal marketing priors;
@@ -62,7 +62,7 @@ their semantics. The measurement layer records:
 - quality: usable, degraded, invalid or confounded;
 - observed vs inferred vs forecast semantics.
 
-Channel metrics remain native, then map to product value events. LATTICE does
+Channel metrics remain native, then map to product value events. LAFWIRON does
 not optimize all products for clicks, registrations or ROAS.
 
 ## Opportunity discovery
