@@ -50,6 +50,10 @@ try {
   if (forbidden.response.status !== 400) throw new Error("Unknown financial command was not rejected");
   const unchanged = await json("/api/v1/runtime-state");
   if (unchanged.payload.version !== 3 || unchanged.payload.mode !== "DRY_RUN") throw new Error("Rejected command mutated runtime state");
+  const startedCycle = await json("/api/v1/commands", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({kind:"START_RIGZIP_DRY_RUN",cycleId:"rigzip-runtime-verification"}) });
+  if (!startedCycle.response.ok || startedCycle.payload.version !== 4 || startedCycle.payload.executionCycles.length !== 1) throw new Error("Durable dry-run command failed");
+  const executionStatus = await json("/api/v1/execution-status");
+  if (!executionStatus.response.ok || executionStatus.payload.mode !== "DRY_RUN" || executionStatus.payload.latest?.health?.completed !== 13 || executionStatus.payload.latest?.health?.externalCostUsd !== 0) throw new Error("Execution status contract failed");
   process.stdout.write("Verified 22 routes and governed DRY_RUN command API.\n");
 } finally {
   server.kill("SIGTERM");

@@ -1,6 +1,7 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import {
   applyOperatingCommand,
+  buildExecutionHealthSnapshot,
   factoryCadenceAt,
   initialOperatingState,
   productScreens,
@@ -166,6 +167,12 @@ export default async function handler(request: ApiRequest, response: ApiResponse
     return;
   }
   if (method === "GET" && pathname === "/api/v1/runtime-state") { response.status(200).json(initialOperatingState()); return; }
+  if (method === "GET" && pathname === "/api/v1/execution-status") {
+    const generatedAt=new Date().toISOString();
+    const cycle=runRigZipDryRun().durableCycle;
+    response.status(200).json({generatedAt,mode:"DRY_RUN",runtime:"VERCEL_STATELESS",persistence:"CLIENT_STATE_ENVELOPE",cycles:1,latest:{cycleId:"rigzip-nebraska-001",brandId:"rigzip",status:"COMPLETED",health:buildExecutionHealthSnapshot({jobs:cycle.jobs,telemetry:[],now:generatedAt,maximumRunnableLagMs:30_000})}});
+    return;
+  }
   if (method === "GET" && pathname === "/api/v1/control-room") { response.status(200).json(runRigZipDryRun().readModel); return; }
   if (method === "GET" && pathname === "/api/v1/screens") { response.status(200).json({ screens:productScreens }); return; }
   if (method === "GET" && pathname === "/api/v1/geographies") { response.status(200).json({ geographies:referenceGeographies.list() }); return; }
