@@ -1,7 +1,7 @@
 import { blueprints } from "/screen-blueprints.js";
 import { renderChoropleths } from "/map.js";
 
-const state = { executive:false, locale:"RU", notice:"", decisions:3, selectedFilter:"ВСЕ", selectedRegion:"WORLD", welcome:location.pathname==="/", factoryStatus:null, backendStatus:null, authOpen:false, session:null, cloudContext:null, addCountry:false, addBrand:false, pendingCountry:null, pendingArea:null, addedMarkets:[], expansionAreas:[], brandProfiles:[], productSources:[], productEvidence:[], version:0 };
+const state = { executive:false, locale:"RU", notice:"", decisions:3, selectedFilter:"ВСЕ", selectedRegion:"WORLD", welcome:location.pathname==="/", factoryStatus:null, backendStatus:null, authOpen:false, session:null, cloudContext:null, addCountry:false, addBrand:false, addSource:false, pendingCountry:null, pendingArea:null, addedMarkets:[], expansionAreas:[], brandProfiles:[], productSources:[], productEvidence:[], version:0 };
 const isLocalRuntime = ["localhost", "127.0.0.1", "::1"].includes(location.hostname);
 let screens = [];
 let control = null;
@@ -291,6 +291,17 @@ function strategySurfaceMarkup(screen) {
   return `<section class="strategy-surface"><header class="strategy-bar"><div><small>${esc(spec.eyebrow)}</small><b>${esc(spec.status)}</b></div><button data-route="${esc(byKey(spec.next)?.route ?? "/command")}">${esc(spec.action)} →</button></header><div class="strategy-stages">${spec.stages.map(([label,value,note],index)=>`<button data-route="${screen.route}"><i>${String(index+1).padStart(2,"0")}</i><span><small>${esc(label)}</small><b>${esc(value)}</b><em>${esc(note)}</em></span></button>`).join("")}</div><article class="module strategy-table"><div class="module-title">${esc(spec.title)} <span>${tr("ПОД УПРАВЛЕНИЕМ","GOVERNED")}</span></div><div class="strategy-head">${spec.columns.map(column=>`<b>${esc(column)}</b>`).join("")}</div>${rows.map((row,index)=>`<button class="strategy-row" data-route="${esc(byKey(screen.linksTo[index % screen.linksTo.length])?.route ?? screen.route)}">${row.map(cell=>`<span>${esc(cell)}</span>`).join("")}</button>`).join("")}</article><aside class="module strategy-side"><div class="module-title">${esc(spec.sideTitle)} <span>${tr("ПОЛИТИКА","POLICY")}</span></div><dl>${spec.side.map(([label,value])=>`<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join("")}</dl><div class="policy-seal"><i></i><span><b>ЛОКАЛЬНЫЙ УПРАВЛЯЕМЫЙ РЕЖИМ</b><small>Без внешнего исполнения и движения средств</small></span></div></aside></section>`;
 }
 
+function productIntelligenceMarkup() {
+  const brand = state.brandProfiles[0] ?? { id:"rigzip", name:"RigZip" };
+  const sources = state.productSources.filter((item)=>item.brandId===brand.id);
+  const evidence = state.productEvidence.filter((item)=>item.brandId===brand.id);
+  const facts = evidence.filter((item)=>item.classification==="FACT").length;
+  const unknowns = evidence.filter((item)=>item.classification==="UNKNOWN").length;
+  const ready = sources.length>=2 && facts>=3 && unknowns>=1;
+  const register = evidence.length ? evidence.map((item,index)=>{ const source=sources.find((entry)=>entry.id===item.sourceId); return `<div class="evidence-row"><i>${String(index+1).padStart(2,"0")}</i><span><b>${esc(item.statement)}</b><small>${esc(source?.title ?? item.sourceId)}</small></span><em class="${item.classification.toLowerCase()}">${esc(item.classification)} · ${Math.round(item.confidence*100)}%</em></div>`; }).join("") : `<div class="evidence-empty"><b>${tr("Источники ещё не зарегистрированы","No sources registered yet")}</b><span>${tr("Добавьте сайт, репозиторий, документ, аналитику или интервью. Каждое утверждение будет связано с первоисточником.","Add a website, repository, document, analytics source, or interview. Every claim remains linked to its source.")}</span></div>`;
+  return `<section class="intelligence-surface"><header class="strategy-bar"><div><small>${tr("ИЗУЧЕНИЕ ПРОДУКТА","PRODUCT INTELLIGENCE")}</small><b>${esc(brand.name)} · ${ready?tr("ГОТОВО К ДИАГНОЗУ","READY FOR DIAGNOSIS"):tr("СБОР ДОКАЗАТЕЛЬСТВ","EVIDENCE INTAKE")}</b></div><button class="primary" data-action="add-source">＋ ${tr("ДОБАВИТЬ ИСТОЧНИК","ADD SOURCE")}</button></header><div class="readiness-grid"><article><small>${tr("ИСТОЧНИКИ","SOURCES")}</small><b>${sources.length} / 2</b><span>${sources.length>=2?"✓":"→"}</span></article><article><small>${tr("ПОДТВЕРЖДЁННЫЕ ФАКТЫ","VERIFIED FACTS")}</small><b>${facts} / 3</b><span>${facts>=3?"✓":"→"}</span></article><article><small>${tr("ОТКРЫТЫЕ ВОПРОСЫ","OPEN QUESTIONS")}</small><b>${unknowns} / 1</b><span>${unknowns>=1?"✓":"→"}</span></article><article class="${ready?"ready":"blocked"}"><small>${tr("ДИАГНОЗ ПРОДУКТА","PRODUCT DIAGNOSIS")}</small><b>${ready?tr("РАЗБЛОКИРОВАН","UNLOCKED"):tr("ЗАБЛОКИРОВАН","BLOCKED")}</b><span>${ready?"✓":"×"}</span></article></div><article class="module evidence-register"><div class="module-title">${tr("РЕЕСТР ДОКАЗАТЕЛЬСТВ","EVIDENCE REGISTER")} <span>${tr("ЦИТИРУЕМЫЙ","TRACEABLE")}</span></div>${register}</article><aside class="module intelligence-policy"><div class="module-title">${tr("КОНТРАКТ ГОТОВНОСТИ","READINESS CONTRACT")} <span>GATED</span></div><p>${tr("Система не имеет права предлагать рынок, бюджет или кампанию, пока не отделит факты от предположений и неизвестных.","The system cannot recommend a market, budget, or campaign until facts are separated from inferences and unknowns.")}</p><ul><li class="${sources.length>=2?"done":""}">${tr("Минимум два независимых источника","At least two independent sources")}</li><li class="${facts>=3?"done":""}">${tr("Минимум три подтверждённых факта","At least three verified facts")}</li><li class="${unknowns>=1?"done":""}">${tr("Хотя бы один явно зафиксированный пробел","At least one explicitly recorded unknown")}</li></ul></aside></section>`;
+}
+
 function brandOnboardingMarkup() {
   const brandId = location.pathname.split("/")[2];
   const brand = state.brandProfiles.find((item)=>item.id===brandId);
@@ -337,7 +348,7 @@ function render() {
       <main>
         <div class="page-head"><div><p>${screen.domain} / SCREEN ${String(screen.order).padStart(2,"0")}</p><h1>${esc(screen.title)}</h1><span>${esc(blueprint.subtitle)}</span></div><div class="head-actions">${screen.domain==="MARKET"?'<button class="primary" data-action="add-country">＋ ДОБАВИТЬ СТРАНУ</button>':""}${screen.key==="brands"?`<button class="primary" data-action="add-brand">＋ ${tr("ДОБАВИТЬ БРЕНД","ADD BRAND")}</button>`:""}<button data-action="filter">${state.selectedFilter} ▾</button><button data-action="refresh">ОБНОВИТЬ</button></div></div>
         <div class="metric-ribbon">${metrics.map(([label,value])=>`<div><small>${esc(label)}</small><b>${esc(value)}</b><span>${screen.key === "brand-onboarding" ? tr("СТАТУС","STATUS") : tr("ФАКТ","FACT")}</span></div>`).join("")}</div>
-        ${screen.key === "command" ? commandCenterMarkup(screen, blueprint) : screen.key === "brand-onboarding" ? brandOnboardingMarkup() : productionScreens[screen.key] ? productionSurfaceMarkup(screen) : strategyScreens[screen.key] ? strategySurfaceMarkup(screen) : `<div class="screen-grid ${state.executive?"executive-grid":""}">${blueprint.panels.map(panel=>panelMarkup(panel,screen)).join("")}</div>`}
+        ${screen.key === "command" ? commandCenterMarkup(screen, blueprint) : screen.key === "brand-onboarding" ? brandOnboardingMarkup() : screen.key === "factory-config" ? productIntelligenceMarkup() : productionScreens[screen.key] ? productionSurfaceMarkup(screen) : strategyScreens[screen.key] ? strategySurfaceMarkup(screen) : `<div class="screen-grid ${state.executive?"executive-grid":""}">${blueprint.panels.map(panel=>panelMarkup(panel,screen)).join("")}</div>`}
         <section class="linked"><div class="module-title">СВЯЗАННЫЕ ПОВЕРХНОСТИ <span>INTERACTION GRAPH</span></div>${screen.linksTo.map(key=>{const item=byKey(key);return item?`<button data-route="${item.route}"><small>${String(item.order).padStart(2,"0")}</small><b>${esc(item.title)}</b><span>${item.domain} →</span></button>`:""}).join("")}</section>
       </main>
     </div>
@@ -345,6 +356,7 @@ function render() {
     ${state.addCountry?countryModal():""}
     ${state.pendingArea?areaModal():""}
     ${state.addBrand?brandModal():""}
+    ${state.addSource?sourceModal():""}
     ${state.authOpen?authModal():""}
     ${state.welcome?welcomeMarkup():""}
     ${state.notice?`<div class="toast"><i>✓</i><span><b>${tr("ДЕЙСТВИЕ ЗАПИСАНО","ACTION RECORDED")}</b><small>${esc(state.notice)}</small></span></div>`:""}`;
@@ -362,6 +374,11 @@ function countryModal() {
   const existing = new Set([...geographies,...state.addedMarkets].map(item=>item.countryCode));
   const [pendingAlpha2="",pendingAlpha3=""] = String(state.pendingCountry ?? "").split(":");
   return `<div class="modal-backdrop"><form class="modal" id="country-form"><div class="module-title">${tr("ИССЛЕДОВАНИЕ НОВОГО РЫНКА","NEW MARKET DISCOVERY")} <button type="button" data-action="close-country">×</button></div><h2>${tr("Добавить в экспансию","Add to expansion")}</h2><p>${tr("Страна начнёт с нулевой глубины проникновения в режиме исследования. Расходы, публикации и внешние подключения останутся заблокированы.","The country starts at zero penetration in discovery mode. Spending, publishing and external connections remain blocked.")}</p><input type="hidden" name="worldCode" value="${esc(pendingAlpha3)}"><label>${tr("СТРАНА","COUNTRY")}<select name="country" required><option value="">${tr("Выберите страну","Select a country")}</option>${countryCatalog.map(item=>`<option value="${item.code}" ${existing.has(item.code)?"disabled":""} ${pendingAlpha2===item.code?"selected":""}>${esc(item.name)} (${item.code})</option>`).join("")}</select></label><label>${tr("БРЕНД","BRAND")}<select name="brand" required>${brandOptions()}</select></label><label>${tr("НАПРАВЛЕНИЕ ДЕЯТЕЛЬНОСТИ","ACTIVITY")}<input name="activity" required placeholder="${tr("Например: аренда коммерческого транспорта","For example: commercial vehicle rental")}"></label><div class="modal-actions"><button type="button" data-action="close-country">${tr("ОТМЕНА","CANCEL")}</button><button type="submit">${tr("ДОБАВИТЬ В ЭКСПАНСИЮ","ADD TO EXPANSION")}</button></div></form></div>`;
+}
+
+function sourceModal() {
+  const brands = state.brandProfiles.length ? state.brandProfiles : [{id:"rigzip",name:"RigZip"}];
+  return `<div class="modal-backdrop"><form class="modal source-modal" id="source-form"><div class="module-title">${tr("ИСТОЧНИК И ДОКАЗАТЕЛЬСТВО","SOURCE AND EVIDENCE")} <button type="button" data-action="close-source">×</button></div><h2>${tr("Зафиксировать знание о продукте","Record product knowledge")}</h2><p>${tr("Сначала регистрируется первоисточник, затем утверждение с классификацией и уверенностью. Это не запускает внешних действий.","The primary source is registered first, followed by a classified statement and confidence. This does not trigger external actions.")}</p><div class="form-grid"><label>${tr("БРЕНД","BRAND")}<select name="brandId" required>${brands.map((brand)=>`<option value="${esc(brand.id)}">${esc(brand.name)}</option>`).join("")}</select></label><label>${tr("ТИП ИСТОЧНИКА","SOURCE TYPE")}<select name="kind" required><option value="WEBSITE">Website</option><option value="REPOSITORY">Repository</option><option value="DOCUMENT">Document</option><option value="ANALYTICS">Analytics</option><option value="INTERVIEW">Interview</option><option value="OWNER_NOTE">Owner note</option></select></label><label class="form-span">${tr("НАЗВАНИЕ ИСТОЧНИКА","SOURCE TITLE")}<input name="title" required minlength="2" placeholder="Product website / customer interview"></label><label class="form-span">${tr("ССЫЛКА ИЛИ ИДЕНТИФИКАТОР","URL OR IDENTIFIER")}<input name="locator" required minlength="2" placeholder="https://… or internal://…"></label><label class="form-span">${tr("УТВЕРЖДЕНИЕ","STATEMENT")}<textarea name="statement" required minlength="5" placeholder="${tr("Что именно этот источник подтверждает или оставляет неизвестным","What this source confirms or leaves unknown")}"></textarea></label><label>${tr("КЛАССИФИКАЦИЯ","CLASSIFICATION")}<select name="classification" required><option value="FACT">${tr("Факт","Fact")}</option><option value="INFERENCE">${tr("Вывод / гипотеза","Inference")}</option><option value="UNKNOWN">${tr("Неизвестно / вопрос","Unknown / question")}</option></select></label><label>${tr("УВЕРЕННОСТЬ","CONFIDENCE")}<select name="confidence" required><option value="0.9">90%</option><option value="0.8">80%</option><option value="0.7">70%</option><option value="0.5">50%</option><option value="0.3">30%</option></select></label></div><div class="modal-actions"><button type="button" data-action="close-source">${tr("ОТМЕНА","CANCEL")}</button><button type="submit">${tr("ЗАПИСАТЬ В РЕЕСТР","RECORD IN REGISTER")}</button></div></form></div>`;
 }
 
 function authModal() {
@@ -422,8 +439,10 @@ document.addEventListener("click", async (event) => {
     if (target.dataset.region) { state.selectedRegion=target.dataset.region; state.notice=tr("Географический охват изменён","Geographic scope changed"); }
   if (target.dataset.action === "add-country") state.addCountry=true;
   if (target.dataset.action === "add-brand") state.addBrand=true;
+  if (target.dataset.action === "add-source") state.addSource=true;
   if (target.dataset.action === "close-country") { state.addCountry=false; state.pendingCountry=null; }
     if (target.dataset.action === "close-brand") state.addBrand=false;
+    if (target.dataset.action === "close-source") state.addSource=false;
     if (target.dataset.action === "close-area") state.pendingArea=null;
     if (target.dataset.action === "approve") { await sendCommand({kind:"RESOLVE_DECISION",outcome:"APPROVED"}); state.notice=tr("Решение сохранено в режиме проверки. Средства не перемещались","Dry-run approval recorded. No funds moved"); }
     if (target.dataset.action === "reject") { await sendCommand({kind:"RESOLVE_DECISION",outcome:"REJECTED"}); state.notice=tr("Предложение отклонено и сохранено локально","Proposal rejected and recorded locally"); }
@@ -468,6 +487,22 @@ document.addEventListener("submit", async (event) => {
       state.notice=tr(`${name}: профиль создан, начато изучение продукта`,`${name}: profile created, product intelligence started`);
       render();
     } catch (error) { state.notice=`COMMAND REJECTED: ${error.message}`; render(); }
+    return;
+  }
+  if (event.target.id === "source-form") {
+    event.preventDefault();
+    const form = new FormData(event.target);
+    const brandId = String(form.get("brandId") ?? "");
+    const capturedAt = new Date().toISOString();
+    try {
+      await sendCommand({kind:"REGISTER_PRODUCT_SOURCE",source:{brandId,kind:String(form.get("kind")),title:String(form.get("title")),locator:String(form.get("locator")),capturedAt}});
+      const source = [...state.productSources].reverse().find((item)=>item.brandId===brandId && item.locator===String(form.get("locator")));
+      if (!source) throw new Error("Registered source was not returned");
+      await sendCommand({kind:"RECORD_PRODUCT_EVIDENCE",evidence:{brandId,sourceId:source.id,statement:String(form.get("statement")),classification:String(form.get("classification")),confidence:Number(form.get("confidence")),recordedAt:new Date().toISOString()}});
+      state.addSource=false;
+      state.notice=tr("Источник и доказательство записаны в реестр","Source and evidence recorded");
+    } catch (error) { state.notice=`COMMAND REJECTED: ${error.message}`; }
+    render();
     return;
   }
   if (event.target.id === "area-form") {
