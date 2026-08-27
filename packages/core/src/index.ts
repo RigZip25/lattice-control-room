@@ -9,6 +9,8 @@ export * from "./decision-loop.js";
 export * from "./decision-packet-store.js";
 export * from "./decision-service.js";
 export * from "./distribution-channel.js";
+export * from "./durable-dry-run.js";
+export * from "./durable-worker.js";
 export * from "./financial-authority.js";
 export * from "./factory-scheduler.js";
 export * from "./geography.js";

@@ -1,6 +1,7 @@
 import { buildControlRoomReadModel } from "./control-room.js";
 import { runDecisionLoop } from "./decision-loop.js";
 import { defineFinancialAuthorityPolicy } from "./financial-authority.js";
+import { runDurableDryRun } from "./durable-dry-run.js";
 import type { BrandId, MarketCellId, WorkspaceId } from "./model.js";
 import { defineGrowthContract } from "./product-line.js";
 import type { TreasuryWallet } from "./wallet.js";
@@ -25,5 +26,6 @@ export function runRigZipDryRun() {
   });
   const wallet: TreasuryWallet = { id: "wallet_lafwiron_usd", workspaceId, currency: "USD", settledUsd: 5000, pendingUsd: 0, reservedUsd: 300 };
   const authorityPolicy = defineFinancialAuthorityPolicy({ workspaceId, version: 1, effectiveAt: "2026-08-26T00:00:00.000Z", currency: "USD", maximumAutonomousDecisionUsd: 250, maximumAutonomousDailyUsd: 1000, maximumReservedExposureUsd: 2000, brandLimitsUsd: { rigzip: 500 }, killSwitch: false });
-  return { packet, wallet, authorityPolicy, readModel: buildControlRoomReadModel({ generatedAt: "2026-08-26T12:00:00.000Z", packet, wallet, authorityPolicy }) };
+  const durableCycle = runDurableDryRun({ workspaceId, brandId, cycleId: "rigzip-nebraska-001", initialInputRef: "fixture://rigzip/product-evidence/v1", now: "2026-08-26T12:00:00.000Z" });
+  return { packet, wallet, authorityPolicy, durableCycle, readModel: buildControlRoomReadModel({ generatedAt: "2026-08-26T12:00:00.000Z", packet, wallet, authorityPolicy }) };
 }
