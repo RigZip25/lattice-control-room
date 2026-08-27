@@ -297,7 +297,8 @@ const strategyScreens = {
 function strategySurfaceMarkup(screen) {
   const spec = strategyScreens[screen.key];
   const rows = screen.key === "brands" ? [...spec.rows,...state.brandProfiles.map((brand)=>[brand.name,brand.primaryValueEvent,"Исследование","Контекст принят"])] : spec.rows;
-  return `<section class="strategy-surface"><header class="strategy-bar"><div><small>${esc(spec.eyebrow)}</small><b>${esc(spec.status)}</b></div><button data-route="${esc(byKey(spec.next)?.route ?? "/command")}">${esc(spec.action)} →</button></header><div class="strategy-stages">${spec.stages.map(([label,value,note],index)=>`<button data-route="${screen.route}"><i>${String(index+1).padStart(2,"0")}</i><span><small>${esc(label)}</small><b>${esc(value)}</b><em>${esc(note)}</em></span></button>`).join("")}</div><article class="module strategy-table"><div class="module-title">${esc(spec.title)} <span>${tr("ПОД УПРАВЛЕНИЕМ","GOVERNED")}</span></div><div class="strategy-head">${spec.columns.map(column=>`<b>${esc(column)}</b>`).join("")}</div>${rows.map((row,index)=>`<button class="strategy-row" data-route="${esc(byKey(screen.linksTo[index % screen.linksTo.length])?.route ?? screen.route)}">${row.map(cell=>`<span>${esc(cell)}</span>`).join("")}</button>`).join("")}</article><aside class="module strategy-side"><div class="module-title">${esc(spec.sideTitle)} <span>${tr("ПОЛИТИКА","POLICY")}</span></div><dl>${spec.side.map(([label,value])=>`<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join("")}</dl><div class="policy-seal"><i></i><span><b>ЛОКАЛЬНЫЙ УПРАВЛЯЕМЫЙ РЕЖИМ</b><small>Без внешнего исполнения и движения средств</small></span></div></aside></section>`;
+  const rowRoute=(index)=>screen.key==="brands"&&index>=spec.rows.length?`/brands/${state.brandProfiles[index-spec.rows.length].id}/onboarding`:(byKey(screen.linksTo[index % screen.linksTo.length])?.route ?? screen.route);
+  return `<section class="strategy-surface"><header class="strategy-bar"><div><small>${esc(spec.eyebrow)}</small><b>${esc(spec.status)}</b></div><button data-route="${esc(byKey(spec.next)?.route ?? "/command")}">${esc(spec.action)} →</button></header><div class="strategy-stages">${spec.stages.map(([label,value,note],index)=>`<button data-route="${screen.route}"><i>${String(index+1).padStart(2,"0")}</i><span><small>${esc(label)}</small><b>${esc(value)}</b><em>${esc(note)}</em></span></button>`).join("")}</div><article class="module strategy-table"><div class="module-title">${esc(spec.title)} <span>${tr("ПОД УПРАВЛЕНИЕМ","GOVERNED")}</span></div><div class="strategy-head">${spec.columns.map(column=>`<b>${esc(column)}</b>`).join("")}</div>${rows.map((row,index)=>`<button class="strategy-row" data-route="${esc(rowRoute(index))}">${row.map(cell=>`<span>${esc(cell)}</span>`).join("")}</button>`).join("")}</article><aside class="module strategy-side"><div class="module-title">${esc(spec.sideTitle)} <span>${tr("ПОЛИТИКА","POLICY")}</span></div><dl>${spec.side.map(([label,value])=>`<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join("")}</dl><div class="policy-seal"><i></i><span><b>ЛОКАЛЬНЫЙ УПРАВЛЯЕМЫЙ РЕЖИМ</b><small>Без внешнего исполнения и движения средств</small></span></div></aside></section>`;
 }
 
 function productIntelligenceMarkup() {
@@ -588,9 +589,7 @@ document.addEventListener("submit", async (event) => {
       await sendCommand({kind:"ADD_BRAND_PROFILE",brand});
       await sendCommand({kind:"CAPTURE_PRODUCT_INTAKE",understanding});
       state.addBrand=false;
-      navigate(`/brands/${id}/onboarding`);
-      state.notice=tr(`${name}: материалы приняты; проверьте, как система поняла продукт`,`${name}: materials received; review the system's understanding`);
-      render();
+      location.assign(`/brands/${id}/onboarding`);
     } catch (error) { state.notice=`COMMAND REJECTED: ${error.message}`; render(); }
     return;
   }
