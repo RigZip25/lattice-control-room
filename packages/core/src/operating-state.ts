@@ -63,8 +63,24 @@ export interface ProductUnderstanding {
   readonly valueSummary: string;
   readonly assumptions: readonly string[];
   readonly criticalQuestions: readonly string[];
+  readonly websiteResearch?: WebsiteResearch;
   readonly status: "DRAFT" | "CONFIRMED";
   readonly confirmedAt?: string;
+}
+
+export interface WebsiteResearchPage {
+  readonly url: string;
+  readonly title: string;
+  readonly description: string;
+  readonly headings: readonly string[];
+}
+
+export interface WebsiteResearch {
+  readonly status: "COMPLETED";
+  readonly researchedAt: string;
+  readonly pages: readonly WebsiteResearchPage[];
+  readonly observedClaims: readonly string[];
+  readonly unresolvedQuestions: readonly string[];
 }
 
 export interface DryRunCycleRecord {
@@ -112,6 +128,7 @@ export type OperatingCommand =
   | { readonly kind: "DELETE_BRAND_PROFILE"; readonly brandId: string }
   | { readonly kind: "CAPTURE_PRODUCT_INTAKE"; readonly understanding: ProductUnderstanding }
   | { readonly kind: "UPDATE_PRODUCT_INTAKE"; readonly understanding: ProductUnderstanding }
+  | { readonly kind: "RECORD_WEBSITE_RESEARCH"; readonly brandId: string; readonly research: WebsiteResearch }
   | { readonly kind: "CONFIRM_PRODUCT_UNDERSTANDING"; readonly brandId: string }
   | { readonly kind: "REGISTER_PRODUCT_SOURCE"; readonly source: Omit<ProductSource,"id"|"status"> }
   | { readonly kind: "RECORD_PRODUCT_EVIDENCE"; readonly evidence: Omit<ProductEvidence,"id"> }
@@ -126,7 +143,7 @@ export function initialOperatingState(): OperatingState {
 
 export function applyOperatingCommand(state: OperatingState, command: OperatingCommand, occurredAt: string): OperatingState {
   if (!Number.isFinite(Date.parse(occurredAt))) throw new Error("Operating event timestamp is invalid");
-  if (command === null || typeof command !== "object" || !["SET_EXECUTIVE_VIEW","SET_LOCALE","SET_FILTER","REFRESH_READ_MODELS","RESOLVE_DECISION","ADD_DISCOVERY_MARKET","ADD_EXPANSION_AREA","ADD_BRAND_PROFILE","UPDATE_BRAND_PROFILE","DELETE_BRAND_PROFILE","CAPTURE_PRODUCT_INTAKE","UPDATE_PRODUCT_INTAKE","CONFIRM_PRODUCT_UNDERSTANDING","REGISTER_PRODUCT_SOURCE","RECORD_PRODUCT_EVIDENCE","CREATE_PRODUCT_DIAGNOSIS","CREATE_EXPANSION_THESIS","START_RIGZIP_DRY_RUN","START_BRAND_DRY_RUN"].includes(command.kind)) {
+  if (command === null || typeof command !== "object" || !["SET_EXECUTIVE_VIEW","SET_LOCALE","SET_FILTER","REFRESH_READ_MODELS","RESOLVE_DECISION","ADD_DISCOVERY_MARKET","ADD_EXPANSION_AREA","ADD_BRAND_PROFILE","UPDATE_BRAND_PROFILE","DELETE_BRAND_PROFILE","CAPTURE_PRODUCT_INTAKE","UPDATE_PRODUCT_INTAKE","RECORD_WEBSITE_RESEARCH","CONFIRM_PRODUCT_UNDERSTANDING","REGISTER_PRODUCT_SOURCE","RECORD_PRODUCT_EVIDENCE","CREATE_PRODUCT_DIAGNOSIS","CREATE_EXPANSION_THESIS","START_RIGZIP_DRY_RUN","START_BRAND_DRY_RUN"].includes(command.kind)) {
     throw new Error("Operating command kind is invalid");
   }
   if (command.kind === "SET_EXECUTIVE_VIEW" && typeof command.enabled !== "boolean") throw new Error("Executive view command is invalid");
@@ -167,6 +184,10 @@ export function applyOperatingCommand(state: OperatingState, command: OperatingC
   if (command.kind === "UPDATE_PRODUCT_INTAKE") {
     if (!state.productUnderstandings.some((item)=>item.brandId===command.understanding.brandId)) throw new Error("Product intake is not registered");
     if (command.understanding.ownerDescription.trim().length<8 || command.understanding.productSummary.trim().length<8) throw new Error("Updated product intake is incomplete");
+  }
+  if (command.kind === "RECORD_WEBSITE_RESEARCH") {
+    if (!state.productUnderstandings.some((item)=>item.brandId===command.brandId)) throw new Error("Product intake is not registered");
+    if (command.research.status!=="COMPLETED" || command.research.pages.length===0 || !Number.isFinite(Date.parse(command.research.researchedAt))) throw new Error("Website research is incomplete");
   }
   if (command.kind === "DELETE_BRAND_PROFILE") {
     if (!state.brandProfiles.some((brand)=>brand.id===command.brandId)) throw new Error("Brand profile is not registered");
@@ -223,6 +244,7 @@ export function applyOperatingCommand(state: OperatingState, command: OperatingC
     case "DELETE_BRAND_PROFILE": return { ...next, brandProfiles:state.brandProfiles.filter((item)=>item.id!==command.brandId),productUnderstandings:state.productUnderstandings.filter((item)=>item.brandId!==command.brandId),productSources:state.productSources.filter((item)=>item.brandId!==command.brandId),productEvidence:state.productEvidence.filter((item)=>item.brandId!==command.brandId),productDiagnoses:state.productDiagnoses.filter((item)=>item.brandId!==command.brandId),expansionTheses:state.expansionTheses.filter((item)=>item.brandId!==command.brandId) };
     case "CAPTURE_PRODUCT_INTAKE": return { ...next, productUnderstandings:[...state.productUnderstandings,command.understanding] };
     case "UPDATE_PRODUCT_INTAKE": return { ...next, productUnderstandings:state.productUnderstandings.map((item)=>item.brandId===command.understanding.brandId?command.understanding:item) };
+    case "RECORD_WEBSITE_RESEARCH": return { ...next, productUnderstandings:state.productUnderstandings.map((item)=>{ if(item.brandId!==command.brandId)return item; const {confirmedAt:_,...unconfirmed}=item; return {...unconfirmed,websiteResearch:command.research,productSummary:command.research.observedClaims[0]??item.productSummary,criticalQuestions:command.research.unresolvedQuestions,status:"DRAFT"}; }) };
     case "CONFIRM_PRODUCT_UNDERSTANDING": return { ...next, productUnderstandings:state.productUnderstandings.map((item)=>item.brandId===command.brandId?{...item,status:"CONFIRMED",confirmedAt:occurredAt}:item) };
     case "REGISTER_PRODUCT_SOURCE": return { ...next, productSources:[...state.productSources,registerProductSource(command.source)] };
     case "RECORD_PRODUCT_EVIDENCE": {
@@ -257,3 +279,4 @@ export function applyOperatingCommand(state: OperatingState, command: OperatingC
     default: throw new Error("Operating command kind is invalid");
   }
 }
+

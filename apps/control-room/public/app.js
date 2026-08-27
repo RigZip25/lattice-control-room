@@ -89,6 +89,15 @@ async function sendCommand(command) {
   if (!response.ok) throw new Error(payload.error ?? "Command rejected");
   applyRuntime(payload);
 }
+async function runWebsiteResearch(brandId) {
+  const headers={"Content-Type":"application/json"};
+  if (state.session?.access_token) headers.Authorization=`Bearer ${state.session.access_token}`;
+  const currentState={version:state.version,mode:"DRY_RUN",executive:state.executive,locale:state.locale,selectedFilter:state.selectedFilter,openDecisions:state.decisions,discoveryMarkets:state.addedMarkets.map(({administrativeLevels,supportedActivityDimensions,...market})=>market),expansionAreas:state.expansionAreas,brandProfiles:state.brandProfiles,productUnderstandings:state.productUnderstandings,productSources:state.productSources,productEvidence:state.productEvidence,productDiagnoses:state.productDiagnoses,expansionTheses:state.expansionTheses,executionCycles:state.executionCycles,events:[]};
+  const response=await fetch("/api/v1/research/website",{method:"POST",headers,body:JSON.stringify({brandId,currentState})});
+  const payload=await response.json();
+  if (!response.ok) throw new Error(payload.error??"Website research failed");
+  applyRuntime(payload);
+}
 const byKey = (key) => screens.find((screen) => screen.key === key);
 function current() {
   const exact = screens.find((screen) => screen.route === location.pathname);
@@ -325,7 +334,12 @@ function expansionThesisControlMarkup() {
 }
 
 function pendingProductAnalysisMarkup(brand,understanding) {
-  return `<article class="module understanding-review pending-analysis"><div class="module-title">${tr("ПЕРВИЧНЫЕ ДАННЫЕ ПРИНЯТЫ","INITIAL INPUT RECEIVED")} <span>${tr("АНАЛИЗ НЕ ЗАВЕРШЁН","ANALYSIS NOT COMPLETE")}</span></div><h2>${tr("LAFWIRON ещё не сформировала понимание продукта","LAFWIRON has not formed a product understanding yet")}</h2><p>${tr("Сейчас сохранены только адрес сайта и материалы владельца. Это ещё не исследование продукта и не требует подтверждения.","Only the website address and owner materials are stored. This is not product research yet and does not require confirmation.")}</p><div class="analysis-progress"><span class="done"><i>✓</i><b>${tr("Сайт принят","Website received")}</b><small>${esc(understanding.website??tr("Описание владельца","Owner description"))}</small></span><span><i>2</i><b>${tr("Изучение сайта","Website analysis")}</b><small>${tr("Продукт, аудитории, предложения и доверие","Product, audiences, offers, and trust")}</small></span><span><i>3</i><b>${tr("Исследование рынка","Market research")}</b><small>${tr("Заменители, конкуренты и создание категории","Substitutes, competitors, and category creation")}</small></span><span><i>4</i><b>${tr("Резюме для подтверждения","Summary for confirmation")}</b><small>${tr("Только после анализа система попросит ваше согласие","The system asks for confirmation only after analysis")}</small></span></div><div class="modal-actions"><button data-action="edit-brand" data-brand-id="${esc(brand.id)}">${tr("ДОПОЛНИТЬ МАТЕРИАЛЫ","ADD MATERIALS")}</button></div></article>`;
+  return `<article class="module understanding-review pending-analysis"><div class="module-title">${tr("ПЕРВИЧНЫЕ ДАННЫЕ ПРИНЯТЫ","INITIAL INPUT RECEIVED")} <span>${tr("АНАЛИЗ НЕ ЗАВЕРШЁН","ANALYSIS NOT COMPLETE")}</span></div><h2>${tr("LAFWIRON готова начать изучение продукта","LAFWIRON is ready to study the product")}</h2><p>${tr("Система прочитает публичные страницы сайта в безопасном режиме, отделит наблюдения от неизвестных и сохранит ссылки на каждую изученную страницу.","The system will read public website pages safely, separate observations from unknowns, and retain every studied page URL.")}</p><div class="analysis-progress"><span class="done"><i>✓</i><b>${tr("Сайт принят","Website received")}</b><small>${esc(understanding.website??tr("Описание владельца","Owner description"))}</small></span><span><i>2</i><b>${tr("Изучение сайта","Website analysis")}</b><small>${tr("Продукт, аудитории, предложения и доверие","Product, audiences, offers, and trust")}</small></span><span><i>3</i><b>${tr("Исследование рынка","Market research")}</b><small>${tr("Следующий исполнитель после подтверждения продукта","Next worker after product confirmation")}</small></span></div><div class="modal-actions"><button data-action="edit-brand" data-brand-id="${esc(brand.id)}">${tr("ДОПОЛНИТЬ МАТЕРИАЛЫ","ADD MATERIALS")}</button><button class="primary" data-action="research-website" data-brand-id="${esc(brand.id)}" ${understanding.website?"":"disabled"}>${tr("НАЧАТЬ ИЗУЧЕНИЕ САЙТА","START WEBSITE RESEARCH")}</button></div></article>`;
+}
+
+function researchedProductMarkup(brand,understanding) {
+  const research=understanding.websiteResearch;
+  return `<article class="module understanding-review research-result"><div class="module-title">${tr("КАК СИСТЕМА ПОНЯЛА ПРОДУКТ","HOW THE SYSTEM UNDERSTANDS THE PRODUCT")} <span>${tr("НУЖНО ПОДТВЕРЖДЕНИЕ","CONFIRMATION NEEDED")}</span></div><h2>${esc(research.observedClaims[0]??understanding.productSummary)}</h2><p>${tr("Ниже — только наблюдения с сайта. Рыночные выводы и бюджет ещё не сформированы.","Below are website observations only. Market conclusions and budget have not been formed yet.")}</p><div class="research-claims"><h3>${tr("НАБЛЮДЕНИЯ","OBSERVATIONS")}</h3>${research.observedClaims.slice(0,8).map((claim)=>`<p>• ${esc(claim)}</p>`).join("")}<h3>${tr("ЧТО ЕЩЁ НУЖНО УСТАНОВИТЬ","WHAT REMAINS UNKNOWN")}</h3>${research.unresolvedQuestions.map((question)=>`<p>• ${esc(question)}</p>`).join("")}</div><div class="research-sources"><h3>${tr("ИЗУЧЕННЫЕ СТРАНИЦЫ","STUDIED PAGES")}</h3>${research.pages.map((page)=>`<a href="${esc(page.url)}" target="_blank" rel="noreferrer"><b>${esc(page.title)}</b><small>${esc(page.url)}</small></a>`).join("")}</div><div class="modal-actions"><button data-action="edit-brand" data-brand-id="${esc(brand.id)}">${tr("ПОПРАВИТЬ ИЛИ ДОПОЛНИТЬ","CORRECT OR ADD CONTEXT")}</button><button class="primary" data-action="confirm-understanding" data-brand-id="${esc(brand.id)}">${tr("ДА, ПРОДУКТ ПОНЯТ ВЕРНО","YES, PRODUCT IS UNDERSTOOD")}</button></div></article>`;
 }
 
 function brandOnboardingMarkup() {
@@ -351,7 +365,7 @@ function brandOnboardingMarkup() {
     [tr("Обучение и следующий цикл","Learning and next cycle"),"LOCKED",tr("Вовлечение, удержание, экономика и перераспределение бюджета","Engagement, retention, economics and budget reallocation")],
   ];
   const understandingReview=understanding?.status==="DRAFT"?`<article class="module understanding-review"><div class="module-title">${tr("КАК СИСТЕМА ПОНЯЛА ПРОДУКТ","HOW THE SYSTEM UNDERSTANDS THE PRODUCT")} <span>${tr("НУЖНО ПОДТВЕРЖДЕНИЕ","CONFIRMATION NEEDED")}</span></div><h2>${esc(understanding.productSummary)}</h2><dl><div><dt>${tr("ПРЕДПОЛАГАЕМАЯ АУДИТОРИЯ","PROPOSED AUDIENCE")}</dt><dd>${esc(understanding.customerSummary)}</dd></div><div><dt>${tr("ЦЕННОСТЬ","VALUE")}</dt><dd>${esc(understanding.valueSummary)}</dd></div><div><dt>${tr("МАТЕРИАЛЫ","MATERIALS")}</dt><dd>${esc([understanding.website,...understanding.materialNames].filter(Boolean).join(" · ")||tr("Описание владельца","Owner description"))}</dd></div><div><dt>${tr("ДОПУЩЕНИЕ","ASSUMPTION")}</dt><dd>${esc(understanding.assumptions.join(" · "))}</dd></div></dl><div class="modal-actions"><button data-action="add-brand">${tr("ПОПРАВИТЬ","CORRECT")}</button><button class="primary" data-action="confirm-understanding" data-brand-id="${esc(brand.id)}">${tr("ДА, ВСЁ ВЕРНО","YES, THAT IS CORRECT")}</button></div></article>`:``;
-  let nextAction=understanding?.status==="DRAFT" ? pendingProductAnalysisMarkup(brand,understanding) : understandingReview ? understandingReview : cycleReady
+  let nextAction=understanding?.status==="DRAFT" ? (understanding.websiteResearch?researchedProductMarkup(brand,understanding):pendingProductAnalysisMarkup(brand,understanding)) : understandingReview ? understandingReview : cycleReady
     ? `<h3>${tr("Бренд готов к управляемому циклу","Brand is ready for a governed cycle")}</h3><p>${tr("Все входные контракты зафиксированы. Запуск выполнит 13 стадий без публикаций, платежей и внешних коммуникаций.","All admission contracts are recorded. The run executes 13 stages without publishing, payments or external communication.")}</p><button class="primary" data-action="start-brand-dry-run" data-brand-id="${esc(brand.id)}">▶ ${tr("ЗАПУСТИТЬ DRY RUN БРЕНДА","START BRAND DRY RUN")}</button>`
     : `<h3>${tr("Передайте системе источники о продукте","Provide product source material")}</h3><p>${tr("Нужно: 2 источника, 3 факта, 1 открытый вопрос, диагноз и сравнительный тезис экспансии. До этого бюджет не предлагается.","Required: 2 sources, 3 facts, 1 open question, a diagnosis and a comparative expansion thesis. No budget is proposed before then.")}</p><button data-route="/factory-config">${tr("ПРОДОЛЖИТЬ ПОДГОТОВКУ","CONTINUE PREPARATION")} →</button>`;
   nextAction+=`<div class="danger-zone"><button data-action="delete-brand" data-brand-id="${esc(brand.id)}" data-brand-name="${esc(brand.name)}">${tr("УДАЛИТЬ БРЕНД","DELETE BRAND")}</button></div>`;
@@ -508,6 +522,12 @@ document.addEventListener("click", async (event) => {
     if (target.dataset.action === "confirm-understanding") {
       await sendCommand({kind:"CONFIRM_PRODUCT_UNDERSTANDING",brandId:String(target.dataset.brandId)});
       state.notice=tr("Понимание продукта подтверждено. Внутреннее исследование поставлено в очередь DRY RUN.","Product understanding confirmed. Internal research has been queued in DRY RUN.");
+    }
+    if (target.dataset.action === "research-website") {
+      const brandId=String(target.dataset.brandId);
+      state.noticeModal=true; state.noticeTone="progress"; state.notice=tr("Система читает публичные страницы сайта и фиксирует источники…","Reading public website pages and recording sources…"); render();
+      await runWebsiteResearch(brandId);
+      state.noticeModal=false; state.noticeTone="success"; state.notice=tr("Изучение сайта завершено. Проверьте наблюдения и неизвестные.","Website research completed. Review observations and unknowns.");
     }
     if (target.dataset.action === "delete-brand") {
       const brandId=String(target.dataset.brandId);
@@ -729,3 +749,4 @@ Promise.all([
   fetch("/api/v1/factory-status").then(response=>response.json()),
   fetch("/api/v1/backend-status").then(response=>response.json()),
 ]).then(async ([registry,readModel,geographyRegistry,catalog,runtime,factoryStatus,backendStatus])=>{screens=registry.screens;control=readModel;geographies=geographyRegistry.geographies;countryCatalog=catalog.countries;state.factoryStatus=factoryStatus;state.backendStatus=backendStatus;applyRuntime(runtime);try{state.session=JSON.parse(localStorage.getItem("lafwiron-owner-session"));if(state.session)await loadCloudContext();}catch{localStorage.removeItem("lafwiron-owner-session");state.session=null;state.cloudContext=null;}render();}).catch(error=>{document.getElementById("app").innerHTML=`<div class="fatal">CONTROL ROOM UNAVAILABLE<br>${esc(error.message)}</div>`;});
+

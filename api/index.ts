@@ -1,4 +1,6 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { lookup } from "node:dns/promises";
+import { isIP } from "node:net";
 import {
   applyOperatingCommand,
   buildExecutionHealthSnapshot,
@@ -82,6 +84,69 @@ function header(request: ApiRequest, name: string): string | undefined {
 function parseBody(body: unknown): unknown {
   if (typeof body === "string") return JSON.parse(body);
   return body ?? {};
+}
+
+function privateAddress(address:string):boolean {
+  if (address.includes(":")) return address==="::1" || address.startsWith("fc") || address.startsWith("fd") || address.startsWith("fe8") || address.startsWith("fe9") || address.startsWith("fea") || address.startsWith("feb");
+  const octets=address.split(".").map(Number);
+  return octets[0]===10 || octets[0]===127 || octets[0]===0 || (octets[0]===169&&octets[1]===254) || (octets[0]===172&&octets[1]>=16&&octets[1]<=31) || (octets[0]===192&&octets[1]===168) || (octets[0]>=224);
+}
+
+async function safeResearchUrl(raw:string):Promise<URL> {
+  const url=new URL(raw);
+  if (url.protocol!=="https:" || url.username || url.password || url.port) throw new Error("Research accepts public HTTPS websites only");
+  const host=url.hostname.toLowerCase();
+  if (host==="localhost" || host.endsWith(".local") || isIP(host)&&privateAddress(host)) throw new Error("Private network addresses are not allowed");
+  const addresses=await lookup(host,{all:true,verbatim:true});
+  if (!addresses.length || addresses.some((item)=>privateAddress(item.address))) throw new Error("Website resolved to a private or reserved network");
+  return url;
+}
+
+function decodeHtml(value:string):string {
+  return value.replace(/&nbsp;/gi," ").replace(/&amp;/gi,"&").replace(/&quot;/gi,'"').replace(/&#39;|&apos;/gi,"'").replace(/&lt;/gi,"<").replace(/&gt;/gi,">").replace(/&#(\d+);/g,(_,code)=>String.fromCodePoint(Number(code))).replace(/\s+/g," ").trim();
+}
+
+function elementText(html:string,tag:string):string[] {
+  return [...html.matchAll(new RegExp(`<${tag}\\b[^>]*>([\\s\\S]*?)<\\/${tag}>`,"gi"))].map((match)=>decodeHtml(match[1].replace(/<[^>]+>/g," "))).filter(Boolean);
+}
+
+async function fetchResearchPage(raw:string):Promise<{url:string;html:string}> {
+  let url=await safeResearchUrl(raw);
+  for (let redirect=0;redirect<4;redirect+=1) {
+    const response=await fetch(url,{redirect:"manual",headers:{"User-Agent":"LAFWIRON-Research/1.0 (+read-only; dry-run)",Accept:"text/html,application/xhtml+xml"},signal:AbortSignal.timeout(9_000)});
+    if ([301,302,303,307,308].includes(response.status)) {
+      const location=response.headers.get("location");
+      if (!location) throw new Error("Website returned an invalid redirect");
+      url=await safeResearchUrl(new URL(location,url).toString());
+      continue;
+    }
+    if (!response.ok) throw new Error(`Website returned HTTP ${response.status}`);
+    if (!(response.headers.get("content-type")??"").toLowerCase().includes("text/html")) throw new Error("Website did not return HTML");
+    const reader=response.body?.getReader();
+    if (!reader) throw new Error("Website response is empty");
+    const chunks:Uint8Array[]=[]; let size=0;
+    while (true) { const part=await reader.read(); if (part.done) break; size+=part.value.byteLength; if (size>1_500_000) { await reader.cancel(); throw new Error("Website page exceeds the research size limit"); } chunks.push(part.value); }
+    return {url:url.toString(),html:new TextDecoder().decode(Buffer.concat(chunks))};
+  }
+  throw new Error("Website redirected too many times");
+}
+
+async function researchWebsite(raw:string) {
+  const first=await fetchResearchPage(raw);
+  const origin=new URL(first.url).origin;
+  const candidates=[...first.html.matchAll(/<a\b[^>]*href=["']([^"'#]+)["']/gi)]
+    .map((match)=>{try{return new URL(match[1],first.url)}catch{return null}})
+    .filter((url):url is URL=>Boolean(url&&url.origin===origin&&/(about|product|service|pricing|how|faq|solution)/i.test(url.pathname)))
+    .map((url)=>url.toString().split("#")[0]);
+  const urls=[first.url,...new Set(candidates)].slice(0,5);
+  const fetched=[first,...(await Promise.allSettled(urls.slice(1).map(fetchResearchPage))).flatMap((item)=>item.status==="fulfilled"?[item.value]:[])];
+  const pages=fetched.map(({url,html})=>{
+    const title=elementText(html,"title")[0]??"Untitled page";
+    const meta=html.match(/<meta\b[^>]*(?:name=["']description["'][^>]*content=["']([^"']*)|content=["']([^"']*)["'][^>]*name=["']description["'])[^>]*>/i);
+    return {url,title,description:decodeHtml(meta?.[1]??meta?.[2]??""),headings:[...elementText(html,"h1"),...elementText(html,"h2")].slice(0,12)};
+  });
+  const claims=[...new Set(pages.flatMap((page)=>[page.description,...page.headings]).filter((value)=>value.length>=12))].slice(0,12);
+  return {status:"COMPLETED" as const,researchedAt:new Date().toISOString(),pages,observedClaims:claims.length?claims:[`Website identifies itself as ${pages[0].title}`],unresolvedQuestions:["Who is the primary paying customer?","What measurable event proves customer value?","Which claims have independent evidence beyond the product website?"]};
 }
 
 function isOperatingState(value: unknown): value is OperatingState {
@@ -194,6 +259,24 @@ export default async function handler(request: ApiRequest, response: ApiResponse
     }
     response.status(200).json(initialOperatingState()); return;
   }
+  if (method === "POST" && pathname === "/api/v1/research/website") {
+    if (ownerAccessConfigured && !validOwnerSession(bearerToken(header(request,"authorization")))) { response.status(401).json({error:"Owner authentication required"}); return; }
+    try {
+      const envelope=parseBody(request.body) as {brandId?:unknown;currentState?:unknown};
+      const base=isOperatingState(envelope.currentState)?envelope.currentState:initialOperatingState();
+      const brandId=typeof envelope.brandId==="string"?envelope.brandId:"";
+      const intake=base.productUnderstandings.find((item)=>item.brandId===brandId);
+      if (!intake?.website) throw new Error("A website is required to start website research");
+      const research=await researchWebsite(intake.website);
+      const next=applyOperatingCommand(base,{kind:"RECORD_WEBSITE_RESEARCH",brandId,research},new Date().toISOString());
+      if (supabase&&executionWorkspaceId) {
+        const result=await persistOperatingStateServer(supabase,executionWorkspaceId,next);
+        if (result.status>=400) { response.status(result.status).json(result.body); return; }
+      }
+      response.status(200).json(next);
+    } catch(error) { response.status(400).json({error:error instanceof Error?error.message:"Website research failed"}); }
+    return;
+  }
   if (method === "GET" && pathname === "/api/v1/execution-status") {
     const generatedAt=new Date().toISOString();
     const cycle=runRigZipDryRun().durableCycle;
@@ -213,3 +296,4 @@ export default async function handler(request: ApiRequest, response: ApiResponse
   }
   response.status(404).json({ error:"Not found" });
 }
+
