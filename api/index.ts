@@ -1,3 +1,4 @@
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import {
   applyOperatingCommand,
   factoryCadenceAt,
@@ -31,6 +32,40 @@ interface ApiResponse {
 }
 
 const supabase = supabaseRuntimeConfig();
+const ownerPassword = process.env.LAFWIRON_OWNER_PASSWORD;
+const sessionSecret = process.env.LAFWIRON_SESSION_SECRET;
+const ownerAccessConfigured = Boolean(ownerPassword && sessionSecret && sessionSecret.length >= 32);
+const ownerSessionSeconds = 12 * 60 * 60;
+
+function digest(value: string): Buffer {
+  return createHash("sha256").update(value, "utf8").digest();
+}
+
+function passwordsMatch(candidate: string): boolean {
+  if (!ownerPassword) return false;
+  return timingSafeEqual(digest(candidate), digest(ownerPassword));
+}
+
+function signOwnerSession(now = Math.floor(Date.now() / 1000)): { access_token: string; expires_at: number; token_type: "bearer" } {
+  if (!sessionSecret) throw new Error("Owner session configuration is unavailable");
+  const payload = Buffer.from(JSON.stringify({ sub:"lafwiron-owner", iat:now, exp:now + ownerSessionSeconds }), "utf8").toString("base64url");
+  const signature = createHmac("sha256", sessionSecret).update(payload).digest("base64url");
+  return { access_token:`${payload}.${signature}`, expires_at:now + ownerSessionSeconds, token_type:"bearer" };
+}
+
+function validOwnerSession(token: string | undefined, now = Math.floor(Date.now() / 1000)): boolean {
+  if (!token || !sessionSecret) return false;
+  const [payload, signature, extra] = token.split(".");
+  if (!payload || !signature || extra) return false;
+  const expected = createHmac("sha256", sessionSecret).update(payload).digest();
+  let supplied: Buffer;
+  try { supplied = Buffer.from(signature, "base64url"); } catch { return false; }
+  if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) return false;
+  try {
+    const claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { sub?: unknown; exp?: unknown };
+    return claims.sub === "lafwiron-owner" && typeof claims.exp === "number" && claims.exp > now;
+  } catch { return false; }
+}
 
 function header(request: ApiRequest, name: string): string | undefined {
   const value = request.headers[name] ?? request.headers[name.toLowerCase()];
@@ -66,7 +101,23 @@ export default async function handler(request: ApiRequest, response: ApiResponse
   const method = request.method ?? "GET";
 
   if (method === "GET" && pathname === "/api/v1/backend-status") {
-    response.status(200).json({ provider:"SUPABASE", configured:Boolean(supabase), authentication:"EMAIL_OTP", mode:"DRY_RUN", runtime:"VERCEL_STATELESS" });
+    response.status(200).json({ provider:"LAFWIRON", configured:ownerAccessConfigured, authentication:"OWNER_PASSWORD", dataProvider:supabase?"SUPABASE":"LOCAL", mode:"DRY_RUN", runtime:"VERCEL_STATELESS" });
+    return;
+  }
+  if (method === "POST" && pathname === "/api/v1/auth/owner-login") {
+    if (!ownerAccessConfigured) { response.status(503).json({ error:"Owner access is not configured" }); return; }
+    try {
+      const body = parseBody(request.body) as { password?: unknown };
+      const password = typeof body.password === "string" ? body.password : "";
+      if (!passwordsMatch(password)) { response.status(401).json({ error:"Invalid owner credentials" }); return; }
+      response.status(200).json(signOwnerSession());
+    } catch { response.status(400).json({ error:"Invalid authentication request" }); }
+    return;
+  }
+  if (method === "GET" && pathname === "/api/v1/auth/owner-session") {
+    const token = bearerToken(header(request, "authorization"));
+    if (!validOwnerSession(token)) { response.status(401).json({ error:"Owner session is invalid or expired" }); return; }
+    response.status(200).json({ workspace:{ name:"LAFWIRON", mode:"DRY_RUN" }, membership:{ member_role:"OWNER" }, authentication:"OWNER_PASSWORD" });
     return;
   }
   if (method === "POST" && (pathname === "/api/v1/auth/request-otp" || pathname === "/api/v1/auth/verify-otp")) {
@@ -91,6 +142,10 @@ export default async function handler(request: ApiRequest, response: ApiResponse
     return;
   }
   if (method === "POST" && pathname === "/api/v1/commands") {
+    if (ownerAccessConfigured && !validOwnerSession(bearerToken(header(request, "authorization")))) {
+      response.status(401).json({ error:"Owner authentication required" });
+      return;
+    }
     try {
       const envelope = parseBody(request.body) as { command?: OperatingCommand; currentState?: unknown };
       if (!envelope.command) throw new Error("Command is required");

@@ -1,7 +1,7 @@
 import { blueprints } from "/screen-blueprints.js";
 import { renderChoropleths } from "/map.js";
 
-const state = { executive:false, locale:"RU", notice:"", decisions:3, selectedFilter:"ВСЕ", selectedRegion:"WORLD", welcome:location.pathname==="/", factoryStatus:null, backendStatus:null, authOpen:false, otpEmail:null, session:null, cloudContext:null, addCountry:false, addBrand:false, pendingCountry:null, pendingArea:null, addedMarkets:[], expansionAreas:[], brandProfiles:[], version:0 };
+const state = { executive:false, locale:"RU", notice:"", decisions:3, selectedFilter:"ВСЕ", selectedRegion:"WORLD", welcome:location.pathname==="/", factoryStatus:null, backendStatus:null, authOpen:false, session:null, cloudContext:null, addCountry:false, addBrand:false, pendingCountry:null, pendingArea:null, addedMarkets:[], expansionAreas:[], brandProfiles:[], version:0 };
 const isLocalRuntime = ["localhost", "127.0.0.1", "::1"].includes(location.hostname);
 let screens = [];
 let control = null;
@@ -350,10 +350,8 @@ function render() {
 function renderAuthGate() {
   document.title = `${tr("Вход", "Sign in")} — LAFWIRON`;
   const configured = state.backendStatus?.configured !== false;
-  const form = state.otpEmail
-    ? `<form class="auth-gate-form" id="otp-form"><p>${tr("Код отправлен на", "Code sent to")} <b>${esc(state.otpEmail)}</b></p><label>${tr("6-ЗНАЧНЫЙ КОД", "6-DIGIT CODE")}<input name="token" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required autofocus></label><div class="auth-gate-actions"><button type="button" data-action="change-email">${tr("ИЗМЕНИТЬ EMAIL", "CHANGE EMAIL")}</button><button class="primary auth-gate-submit" type="submit" disabled>${tr("ВОЙТИ В CONTROL ROOM", "ENTER CONTROL ROOM")}</button></div></form>`
-    : `<form class="auth-gate-form" id="auth-form"><p>${tr("Введите рабочий email. Мы отправим одноразовый шестизначный код — пароль не нужен.", "Enter your work email. We will send a one-time six-digit code — no password required.")}</p><label>EMAIL<input name="email" type="email" autocomplete="email" required autofocus placeholder="name@company.com"></label><button class="primary auth-gate-submit" type="submit" disabled>${tr("ПОЛУЧИТЬ КОД", "SEND CODE")}</button></form>`;
-  document.getElementById("app").innerHTML = `<main class="auth-gate"><section class="auth-gate-brand"><strong>LAFWIRON</strong><span>MARKET FACTORY OS</span><i></i><p>${tr("Автономная маркетинговая фабрика холдинга.", "The holding company's autonomous market factory.")}</p></section><section class="auth-gate-card"><div class="auth-gate-top"><span>${tr("ЗАЩИЩЁННЫЙ ДОСТУП", "SECURE ACCESS")}</span><button class="locale" type="button" data-action="locale"><span class="${state.locale==="RU"?"active":""}">RU</span><i></i><span class="${state.locale==="EN"?"active":""}">EN</span></button></div><h1>${tr("Вход в командный центр", "Enter the Control Room")}</h1>${configured ? form : `<div class="auth-gate-error">${tr("Облачная авторизация не настроена. Проверьте переменные Supabase в окружении Vercel.", "Cloud authentication is not configured. Check the Supabase environment variables in Vercel.")}</div>`}<small>${tr("Доступ предоставляется только участникам изолированного workspace. Все действия фиксируются в аудите.", "Access is limited to members of an isolated workspace. Every action is recorded in the audit trail.")}</small></section>${state.notice?`<div class="toast"><i>!</i><span><b>${tr("СТАТУС ВХОДА", "SIGN-IN STATUS")}</b><small>${esc(state.notice)}</small></span></div>`:""}</main>`;
+  const form = `<form class="auth-gate-form" id="owner-auth-form"><p>${tr("Введите пароль владельца. Он проверяется только на сервере и не передаётся в код приложения.", "Enter the owner password. It is verified only by the server and is never embedded in the application.")}</p><label>${tr("ПАРОЛЬ ВЛАДЕЛЬЦА", "OWNER PASSWORD")}<input name="password" type="password" autocomplete="current-password" minlength="12" required autofocus></label><button class="primary auth-gate-submit" type="submit" disabled>${tr("ВОЙТИ В КОМАНДНЫЙ ЦЕНТР", "ENTER CONTROL ROOM")}</button></form>`;
+  document.getElementById("app").innerHTML = `<main class="auth-gate"><section class="auth-gate-brand"><strong>LAFWIRON</strong><span>MARKET FACTORY OS</span><i></i><p>${tr("Автономная маркетинговая фабрика холдинга.", "The holding company's autonomous market factory.")}</p></section><section class="auth-gate-card"><div class="auth-gate-top"><span>${tr("ДОСТУП ВЛАДЕЛЬЦА", "OWNER ACCESS")}</span><button class="locale" type="button" data-action="locale"><span class="${state.locale==="RU"?"active":""}">RU</span><i></i><span class="${state.locale==="EN"?"active":""}">EN</span></button></div><h1>${tr("Вход в командный центр", "Enter the Control Room")}</h1>${configured ? form : `<div class="auth-gate-error">${tr("Доступ владельца не настроен. Проверьте LAFWIRON_OWNER_PASSWORD и LAFWIRON_SESSION_SECRET в Vercel.", "Owner access is not configured. Check LAFWIRON_OWNER_PASSWORD and LAFWIRON_SESSION_SECRET in Vercel.")}</div>`}<small>${tr("Сессия действует 12 часов. Все действия фиксируются в аудите.", "The session lasts 12 hours. Every action is recorded in the audit trail.")}</small></section>${state.notice?`<div class="toast"><i>!</i><span><b>${tr("СТАТУС ВХОДА", "SIGN-IN STATUS")}</b><small>${esc(state.notice)}</small></span></div>`:""}</main>`;
 }
 
 function countryModal() {
@@ -364,14 +362,13 @@ function countryModal() {
 
 function authModal() {
   const workspace=state.cloudContext?.workspace;
-  if (state.session) return `<div class="modal-backdrop"><section class="modal auth-modal"><div class="module-title">${tr("ОБЛАЧНЫЙ ПРОФИЛЬ","CLOUD PROFILE")} <button type="button" data-action="close-auth">×</button></div><h2>${esc(workspace?.name ?? tr("Подключение подтверждено","Connection verified"))}</h2><p>${tr("Бренды сохраняются в Supabase от имени текущего пользователя. Доступ ограничен политиками workspace.","Brands are stored in Supabase as the current user. Workspace policies restrict access.")}</p><dl><div><dt>WORKSPACE</dt><dd>${esc(workspace?.workspace_id ?? "LOADING")}</dd></div><div><dt>ROLE</dt><dd>${esc(state.cloudContext?.membership?.member_role ?? "OWNER")}</dd></div><div><dt>MODE</dt><dd>${esc(workspace?.mode ?? "DRY_RUN")}</dd></div></dl><div class="modal-actions"><button type="button" data-action="sign-out">${tr("ВЫЙТИ","SIGN OUT")}</button><button type="button" data-action="close-auth">${tr("ГОТОВО","DONE")}</button></div></section></div>`;
-  if (state.otpEmail) return `<div class="modal-backdrop"><form class="modal auth-modal" id="otp-form"><div class="module-title">${tr("ПОДТВЕРЖДЕНИЕ EMAIL","EMAIL VERIFICATION")} <button type="button" data-action="close-auth">×</button></div><h2>${tr("Введите 6 цифр","Enter the 6-digit code")}</h2><p>${tr("Код отправлен на","Code sent to")} <b>${esc(state.otpEmail)}</b></p><label>${tr("КОД ИЗ ПИСЬМА","EMAIL CODE")}<input name="token" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required autofocus></label><div class="modal-actions"><button type="button" data-action="change-email">${tr("ИЗМЕНИТЬ EMAIL","CHANGE EMAIL")}</button><button type="submit">${tr("ПОДТВЕРДИТЬ","VERIFY")}</button></div></form></div>`;
-  return `<div class="modal-backdrop"><form class="modal auth-modal" id="auth-form"><div class="module-title">${tr("ВХОД БЕЗ ПАРОЛЯ","PASSWORDLESS SIGN IN")} <button type="button" data-action="close-auth">×</button></div><h2>${tr("Получить код на email","Get a code by email")}</h2><p>${tr("Мы отправим одноразовый шестизначный код. При первом входе Supabase автоматически создаст изолированный workspace владельца.","We will send a one-time six-digit code. On first sign-in Supabase automatically creates an isolated owner workspace.")}</p><label>EMAIL<input name="email" type="email" autocomplete="email" required></label><div class="future-auth"><button type="button" disabled>Google · ${tr("СКОРО","SOON")}</button><button type="button" disabled>Face ID / Passkey · ${tr("СКОРО","SOON")}</button></div><div class="modal-actions"><button type="button" data-action="close-auth">${tr("ОТМЕНА","CANCEL")}</button><button type="submit">${tr("ОТПРАВИТЬ КОД","SEND CODE")}</button></div></form></div>`;
+  if (state.session) return `<div class="modal-backdrop"><section class="modal auth-modal"><div class="module-title">${tr("ОБЛАЧНЫЙ ПРОФИЛЬ","CLOUD PROFILE")} <button type="button" data-action="close-auth">×</button></div><h2>${esc(workspace?.name ?? tr("Подключение подтверждено","Connection verified"))}</h2><p>${tr("Сессия владельца подписана сервером и действует ограниченное время.","The owner session is signed by the server and has a limited lifetime.")}</p><dl><div><dt>WORKSPACE</dt><dd>${esc(state.cloudContext?.authentication ?? "OWNER_PASSWORD")}</dd></div><div><dt>ROLE</dt><dd>${esc(state.cloudContext?.membership?.member_role ?? "OWNER")}</dd></div><div><dt>MODE</dt><dd>${esc(workspace?.mode ?? "DRY_RUN")}</dd></div></dl><div class="modal-actions"><button type="button" data-action="sign-out">${tr("ВЫЙТИ","SIGN OUT")}</button><button type="button" data-action="close-auth">${tr("ГОТОВО","DONE")}</button></div></section></div>`;
+  return `<div class="modal-backdrop"><section class="modal auth-modal"><div class="module-title">${tr("ДОСТУП ВЛАДЕЛЬЦА","OWNER ACCESS")} <button type="button" data-action="close-auth">×</button></div><h2>${tr("Активной сессии нет","No active session")}</h2><p>${tr("Обновите страницу, чтобы войти с паролем владельца.","Reload the page to sign in with the owner password.")}</p></section></div>`;
 }
 
 async function loadCloudContext() {
   if (!state.session?.access_token) return;
-  const response=await fetch("/api/v1/cloud-context",{headers:{Authorization:`Bearer ${state.session.access_token}`}});
+  const response=await fetch("/api/v1/auth/owner-session",{headers:{Authorization:`Bearer ${state.session.access_token}`}});
   const payload=await response.json();
   if (!response.ok) throw new Error(payload.error ?? "Cloud context unavailable");
   state.cloudContext=payload;
@@ -408,8 +405,8 @@ document.addEventListener("click", async (event) => {
     if (target.dataset.action === "welcome-factory") { state.welcome=false; navigate("/factory"); return; }
     if (target.dataset.action === "auth") state.authOpen=true;
     if (target.dataset.action === "close-auth") state.authOpen=false;
-    if (target.dataset.action === "change-email") state.otpEmail=null;
-    if (target.dataset.action === "sign-out") { localStorage.removeItem("lattice-session"); state.session=null; state.cloudContext=null; state.authOpen=false; state.notice=tr("Облачная сессия завершена","Cloud session ended"); }
+
+    if (target.dataset.action === "sign-out") { localStorage.removeItem("lafwiron-owner-session"); state.session=null; state.cloudContext=null; state.authOpen=false; state.notice=tr("Сессия владельца завершена","Owner session ended"); }
     if (target.dataset.action === "executive") { await sendCommand({kind:"SET_EXECUTIVE_VIEW",enabled:!state.executive}); state.notice=tr(state.executive?"Включён обзор для владельца":"Включён рабочий обзор",state.executive?"Executive view enabled":"Operator view enabled"); }
     if (target.dataset.action === "locale") {
       if (!isLocalRuntime && !state.cloudContext) state.locale=state.locale==="RU"?"EN":"RU";
@@ -438,31 +435,20 @@ document.addEventListener("input", (event) => {
   if (submit) submit.disabled = !ready;
 });
 document.addEventListener("submit", async (event) => {
-  if (event.target.id === "auth-form") {
+  if (event.target.id === "owner-auth-form") {
     event.preventDefault();
     const form=new FormData(event.target);
     try {
-      const email=String(form.get("email")).trim();
-      const response=await fetch("/api/v1/auth/request-otp",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email})});
+      const response=await fetch("/api/v1/auth/owner-login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:String(form.get("password") ?? "")})});
       const payload=await response.json();
-      if (!response.ok) throw new Error(payload.msg ?? payload.error ?? "OTP request failed");
-      state.otpEmail=email;
-      state.notice=tr("Код отправлен на email","Code sent by email");
+      if (!response.ok) throw new Error(response.status===401?tr("Неверный пароль владельца","Invalid owner password"):(payload.error ?? "Owner sign-in failed"));
+      state.session=payload;
+      localStorage.setItem("lafwiron-owner-session",JSON.stringify(payload));
+      await loadCloudContext();
+      state.notice=tr("Доступ владельца подтверждён","Owner access verified");
     } catch (error) { state.notice=error.message; }
     render();
     return;
-  }
-  if (event.target.id === "otp-form") {
-    event.preventDefault();
-    const form=new FormData(event.target);
-    try {
-      const response=await fetch("/api/v1/auth/verify-otp",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:state.otpEmail,token:String(form.get("token"))})});
-      const payload=await response.json();
-      if (!response.ok) throw new Error(payload.msg ?? payload.error ?? "Invalid code");
-      state.session=payload; localStorage.setItem("lattice-session",JSON.stringify(payload)); await loadCloudContext();
-      state.authOpen=false; state.otpEmail=null; state.notice=tr("Облачный workspace подключён","Cloud workspace connected");
-    } catch (error) { state.notice=error.message; }
-    render(); return;
   }
   if (event.target.id === "brand-form") {
     event.preventDefault();
@@ -523,4 +509,4 @@ Promise.all([
   fetch("/api/v1/runtime-state").then(response=>response.json()),
   fetch("/api/v1/factory-status").then(response=>response.json()),
   fetch("/api/v1/backend-status").then(response=>response.json()),
-]).then(async ([registry,readModel,geographyRegistry,catalog,runtime,factoryStatus,backendStatus])=>{screens=registry.screens;control=readModel;geographies=geographyRegistry.geographies;countryCatalog=catalog.countries;state.factoryStatus=factoryStatus;state.backendStatus=backendStatus;applyRuntime(runtime);try{state.session=JSON.parse(localStorage.getItem("lattice-session"));if(state.session)await loadCloudContext();}catch{localStorage.removeItem("lattice-session");state.session=null;state.cloudContext=null;}render();}).catch(error=>{document.getElementById("app").innerHTML=`<div class="fatal">CONTROL ROOM UNAVAILABLE<br>${esc(error.message)}</div>`;});
+]).then(async ([registry,readModel,geographyRegistry,catalog,runtime,factoryStatus,backendStatus])=>{screens=registry.screens;control=readModel;geographies=geographyRegistry.geographies;countryCatalog=catalog.countries;state.factoryStatus=factoryStatus;state.backendStatus=backendStatus;applyRuntime(runtime);try{state.session=JSON.parse(localStorage.getItem("lafwiron-owner-session"));if(state.session)await loadCloudContext();}catch{localStorage.removeItem("lafwiron-owner-session");state.session=null;state.cloudContext=null;}render();}).catch(error=>{document.getElementById("app").innerHTML=`<div class="fatal">CONTROL ROOM UNAVAILABLE<br>${esc(error.message)}</div>`;});
