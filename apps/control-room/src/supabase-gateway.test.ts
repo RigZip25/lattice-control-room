@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { bearerToken, persistBrand, requestEmailOtp, verifyEmailOtp, type SupabaseRuntimeConfig } from "./supabase-gateway.js";
+import { bearerToken, persistBrand, persistDryRunCycle, requestEmailOtp, verifyEmailOtp, type SupabaseRuntimeConfig } from "./supabase-gateway.js";
+import { applyOperatingCommand, initialOperatingState } from "@lattice/core";
 
 const config: SupabaseRuntimeConfig = { url: "https://project.supabase.co", publishableKey: "sb_publishable_test" };
 
@@ -46,5 +47,21 @@ describe("supabase gateway", () => {
     expect(bearerToken("Bearer abc.def")).toBe("abc.def");
     expect(bearerToken("Basic abc")).toBeNull();
     expect(bearerToken(undefined)).toBeNull();
+  });
+
+  it("persists a governed cycle and its jobs with a server-only key",async()=>{
+    const secured={...config,secretKey:"sb_secret_server_only"};
+    const mockedFetch=vi.fn().mockResolvedValue(new Response(JSON.stringify([]),{status:201}));
+    vi.stubGlobal("fetch",mockedFetch);
+    const state=applyOperatingCommand(initialOperatingState(),{kind:"START_RIGZIP_DRY_RUN",cycleId:"rigzip-cloud-test"},"2026-08-27T12:00:00.000Z");
+    const result=await persistDryRunCycle(secured,"e49996a3-5c2e-4093-90bf-f7afd9460adf",state.executionCycles[0]!);
+    expect(result.status).toBe(201);
+    expect(mockedFetch).toHaveBeenCalledTimes(3);
+    const [,jobInit]=mockedFetch.mock.calls[1] as [string,RequestInit];
+    expect((jobInit.headers as Record<string,string>).apikey).toBe("sb_secret_server_only");
+    expect(JSON.parse(String(jobInit.body))).toHaveLength(13);
+    const [finalUrl,finalInit]=mockedFetch.mock.calls[2] as [string,RequestInit];
+    expect(finalUrl).toContain("execution_cycle?workspace_id=eq.");
+    expect(JSON.parse(String(finalInit.body))).toMatchObject({status:"COMPLETED",external_effects:0});
   });
 });

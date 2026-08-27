@@ -12,8 +12,10 @@ import {
 } from "../packages/core/dist/index.js";
 import {
   bearerToken,
+  cloudExecutionConfigured,
   fetchCloudContext,
   persistBrand,
+  persistDryRunCycle,
   requestEmailOtp,
   supabaseRuntimeConfig,
   verifyEmailOtp,
@@ -37,6 +39,7 @@ const ownerPassword = process.env.LAFWIRON_OWNER_PASSWORD;
 const sessionSecret = process.env.LAFWIRON_SESSION_SECRET;
 const ownerAccessConfigured = Boolean(ownerPassword && sessionSecret && sessionSecret.length >= 32);
 const ownerSessionSeconds = 12 * 60 * 60;
+const executionWorkspaceId = process.env.LAFWIRON_WORKSPACE_ID;
 
 function digest(value: string): Buffer {
   return createHash("sha256").update(value, "utf8").digest();
@@ -104,7 +107,7 @@ export default async function handler(request: ApiRequest, response: ApiResponse
   const method = request.method ?? "GET";
 
   if (method === "GET" && pathname === "/api/v1/backend-status") {
-    response.status(200).json({ provider:"LAFWIRON", configured:ownerAccessConfigured, authentication:"OWNER_PASSWORD", configuration:{ ownerPassword:Boolean(ownerPassword), sessionSecret:Boolean(sessionSecret), sessionSecretStrong:Boolean(sessionSecret && sessionSecret.length >= 32) }, dataProvider:supabase?"SUPABASE":"LOCAL", mode:"DRY_RUN", runtime:"VERCEL_STATELESS" });
+    response.status(200).json({ provider:"LAFWIRON", configured:ownerAccessConfigured, authentication:"OWNER_PASSWORD", configuration:{ ownerPassword:Boolean(ownerPassword), sessionSecret:Boolean(sessionSecret), sessionSecretStrong:Boolean(sessionSecret && sessionSecret.length >= 32), cloudExecution:cloudExecutionConfigured(supabase)&&Boolean(executionWorkspaceId) }, dataProvider:supabase?"SUPABASE":"LOCAL", mode:"DRY_RUN", runtime:"VERCEL_STATELESS" });
     return;
   }
   if (method === "POST" && pathname === "/api/v1/auth/owner-login") {
@@ -154,6 +157,12 @@ export default async function handler(request: ApiRequest, response: ApiResponse
       if (!envelope.command) throw new Error("Command is required");
       const base = isOperatingState(envelope.currentState) ? envelope.currentState : initialOperatingState();
       const next = applyOperatingCommand(base, envelope.command, new Date().toISOString());
+      if (supabase && executionWorkspaceId && envelope.command.kind === "START_RIGZIP_DRY_RUN") {
+        const cycle=next.executionCycles.at(-1);
+        if (!cycle) throw new Error("Completed dry-run cycle was not produced");
+        const cloudResult=await persistDryRunCycle(supabase,executionWorkspaceId,cycle);
+        if (cloudResult.status>=400) { response.status(cloudResult.status).json(cloudResult.body); return; }
+      }
       if (supabase && envelope.command.kind === "ADD_BRAND_PROFILE") {
         const token = bearerToken(header(request, "authorization"));
         const workspaceId = header(request, "x-lattice-workspace-id");

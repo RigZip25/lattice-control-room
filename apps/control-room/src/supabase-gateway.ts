@@ -1,9 +1,10 @@
-import type { BrandProfile } from "@lattice/core";
+import type { BrandProfile, DryRunCycleRecord } from "@lattice/core";
 import { readFileSync } from "node:fs";
 
 export interface SupabaseRuntimeConfig {
   readonly url: string;
   readonly publishableKey: string;
+  readonly secretKey?: string;
 }
 
 interface SupabaseResponse {
@@ -14,29 +15,45 @@ interface SupabaseResponse {
 export function supabaseRuntimeConfig(configPath?: string): SupabaseRuntimeConfig | null {
   const url = process.env.LATTICE_SUPABASE_URL?.replace(/\/$/, "");
   const publishableKey = process.env.LATTICE_SUPABASE_PUBLISHABLE_KEY;
-  if (url && publishableKey) return { url, publishableKey };
+  const secretKey = process.env.LATTICE_SUPABASE_SECRET_KEY;
+  if (url && publishableKey) return { url, publishableKey, ...(secretKey ? { secretKey } : {}) };
   if (!configPath) return null;
   try {
     const stored = JSON.parse(readFileSync(configPath, "utf8")) as Partial<SupabaseRuntimeConfig>;
     return typeof stored.url === "string" && typeof stored.publishableKey === "string"
-      ? { url: stored.url.replace(/\/$/, ""), publishableKey: stored.publishableKey }
+      ? { url: stored.url.replace(/\/$/, ""), publishableKey: stored.publishableKey, ...(typeof stored.secretKey === "string" ? { secretKey: stored.secretKey } : {}) }
       : null;
   } catch {
     return null;
   }
 }
 
-async function request(config: SupabaseRuntimeConfig, path: string, init: RequestInit): Promise<SupabaseResponse> {
+async function request(config: SupabaseRuntimeConfig, path: string, init: RequestInit, apiKey = config.publishableKey): Promise<SupabaseResponse> {
   const response = await fetch(`${config.url}${path}`, {
     ...init,
     headers: {
-      apikey: config.publishableKey,
+      apikey: apiKey,
       "Content-Type": "application/json",
       ...init.headers,
     },
   });
   const body = await response.json().catch(() => ({ error: "Invalid Supabase response" }));
   return { status: response.status, body };
+}
+
+export function cloudExecutionConfigured(config:SupabaseRuntimeConfig|null):boolean {
+  return Boolean(config?.secretKey);
+}
+
+export async function persistDryRunCycle(config:SupabaseRuntimeConfig,workspaceId:string,cycle:DryRunCycleRecord):Promise<SupabaseResponse> {
+  if (!config.secretKey) return {status:503,body:{error:"Supabase secret key is not configured"}};
+  if (!/^[0-9a-f-]{36}$/i.test(workspaceId) || cycle.mode!=="DRY_RUN" || cycle.artifacts.externalEffects!==0) return {status:400,body:{error:"Invalid governed cycle persistence request"}};
+  const authorization={Authorization:`Bearer ${config.secretKey}`};
+  const running=await request(config,"/rest/v1/execution_cycle?on_conflict=workspace_id,cycle_id",{method:"POST",headers:{...authorization,Prefer:"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({workspace_id:workspaceId,cycle_id:cycle.cycleId,brand_id:cycle.brandId,mode:"DRY_RUN",status:"RUNNING",external_effects:0,artifacts:{},created_at:cycle.createdAt,completed_at:null,updated_at:cycle.createdAt})},config.secretKey);
+  if (running.status>=400) return running;
+  const jobs=await request(config,"/rest/v1/execution_job?on_conflict=workspace_id,job_id",{method:"POST",headers:{...authorization,Prefer:"resolution=merge-duplicates,return=minimal"},body:JSON.stringify(cycle.jobs.map((job)=>({workspace_id:workspaceId,cycle_id:cycle.cycleId,job_id:job.id,brand_id:job.brandId,kind:job.kind,mode:job.mode,state:job.state,idempotency_key:job.idempotencyKey,payload:job.payload,attempts:job.attempts,maximum_attempts:job.maxAttempts,available_at:job.availableAt,lease_owner:job.lease?.owner??null,lease_token:job.lease?.token??null,lease_expires_at:job.lease?.expiresAt??null,last_error:job.lastError??null,result_ref:job.resultRef??null,created_at:job.createdAt,updated_at:job.updatedAt})))},config.secretKey);
+  if (jobs.status>=400) return jobs;
+  return request(config,`/rest/v1/execution_cycle?workspace_id=eq.${encodeURIComponent(workspaceId)}&cycle_id=eq.${encodeURIComponent(cycle.cycleId)}`,{method:"PATCH",headers:{...authorization,Prefer:"return=representation"},body:JSON.stringify({status:"COMPLETED",external_effects:0,artifacts:cycle.artifacts,completed_at:cycle.completedAt,updated_at:cycle.completedAt})},config.secretKey);
 }
 
 export async function requestEmailOtp(
