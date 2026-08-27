@@ -2,6 +2,7 @@ import { blueprints } from "/screen-blueprints.js";
 import { renderChoropleths } from "/map.js";
 
 const state = { executive:false, locale:"RU", notice:"", decisions:3, selectedFilter:"ВСЕ", selectedRegion:"WORLD", welcome:location.pathname==="/", factoryStatus:null, backendStatus:null, authOpen:false, otpEmail:null, session:null, cloudContext:null, addCountry:false, addBrand:false, pendingCountry:null, pendingArea:null, addedMarkets:[], expansionAreas:[], brandProfiles:[], version:0 };
+const isLocalRuntime = ["localhost", "127.0.0.1", "::1"].includes(location.hostname);
 let screens = [];
 let control = null;
 let geographies = [];
@@ -304,6 +305,10 @@ function brandOnboardingMarkup() {
 }
 
 function render() {
+  if (!isLocalRuntime && !state.cloudContext) {
+    renderAuthGate();
+    return;
+  }
   const screen = current();
   if (!screen) return;
   const blueprint = blueprints[screen.key] ?? blueprints.command;
@@ -340,6 +345,15 @@ function render() {
     ${state.welcome?welcomeMarkup():""}
     ${state.notice?`<div class="toast"><i>✓</i><span><b>${tr("ДЕЙСТВИЕ ЗАПИСАНО","ACTION RECORDED")}</b><small>${esc(state.notice)}</small></span></div>`:""}`;
   renderChoropleths().catch((error) => { state.notice = error.message; console.error("Map rendering failed", error); });
+}
+
+function renderAuthGate() {
+  document.title = `${tr("Вход", "Sign in")} — LATTICE`;
+  const configured = state.backendStatus?.configured !== false;
+  const form = state.otpEmail
+    ? `<form class="auth-gate-form" id="otp-form"><p>${tr("Код отправлен на", "Code sent to")} <b>${esc(state.otpEmail)}</b></p><label>${tr("6-ЗНАЧНЫЙ КОД", "6-DIGIT CODE")}<input name="token" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required autofocus></label><div class="auth-gate-actions"><button type="button" data-action="change-email">${tr("ИЗМЕНИТЬ EMAIL", "CHANGE EMAIL")}</button><button class="primary" type="submit">${tr("ВОЙТИ В CONTROL ROOM", "ENTER CONTROL ROOM")}</button></div></form>`
+    : `<form class="auth-gate-form" id="auth-form"><p>${tr("Введите рабочий email. Мы отправим одноразовый шестизначный код — пароль не нужен.", "Enter your work email. We will send a one-time six-digit code — no password required.")}</p><label>EMAIL<input name="email" type="email" autocomplete="email" required autofocus placeholder="name@company.com"></label><button class="primary auth-gate-submit" type="submit" ${configured ? "" : "disabled"}>${tr("ПОЛУЧИТЬ КОД", "SEND CODE")}</button></form>`;
+  document.getElementById("app").innerHTML = `<main class="auth-gate"><section class="auth-gate-brand"><strong>LATTICE</strong><span>MARKET FACTORY OS</span><i></i><p>${tr("Автономная маркетинговая фабрика с управляемым капиталом.", "Autonomous market factory with governed capital.")}</p></section><section class="auth-gate-card"><div class="auth-gate-top"><span>${tr("ЗАЩИЩЁННЫЙ ДОСТУП", "SECURE ACCESS")}</span><button class="locale" type="button" data-action="locale"><span class="${state.locale==="RU"?"active":""}">RU</span><i></i><span class="${state.locale==="EN"?"active":""}">EN</span></button></div><h1>${tr("Вход в командный центр", "Enter the Control Room")}</h1>${configured ? form : `<div class="auth-gate-error">${tr("Облачная авторизация не настроена. Проверьте переменные Supabase в окружении Vercel.", "Cloud authentication is not configured. Check the Supabase environment variables in Vercel.")}</div>`}<small>${tr("Доступ предоставляется только участникам изолированного workspace. Все действия фиксируются в аудите.", "Access is limited to members of an isolated workspace. Every action is recorded in the audit trail.")}</small></section>${state.notice?`<div class="toast"><i>!</i><span><b>${tr("СТАТУС ВХОДА", "SIGN-IN STATUS")}</b><small>${esc(state.notice)}</small></span></div>`:""}</main>`;
 }
 
 function countryModal() {
@@ -397,7 +411,11 @@ document.addEventListener("click", async (event) => {
     if (target.dataset.action === "change-email") state.otpEmail=null;
     if (target.dataset.action === "sign-out") { localStorage.removeItem("lattice-session"); state.session=null; state.cloudContext=null; state.authOpen=false; state.notice=tr("Облачная сессия завершена","Cloud session ended"); }
     if (target.dataset.action === "executive") { await sendCommand({kind:"SET_EXECUTIVE_VIEW",enabled:!state.executive}); state.notice=tr(state.executive?"Включён обзор для владельца":"Включён рабочий обзор",state.executive?"Executive view enabled":"Operator view enabled"); }
-    if (target.dataset.action === "locale") { await sendCommand({kind:"SET_LOCALE",locale:state.locale==="RU"?"EN":"RU"}); state.notice=tr("Выбран русский язык","English interface selected"); }
+    if (target.dataset.action === "locale") {
+      if (!isLocalRuntime && !state.cloudContext) state.locale=state.locale==="RU"?"EN":"RU";
+      else await sendCommand({kind:"SET_LOCALE",locale:state.locale==="RU"?"EN":"RU"});
+      state.notice=tr("Выбран русский язык","English interface selected");
+    }
     if (target.dataset.action === "filter") { const values=["ВСЕ","RIGZIP","EVORIOS","TRAVEL"]; const filter=values[(values.indexOf(state.selectedFilter)+1)%values.length]; await sendCommand({kind:"SET_FILTER",filter}); state.notice=tr(`Выбран фильтр: ${state.selectedFilter}`,`Filter selected: ${state.selectedFilter}`); }
     if (target.dataset.action === "refresh") { await sendCommand({kind:"REFRESH_READ_MODELS"}); state.notice=tr("Данные обновлены локально. Внешние вызовы не выполнялись","Read models refreshed locally. No external calls were made"); }
     if (target.dataset.region) { state.selectedRegion=target.dataset.region; state.notice=tr("Географический охват изменён","Geographic scope changed"); }
@@ -497,4 +515,4 @@ Promise.all([
   fetch("/api/v1/runtime-state").then(response=>response.json()),
   fetch("/api/v1/factory-status").then(response=>response.json()),
   fetch("/api/v1/backend-status").then(response=>response.json()),
-]).then(async ([registry,readModel,geographyRegistry,catalog,runtime,factoryStatus,backendStatus])=>{screens=registry.screens;control=readModel;geographies=geographyRegistry.geographies;countryCatalog=catalog.countries;state.factoryStatus=factoryStatus;state.backendStatus=backendStatus;applyRuntime(runtime);try{state.session=JSON.parse(localStorage.getItem("lattice-session"));if(state.session)await loadCloudContext();}catch{localStorage.removeItem("lattice-session");state.session=null;}render();}).catch(error=>{document.getElementById("app").innerHTML=`<div class="fatal">CONTROL ROOM UNAVAILABLE<br>${esc(error.message)}</div>`;});
+]).then(async ([registry,readModel,geographyRegistry,catalog,runtime,factoryStatus,backendStatus])=>{screens=registry.screens;control=readModel;geographies=geographyRegistry.geographies;countryCatalog=catalog.countries;state.factoryStatus=factoryStatus;state.backendStatus=backendStatus;applyRuntime(runtime);try{state.session=JSON.parse(localStorage.getItem("lattice-session"));if(state.session)await loadCloudContext();}catch{localStorage.removeItem("lattice-session");state.session=null;state.cloudContext=null;}render();}).catch(error=>{document.getElementById("app").innerHTML=`<div class="fatal">CONTROL ROOM UNAVAILABLE<br>${esc(error.message)}</div>`;});
