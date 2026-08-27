@@ -13,9 +13,9 @@ import {
 import {
   bearerToken,
   cloudExecutionConfigured,
+  executeStepwiseDryRunCycle,
   fetchCloudContext,
   persistBrand,
-  persistDryRunCycle,
   requestEmailOtp,
   supabaseRuntimeConfig,
   verifyEmailOtp,
@@ -161,7 +161,7 @@ export default async function handler(request: ApiRequest, response: ApiResponse
       if (supabase && executionWorkspaceId && envelope.command.kind === "START_RIGZIP_DRY_RUN") {
         const cycle=next.executionCycles.at(-1);
         if (!cycle) throw new Error("Completed dry-run cycle was not produced");
-        const cloudResult=await persistDryRunCycle(supabase,executionWorkspaceId,cycle);
+        const cloudResult=await executeStepwiseDryRunCycle(supabase,executionWorkspaceId,cycle);
         if (cloudResult.status>=400) { response.status(cloudResult.status).json(cloudResult.body); return; }
       }
       if (supabase && envelope.command.kind === "ADD_BRAND_PROFILE") {

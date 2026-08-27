@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { bearerToken, persistBrand, persistDryRunCycle, requestEmailOtp, verifyEmailOtp, type SupabaseRuntimeConfig } from "./supabase-gateway.js";
+import { bearerToken, executeStepwiseDryRunCycle, persistBrand, persistDryRunCycle, requestEmailOtp, verifyEmailOtp, type SupabaseRuntimeConfig } from "./supabase-gateway.js";
 import { applyOperatingCommand, initialOperatingState } from "@lattice/core";
 
 const config: SupabaseRuntimeConfig = { url: "https://project.supabase.co", publishableKey: "sb_publishable_test" };
@@ -63,5 +63,30 @@ describe("supabase gateway", () => {
     const [finalUrl,finalInit]=mockedFetch.mock.calls[2] as [string,RequestInit];
     expect(finalUrl).toContain("execution_cycle?workspace_id=eq.");
     expect(JSON.parse(String(finalInit.body))).toMatchObject({status:"COMPLETED",external_effects:0});
+  });
+
+  it("executes all thirteen stages as separately claimed cloud transactions",async()=>{
+    const secured={...config,secretKey:"sb_secret_server_only"};
+    const state=applyOperatingCommand(initialOperatingState(),{kind:"START_RIGZIP_DRY_RUN",cycleId:"rigzip-stepwise-test"},"2026-08-27T12:00:00.000Z");
+    const cycle=state.executionCycles[0]!;
+    let claimIndex=0;
+    const mockedFetch=vi.fn(async(input:string|URL|Request,init?:RequestInit)=>{
+      const url=String(input);
+      if(url.includes("/rpc/claim_execution_job")) {
+        const job=cycle.jobs[claimIndex++];
+        return new Response(JSON.stringify(job?[{job_id:job.id,kind:job.kind,stage_order:claimIndex,lease_token:`lease-${claimIndex}`}]:[]),{status:200});
+      }
+      if(url.includes("/rpc/complete_execution_job")) return new Response(JSON.stringify({state:"SUCCEEDED"}),{status:200});
+      if(url.includes("execution_job?")&&init?.method==="GET") return new Response(JSON.stringify(cycle.jobs.map(()=>({state:"SUCCEEDED"}))),{status:200});
+      if(url.includes("execution_cycle?")&&init?.method==="PATCH") return new Response(JSON.stringify([{status:"COMPLETED"}]),{status:200});
+      return new Response(JSON.stringify([]),{status:201});
+    });
+    vi.stubGlobal("fetch",mockedFetch);
+    const result=await executeStepwiseDryRunCycle(secured,"e49996a3-5c2e-4093-90bf-f7afd9460adf",cycle);
+    expect(result.status).toBe(200);
+    expect(claimIndex).toBe(13);
+    expect(mockedFetch.mock.calls.filter(([url])=>String(url).includes("/rpc/complete_execution_job"))).toHaveLength(13);
+    const firstCompletion=mockedFetch.mock.calls.find(([url])=>String(url).includes("/rpc/complete_execution_job"));
+    expect(JSON.parse(String((firstCompletion?.[1] as RequestInit).body))).toMatchObject({p_lease_token:"lease-1"});
   });
 });
