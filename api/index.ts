@@ -101,7 +101,7 @@ export default async function handler(request: ApiRequest, response: ApiResponse
   const method = request.method ?? "GET";
 
   if (method === "GET" && pathname === "/api/v1/backend-status") {
-    response.status(200).json({ provider:"LAFWIRON", configured:ownerAccessConfigured, authentication:"OWNER_PASSWORD", dataProvider:supabase?"SUPABASE":"LOCAL", mode:"DRY_RUN", runtime:"VERCEL_STATELESS" });
+    response.status(200).json({ provider:"LAFWIRON", configured:ownerAccessConfigured, authentication:"OWNER_PASSWORD", configuration:{ ownerPassword:Boolean(ownerPassword), sessionSecret:Boolean(sessionSecret), sessionSecretStrong:Boolean(sessionSecret && sessionSecret.length >= 32) }, dataProvider:supabase?"SUPABASE":"LOCAL", mode:"DRY_RUN", runtime:"VERCEL_STATELESS" });
     return;
   }
   if (method === "POST" && pathname === "/api/v1/auth/owner-login") {
