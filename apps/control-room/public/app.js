@@ -483,6 +483,7 @@ document.addEventListener("submit", async (event) => {
       localStorage.setItem("lafwiron-owner-session",JSON.stringify(payload));
       await loadCloudContext();
       state.notice=tr("Доступ владельца подтверждён","Owner access verified");
+      if (matchMedia("(max-width: 760px)").matches) { state.welcome=false; navigate("/command"); return; }
     } catch (error) { state.notice=error.message; }
     render();
     return;
