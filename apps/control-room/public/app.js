@@ -58,7 +58,19 @@ async function sendCommand(command) {
   const headers = { "Content-Type":"application/json" };
   if (state.session?.access_token) headers.Authorization = `Bearer ${state.session.access_token}`;
   if (state.cloudContext?.workspace?.workspace_id) headers["X-Lattice-Workspace-Id"] = state.cloudContext.workspace.workspace_id;
-  const response = await fetch("/api/v1/commands", { method:"POST", headers, body:JSON.stringify(command) });
+  const currentState = {
+    version:state.version,
+    mode:"DRY_RUN",
+    executive:state.executive,
+    locale:state.locale,
+    selectedFilter:state.selectedFilter,
+    openDecisions:state.decisions,
+    discoveryMarkets:state.addedMarkets.map(({ administrativeLevels, supportedActivityDimensions, ...market })=>market),
+    expansionAreas:state.expansionAreas,
+    brandProfiles:state.brandProfiles,
+    events:[],
+  };
+  const response = await fetch("/api/v1/commands", { method:"POST", headers, body:JSON.stringify({command,currentState}) });
   const payload = await response.json();
   if (!response.ok) throw new Error(payload.error ?? "Command rejected");
   applyRuntime(payload);

@@ -101,7 +101,8 @@ createServer(async (request, response) => {
   }
   if (request.method === "POST" && requestUrl.pathname === "/api/v1/commands") {
     try {
-      const command = await readJson(request) as OperatingCommand;
+      const payload = await readJson(request) as OperatingCommand | { command?: OperatingCommand };
+      const command = "command" in payload && payload.command ? payload.command : payload as OperatingCommand;
       const nextState = applyOperatingCommand(operatingState, command, new Date().toISOString());
       if (supabase && command.kind === "ADD_BRAND_PROFILE") {
         const token = bearerToken(request.headers.authorization);

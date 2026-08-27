@@ -1,6 +1,7 @@
 {
   "name": "lattice-control-room",
   "private": true,
+  "type": "module",
   "packageManager": "pnpm@11.19.0",
   "scripts": {
     "test": "pnpm --filter @lattice/core test && pnpm --filter @lattice/control-room verify && pnpm --filter @lattice/control-room verify:runtime",
@@ -8,6 +9,9 @@
     "build": "pnpm --filter @lattice/core build && pnpm --filter @lattice/demo build && pnpm --filter @lattice/control-room build",
     "demo": "pnpm build && node apps/demo/dist/main.js",
     "control-room": "pnpm build && pnpm --filter @lattice/control-room start"
+  },
+  "dependencies": {
+    "@lattice/core": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.3.0",
