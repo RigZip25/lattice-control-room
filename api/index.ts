@@ -92,6 +92,7 @@ function isOperatingState(value: unknown): value is OperatingState {
     && Array.isArray(state.discoveryMarkets)
     && Array.isArray(state.expansionAreas)
     && Array.isArray(state.brandProfiles)
+    && (state.productUnderstandings===undefined || Array.isArray(state.productUnderstandings))
     && Array.isArray(state.productSources)
     && Array.isArray(state.productEvidence)
     && Array.isArray(state.executionCycles);

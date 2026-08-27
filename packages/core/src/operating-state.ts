@@ -53,6 +53,20 @@ export interface OperatingEvent {
   readonly occurredAt: string;
 }
 
+export interface ProductUnderstanding {
+  readonly brandId: string;
+  readonly website?: string;
+  readonly ownerDescription: string;
+  readonly materialNames: readonly string[];
+  readonly productSummary: string;
+  readonly customerSummary: string;
+  readonly valueSummary: string;
+  readonly assumptions: readonly string[];
+  readonly criticalQuestions: readonly string[];
+  readonly status: "DRAFT" | "CONFIRMED";
+  readonly confirmedAt?: string;
+}
+
 export interface DryRunCycleRecord {
   readonly id: string;
   readonly cycleId: string;
@@ -75,6 +89,7 @@ export interface OperatingState {
   readonly discoveryMarkets: readonly DiscoveryMarket[];
   readonly expansionAreas: readonly ExpansionArea[];
   readonly brandProfiles: readonly BrandProfile[];
+  readonly productUnderstandings: readonly ProductUnderstanding[];
   readonly productSources: readonly ProductSource[];
   readonly productEvidence: readonly ProductEvidence[];
   readonly productDiagnoses: readonly ProductDiagnosis[];
@@ -93,6 +108,8 @@ export type OperatingCommand =
   | { readonly kind: "ADD_DISCOVERY_MARKET"; readonly market: DiscoveryMarket }
   | { readonly kind: "ADD_EXPANSION_AREA"; readonly area: ExpansionArea }
   | { readonly kind: "ADD_BRAND_PROFILE"; readonly brand: BrandProfile }
+  | { readonly kind: "CAPTURE_PRODUCT_INTAKE"; readonly understanding: ProductUnderstanding }
+  | { readonly kind: "CONFIRM_PRODUCT_UNDERSTANDING"; readonly brandId: string }
   | { readonly kind: "REGISTER_PRODUCT_SOURCE"; readonly source: Omit<ProductSource,"id"|"status"> }
   | { readonly kind: "RECORD_PRODUCT_EVIDENCE"; readonly evidence: Omit<ProductEvidence,"id"> }
   | { readonly kind: "CREATE_PRODUCT_DIAGNOSIS"; readonly diagnosis: Omit<ProductDiagnosis,"id"|"status"> }
@@ -101,12 +118,12 @@ export type OperatingCommand =
   | { readonly kind: "START_BRAND_DRY_RUN"; readonly cycleId: string; readonly brandId:string };
 
 export function initialOperatingState(): OperatingState {
-  return { version: 0, executive: false, locale: "RU", selectedFilter: "ВСЕ", openDecisions: 3, discoveryMarkets: [], expansionAreas: [], brandProfiles: [], productSources: [], productEvidence: [], productDiagnoses: [], expansionTheses: [], executionCycles: [], events: [], mode: "DRY_RUN" };
+  return { version: 0, executive: false, locale: "RU", selectedFilter: "ВСЕ", openDecisions: 3, discoveryMarkets: [], expansionAreas: [], brandProfiles: [], productUnderstandings: [], productSources: [], productEvidence: [], productDiagnoses: [], expansionTheses: [], executionCycles: [], events: [], mode: "DRY_RUN" };
 }
 
 export function applyOperatingCommand(state: OperatingState, command: OperatingCommand, occurredAt: string): OperatingState {
   if (!Number.isFinite(Date.parse(occurredAt))) throw new Error("Operating event timestamp is invalid");
-  if (command === null || typeof command !== "object" || !["SET_EXECUTIVE_VIEW","SET_LOCALE","SET_FILTER","REFRESH_READ_MODELS","RESOLVE_DECISION","ADD_DISCOVERY_MARKET","ADD_EXPANSION_AREA","ADD_BRAND_PROFILE","REGISTER_PRODUCT_SOURCE","RECORD_PRODUCT_EVIDENCE","CREATE_PRODUCT_DIAGNOSIS","CREATE_EXPANSION_THESIS","START_RIGZIP_DRY_RUN","START_BRAND_DRY_RUN"].includes(command.kind)) {
+  if (command === null || typeof command !== "object" || !["SET_EXECUTIVE_VIEW","SET_LOCALE","SET_FILTER","REFRESH_READ_MODELS","RESOLVE_DECISION","ADD_DISCOVERY_MARKET","ADD_EXPANSION_AREA","ADD_BRAND_PROFILE","CAPTURE_PRODUCT_INTAKE","CONFIRM_PRODUCT_UNDERSTANDING","REGISTER_PRODUCT_SOURCE","RECORD_PRODUCT_EVIDENCE","CREATE_PRODUCT_DIAGNOSIS","CREATE_EXPANSION_THESIS","START_RIGZIP_DRY_RUN","START_BRAND_DRY_RUN"].includes(command.kind)) {
     throw new Error("Operating command kind is invalid");
   }
   if (command.kind === "SET_EXECUTIVE_VIEW" && typeof command.enabled !== "boolean") throw new Error("Executive view command is invalid");
@@ -134,6 +151,13 @@ export function applyOperatingCommand(state: OperatingState, command: OperatingC
     if (command.brand.status !== "DISCOVERY") throw new Error("New brands must start in DISCOVERY");
     if (state.brandProfiles.some((brand) => brand.id === command.brand.id || brand.name.toLowerCase() === command.brand.name.toLowerCase())) throw new Error("Brand already exists");
   }
+  if (command.kind === "CAPTURE_PRODUCT_INTAKE") {
+    const item=command.understanding;
+    if (!state.brandProfiles.some((brand)=>brand.id===item.brandId)) throw new Error("Product intake brand is not registered");
+    if (item.status!=="DRAFT" || item.ownerDescription.trim().length<8 || item.productSummary.trim().length<8) throw new Error("Product intake is incomplete");
+    if (state.productUnderstandings.some((entry)=>entry.brandId===item.brandId)) throw new Error("Product intake already exists");
+  }
+  if (command.kind === "CONFIRM_PRODUCT_UNDERSTANDING" && !state.productUnderstandings.some((item)=>item.brandId===command.brandId)) throw new Error("Product understanding is not registered");
   if (command.kind === "REGISTER_PRODUCT_SOURCE") {
     const source = registerProductSource(command.source);
     if (state.productSources.some((item) => item.id === source.id)) throw new Error("Product source already exists");
@@ -181,6 +205,8 @@ export function applyOperatingCommand(state: OperatingState, command: OperatingC
     case "ADD_DISCOVERY_MARKET": return { ...next, discoveryMarkets: [...state.discoveryMarkets, command.market] };
     case "ADD_EXPANSION_AREA": return { ...next, expansionAreas: [...state.expansionAreas, command.area] };
     case "ADD_BRAND_PROFILE": return { ...next, brandProfiles: [...state.brandProfiles, command.brand] };
+    case "CAPTURE_PRODUCT_INTAKE": return { ...next, productUnderstandings:[...state.productUnderstandings,command.understanding] };
+    case "CONFIRM_PRODUCT_UNDERSTANDING": return { ...next, productUnderstandings:state.productUnderstandings.map((item)=>item.brandId===command.brandId?{...item,status:"CONFIRMED",confirmedAt:occurredAt}:item) };
     case "REGISTER_PRODUCT_SOURCE": return { ...next, productSources:[...state.productSources,registerProductSource(command.source)] };
     case "RECORD_PRODUCT_EVIDENCE": {
       const source = state.productSources.find((item) => item.id === command.evidence.sourceId);

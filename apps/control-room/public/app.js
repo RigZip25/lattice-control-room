@@ -1,7 +1,7 @@
 import { blueprints } from "/screen-blueprints.js";
 import { renderChoropleths } from "/map.js";
 
-const state = { executive:false, locale:"RU", notice:"", noticeTone:"success", noticeModal:false, decisions:3, selectedFilter:"ВСЕ", selectedRegion:"WORLD", mobileNav:false, welcome:location.pathname==="/", factoryStatus:null, backendStatus:null, authOpen:false, session:null, cloudContext:null, addCountry:false, addBrand:false, addSource:false, addDiagnosis:false, addThesis:false, pendingCountry:null, pendingArea:null, addedMarkets:[], expansionAreas:[], brandProfiles:[], productSources:[], productEvidence:[], productDiagnoses:[], expansionTheses:[], executionCycles:[], dryRunPending:false, version:0 };
+const state = { executive:false, locale:"RU", notice:"", noticeTone:"success", noticeModal:false, decisions:3, selectedFilter:"ВСЕ", selectedRegion:"WORLD", mobileNav:false, welcome:location.pathname==="/", factoryStatus:null, backendStatus:null, authOpen:false, session:null, cloudContext:null, addCountry:false, addBrand:false, addSource:false, addDiagnosis:false, addThesis:false, pendingCountry:null, pendingArea:null, addedMarkets:[], expansionAreas:[], brandProfiles:[], productUnderstandings:[], productSources:[], productEvidence:[], productDiagnoses:[], expansionTheses:[], executionCycles:[], dryRunPending:false, version:0 };
 let noticeTimer;
 const isLocalRuntime = ["localhost", "127.0.0.1", "::1"].includes(location.hostname);
 let screens = [];
@@ -54,6 +54,7 @@ function applyRuntime(runtime) {
   state.addedMarkets = runtime.discoveryMarkets.map((market) => ({ ...market, administrativeLevels:["country","subdivision"], supportedActivityDimensions:[market.activity] }));
   state.expansionAreas = runtime.expansionAreas ?? [];
   state.brandProfiles = runtime.brandProfiles ?? [];
+  state.productUnderstandings = runtime.productUnderstandings ?? [];
   state.productSources = runtime.productSources ?? [];
   state.productEvidence = runtime.productEvidence ?? [];
   state.productDiagnoses = runtime.productDiagnoses ?? [];
@@ -75,6 +76,7 @@ async function sendCommand(command) {
     discoveryMarkets:state.addedMarkets.map(({ administrativeLevels, supportedActivityDimensions, ...market })=>market),
     expansionAreas:state.expansionAreas,
     brandProfiles:state.brandProfiles,
+    productUnderstandings:state.productUnderstandings,
     productSources:state.productSources,
     productEvidence:state.productEvidence,
     productDiagnoses:state.productDiagnoses,
@@ -325,6 +327,7 @@ function brandOnboardingMarkup() {
   const brandId = location.pathname.split("/")[2];
   const brand = state.brandProfiles.find((item)=>item.id===brandId);
   if (!brand) return `<section class="module onboarding-empty"><h2>${tr("Профиль бренда не найден","Brand profile not found")}</h2><button data-route="/brands">${tr("ВЕРНУТЬСЯ К БРЕНДАМ","BACK TO BRANDS")}</button></section>`;
+  const understanding=state.productUnderstandings.find((item)=>item.brandId===brand.id);
   const sources=state.productSources.filter((item)=>item.brandId===brand.id);
   const evidence=state.productEvidence.filter((item)=>item.brandId===brand.id);
   const facts=evidence.filter((item)=>item.classification==="FACT").length;
@@ -342,7 +345,8 @@ function brandOnboardingMarkup() {
     [tr("Производство и запуск","Production and launch"),"LOCKED",tr("Контент, QA, дистрибуция и атрибуция","Content, QA, distribution and attribution")],
     [tr("Обучение и следующий цикл","Learning and next cycle"),"LOCKED",tr("Вовлечение, удержание, экономика и перераспределение бюджета","Engagement, retention, economics and budget reallocation")],
   ];
-  const nextAction=cycleReady
+  const understandingReview=understanding?.status==="DRAFT"?`<article class="module understanding-review"><div class="module-title">${tr("КАК СИСТЕМА ПОНЯЛА ПРОДУКТ","HOW THE SYSTEM UNDERSTANDS THE PRODUCT")} <span>${tr("НУЖНО ПОДТВЕРЖДЕНИЕ","CONFIRMATION NEEDED")}</span></div><h2>${esc(understanding.productSummary)}</h2><dl><div><dt>${tr("ПРЕДПОЛАГАЕМАЯ АУДИТОРИЯ","PROPOSED AUDIENCE")}</dt><dd>${esc(understanding.customerSummary)}</dd></div><div><dt>${tr("ЦЕННОСТЬ","VALUE")}</dt><dd>${esc(understanding.valueSummary)}</dd></div><div><dt>${tr("МАТЕРИАЛЫ","MATERIALS")}</dt><dd>${esc([understanding.website,...understanding.materialNames].filter(Boolean).join(" · ")||tr("Описание владельца","Owner description"))}</dd></div><div><dt>${tr("ДОПУЩЕНИЕ","ASSUMPTION")}</dt><dd>${esc(understanding.assumptions.join(" · "))}</dd></div></dl><div class="modal-actions"><button data-action="add-brand">${tr("ПОПРАВИТЬ","CORRECT")}</button><button class="primary" data-action="confirm-understanding" data-brand-id="${esc(brand.id)}">${tr("ДА, ВСЁ ВЕРНО","YES, THAT IS CORRECT")}</button></div></article>`:``;
+  const nextAction=understandingReview ? understandingReview : cycleReady
     ? `<h3>${tr("Бренд готов к управляемому циклу","Brand is ready for a governed cycle")}</h3><p>${tr("Все входные контракты зафиксированы. Запуск выполнит 13 стадий без публикаций, платежей и внешних коммуникаций.","All admission contracts are recorded. The run executes 13 stages without publishing, payments or external communication.")}</p><button class="primary" data-action="start-brand-dry-run" data-brand-id="${esc(brand.id)}">▶ ${tr("ЗАПУСТИТЬ DRY RUN БРЕНДА","START BRAND DRY RUN")}</button>`
     : `<h3>${tr("Передайте системе источники о продукте","Provide product source material")}</h3><p>${tr("Нужно: 2 источника, 3 факта, 1 открытый вопрос, диагноз и сравнительный тезис экспансии. До этого бюджет не предлагается.","Required: 2 sources, 3 facts, 1 open question, a diagnosis and a comparative expansion thesis. No budget is proposed before then.")}</p><button data-route="/factory-config">${tr("ПРОДОЛЖИТЬ ПОДГОТОВКУ","CONTINUE PREPARATION")} →</button>`;
   return `<section class="brand-journey"><article class="module brand-brief"><div class="module-title">${tr("ИСХОДНЫЙ КОНТЕКСТ","SOURCE CONTEXT")} <span>DISCOVERY</span></div><h2>${esc(brand.name)}</h2><p>${esc(brand.offering)}</p><dl><div><dt>${tr("АУДИТОРИЯ","AUDIENCE")}</dt><dd>${esc(brand.audience)}</dd></div><div><dt>${tr("БИЗНЕС-МОДЕЛЬ","BUSINESS MODEL")}</dt><dd>${esc(brand.businessModel)}</dd></div><div><dt>${tr("ЦЕННОСТНОЕ СОБЫТИЕ","VALUE EVENT")}</dt><dd>${esc(brand.primaryValueEvent)}</dd></div><div><dt>${tr("ГОТОВНОСТЬ","READINESS")}</dt><dd>${sources.length}/2 · ${facts}/3 · ${unknowns}/1 · ${diagnosis?"DIAGNOSIS ✓":"DIAGNOSIS ×"} · ${thesis?"THESIS ✓":"THESIS ×"}</dd></div></dl></article><article class="module journey-flow"><div class="module-title">${tr("МАРШРУТ ЗАПУСКА БРЕНДА","BRAND LAUNCH JOURNEY")} <span>${cycleReady?tr("ГОТОВ К ЦИКЛУ","READY FOR CYCLE"):tr("ПОДГОТОВКА","PREPARATION")}</span></div>${stages.map(([title,status,note],index)=>`<button class="journey-step ${status.toLowerCase()}" data-route="${status==="NEXT"?"/factory-config":location.pathname}"><i>${String(index+1).padStart(2,"0")}</i><span><b>${esc(title)}</b><small>${esc(note)}</small></span><em>${status}</em></button>`).join("")}</article><aside class="module journey-next"><div class="module-title">${tr("СЛЕДУЮЩЕЕ ДЕЙСТВИЕ","NEXT ACTION")} <span>GOVERNED</span></div>${nextAction}</aside></section>`;
@@ -445,7 +449,7 @@ function areaModal() {
 }
 
 function brandModal() {
-  return `<div class="modal-backdrop"><form class="modal brand-modal" id="brand-form"><div class="module-title">${tr("ПАСПОРТ БРЕНДА","BRAND INTAKE")} <button type="button" data-action="close-brand">×</button></div><h2>${tr("Добавить бренд в фабрику","Add a brand to the factory")}</h2><p>${tr("Система использует этот контекст для построения контракта роста, исследования рынков, выбора каналов и метрик. Новый бренд начинает в DISCOVERY без внешних действий.","The factory uses this context to form a growth contract, scout markets, choose channels and metrics. New brands start in DISCOVERY with no external execution.")}</p><div class="form-grid"><label>${tr("НАЗВАНИЕ","NAME")}<input name="name" required minlength="2" placeholder="Acme"></label><label>${tr("ТИП ПРОДУКТА","PRODUCT ARCHETYPE")}<select name="archetype" required><option value="LOCAL_TWO_SIDED_MARKETPLACE">${tr("Локальный двусторонний маркетплейс","Local two-sided marketplace")}</option><option value="INTERNATIONAL_NEIGHBORHOOD_MARKETPLACE">${tr("Международный соседский маркетплейс","International neighborhood marketplace")}</option><option value="CONTENT_IP_PORTFOLIO">${tr("Контент и интеллектуальная собственность","Content and IP portfolio")}</option><option value="TRAVEL_PLATFORM">${tr("Платформа путешествий","Travel platform")}</option><option value="RECURRING_UTILITY">${tr("Регулярный цифровой сервис","Recurring utility")}</option><option value="OTHER">${tr("Другая модель","Other model")}</option></select></label><label>${tr("ЧТО ПРЕДЛАГАЕТ ПРОДУКТ","OFFERING")}<textarea name="offering" required placeholder="${tr("Продукт или услуга и решаемая проблема","Product, service and problem solved")}"></textarea></label><label>${tr("ДЛЯ КОГО","TARGET AUDIENCE")}<textarea name="audience" required placeholder="${tr("Покупатели, поставщики, сегменты","Buyers, suppliers and segments")}"></textarea></label><label>${tr("БИЗНЕС-МОДЕЛЬ","BUSINESS MODEL")}<input name="businessModel" required placeholder="${tr("Комиссия, подписка, продажа…","Commission, subscription, sale…")}"></label><label>${tr("ГЛАВНОЕ ЦЕННОСТНОЕ СОБЫТИЕ","PRIMARY VALUE EVENT")}<input name="primaryValueEvent" required placeholder="completed_booking"></label><label class="form-span">${tr("ЗАДАЧИ БРЕНДА","BRAND OBJECTIVES")}<textarea name="objectives" required placeholder="${tr("Например: проверить спрос; привлечь поставщиков; выйти в новый штат","For example: validate demand; acquire suppliers; enter a new state")}"></textarea></label><label>${tr("ЦЕЛЕВЫЕ ГЕОГРАФИИ","TARGET GEOGRAPHIES")}<input name="targetGeographies" required placeholder="US, CZ, EU"></label><label>${tr("ЯЗЫКИ","LANGUAGES")}<input name="languages" required placeholder="ru, en"></label><label class="form-span">${tr("ОГРАНИЧЕНИЯ И ЗАПРЕТЫ","CONSTRAINTS AND PROHIBITIONS")}<textarea name="constraints" placeholder="${tr("Регулирование, запрещённые claims, возрастные ограничения, риски","Regulation, prohibited claims, age restrictions and risks")}"></textarea></label></div><div class="modal-actions"><button type="button" data-action="close-brand">${tr("ОТМЕНА","CANCEL")}</button><button type="submit">${tr("СОЗДАТЬ ПРОФИЛЬ БРЕНДА","CREATE BRAND PROFILE")}</button></div></form></div>`;
+  return `<div class="modal-backdrop"><form class="modal brand-modal" id="brand-form"><div class="module-title">${tr("НОВЫЙ ПРОДУКТ","NEW PRODUCT")} <button type="button" data-action="close-brand">×</button></div><h2>${tr("Расскажите о продукте любым удобным способом","Tell us about the product in any convenient way")}</h2><p>${tr("Достаточно сайта или короткого описания. LAFWIRON самостоятельно изучит материалы и покажет, как поняла продукт. Дополнительные вопросы появятся только при критическом пробеле.","A website or short description is enough. LAFWIRON will study the materials and show its understanding. Follow-up questions appear only for critical gaps.")}</p><div class="form-grid"><label>${tr("НАЗВАНИЕ","NAME")}<input name="name" required minlength="2" placeholder="Acme"></label><label>${tr("САЙТ, ЕСЛИ ЕСТЬ","WEBSITE, IF AVAILABLE")}<input name="website" type="url" placeholder="https://example.com"></label><label class="form-span">${tr("ОПИСАНИЕ ПРОДУКТА","PRODUCT DESCRIPTION")}<textarea name="description" minlength="8" placeholder="${tr("Что это за продукт, для кого он и какую проблему решает","What the product is, who it serves, and the problem it solves")}"></textarea></label><label class="form-span intake-drop">${tr("МАТЕРИАЛЫ — НЕОБЯЗАТЕЛЬНО","MATERIALS — OPTIONAL")}<input name="materials" type="file" multiple accept=".pdf,.doc,.docx,.ppt,.pptx,image/*"><span>${tr("PDF, Word, презентации, изображения и скриншоты. На первом этапе имена файлов фиксируются в intake; содержимое будет храниться в закрытой библиотеке.","PDF, Word, presentations, images, and screenshots. File names are recorded in intake; content will live in the private library.")}</span></label></div><div class="intake-promise"><b>${tr("Что произойдёт дальше","What happens next")}</b><span>${tr("Материалы приняты → продукт изучается → вы подтверждаете понимание → внутренний отдел исследует рынок","Materials received → product studied → you confirm the understanding → internal research studies the market")}</span></div><div class="modal-actions"><button type="button" data-action="close-brand">${tr("ОТМЕНА","CANCEL")}</button><button type="submit">${tr("ПОНЯТЬ ПРОДУКТ","UNDERSTAND PRODUCT")}</button></div></form></div>`;
 }
 
 function welcomeMarkup() {
@@ -481,6 +485,10 @@ document.addEventListener("click", async (event) => {
     }
     if (target.dataset.action === "filter") { const values=["ВСЕ","RIGZIP","EVORIOS","TRAVEL"]; const filter=values[(values.indexOf(state.selectedFilter)+1)%values.length]; await sendCommand({kind:"SET_FILTER",filter}); state.notice=tr(`Выбран фильтр: ${state.selectedFilter}`,`Filter selected: ${state.selectedFilter}`); }
     if (target.dataset.action === "refresh") { await sendCommand({kind:"REFRESH_READ_MODELS"}); state.notice=tr("Данные обновлены локально. Внешние вызовы не выполнялись","Read models refreshed locally. No external calls were made"); }
+    if (target.dataset.action === "confirm-understanding") {
+      await sendCommand({kind:"CONFIRM_PRODUCT_UNDERSTANDING",brandId:String(target.dataset.brandId)});
+      state.notice=tr("Понимание продукта подтверждено. Внутреннее исследование поставлено в очередь DRY RUN.","Product understanding confirmed. Internal research has been queued in DRY RUN.");
+    }
     if (target.dataset.action === "start-dry-run") {
       if (state.dryRunPending) return;
       const cycleId=`rigzip-ui-${Date.now()}`;
@@ -557,15 +565,21 @@ document.addEventListener("submit", async (event) => {
   if (event.target.id === "brand-form") {
     event.preventDefault();
     const form = new FormData(event.target);
-    const split = (name) => String(form.get(name) ?? "").split(/[,;\n]/).map((item)=>item.trim()).filter(Boolean);
     const name = String(form.get("name") ?? "").trim();
+    const website=String(form.get("website") ?? "").trim();
+    const description=String(form.get("description") ?? "").trim();
+    const materialNames=form.getAll("materials").filter((item)=>item instanceof File&&item.size>0).map((item)=>item.name);
+    if (!website&&!description&&materialNames.length===0) { state.notice=tr("Добавьте сайт, описание или хотя бы один файл","Add a website, description, or at least one file"); render(); return; }
     const id = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-zа-я0-9]+/gi,"-").replace(/^-|-$/g,"");
-    const brand = { id, name, archetype:String(form.get("archetype")), offering:String(form.get("offering")), audience:String(form.get("audience")), businessModel:String(form.get("businessModel")), objectives:split("objectives"), primaryValueEvent:String(form.get("primaryValueEvent")), targetGeographies:split("targetGeographies"), languages:split("languages"), constraints:split("constraints"), status:"DISCOVERY" };
+    const supplied=description||tr(`Продукт представлен на сайте ${website}`,`Product presented at ${website}`);
+    const brand = { id, name, archetype:"OTHER", offering:supplied, audience:tr("Аудитория определяется внутренним исследованием","Audience to be determined by internal research"), businessModel:tr("Требует подтверждения","Requires confirmation"), objectives:[tr("Понять продукт и проверить возможность создания рынка","Understand the product and test market creation")], primaryValueEvent:"validated_customer_value", targetGeographies:["GLOBAL"], languages:[state.locale.toLowerCase()], constraints:["DRY RUN only","No publishing, spend, or external communication"], status:"DISCOVERY" };
+    const understanding={brandId:id,...(website?{website}:{}),ownerDescription:supplied,materialNames,productSummary:supplied,customerSummary:brand.audience,valueSummary:tr("Система определит ключевую ценность после изучения материалов","The system will identify the core value after studying the materials"),assumptions:[tr("По умолчанию предполагается, что категорию рынка может потребоваться создать","The default assumption is that the market category may need to be created")],criticalQuestions:[],status:"DRAFT"};
     try {
       await sendCommand({kind:"ADD_BRAND_PROFILE",brand});
+      await sendCommand({kind:"CAPTURE_PRODUCT_INTAKE",understanding});
       state.addBrand=false;
       navigate(`/brands/${id}/onboarding`);
-      state.notice=tr(`${name}: профиль создан, начато изучение продукта`,`${name}: profile created, product intelligence started`);
+      state.notice=tr(`${name}: материалы приняты; проверьте, как система поняла продукт`,`${name}: materials received; review the system's understanding`);
       render();
     } catch (error) { state.notice=`COMMAND REJECTED: ${error.message}`; render(); }
     return;

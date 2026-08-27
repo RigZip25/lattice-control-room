@@ -60,6 +60,15 @@ describe("governed local operating state", () => {
     expect(evidenceState.productEvidence[0]?.sourceId).toBe(source.id);
   });
 
+  it("captures a low-friction product intake and requires owner confirmation",()=>{
+    const brand={id:"new-product",name:"New Product",archetype:"OTHER",offering:"A new category product",audience:"To be researched",businessModel:"Requires confirmation",objectives:["Understand the product"],primaryValueEvent:"validated_customer_value",targetGeographies:["GLOBAL"],languages:["en"],constraints:["DRY RUN only"],status:"DISCOVERY"} as const;
+    const created=applyOperatingCommand(initialOperatingState(),{kind:"ADD_BRAND_PROFILE",brand},"2026-08-27T15:00:00.000Z");
+    const captured=applyOperatingCommand(created,{kind:"CAPTURE_PRODUCT_INTAKE",understanding:{brandId:brand.id,website:"https://example.test",ownerDescription:"A concise owner description of the new product.",materialNames:["brief.pdf"],productSummary:"A concise owner description of the new product.",customerSummary:"To be determined by research",valueSummary:"To be determined by research",assumptions:["The category may need to be created"],criticalQuestions:[],status:"DRAFT"}},"2026-08-27T15:01:00.000Z");
+    expect(captured.productUnderstandings[0]).toMatchObject({brandId:brand.id,status:"DRAFT",materialNames:["brief.pdf"]});
+    const confirmed=applyOperatingCommand(captured,{kind:"CONFIRM_PRODUCT_UNDERSTANDING",brandId:brand.id},"2026-08-27T15:02:00.000Z");
+    expect(confirmed.productUnderstandings[0]).toMatchObject({status:"CONFIRMED",confirmedAt:"2026-08-27T15:02:00.000Z"});
+  });
+
   it("blocks a generic brand cycle until the evidence and strategy gates are complete",()=>{
     const brand={id:"neighborhood-tools",name:"Neighborhood Tools",archetype:"INTERNATIONAL_NEIGHBORHOOD_MARKETPLACE",offering:"Rental of household tools",audience:"Neighbors and local owners",businessModel:"Transaction commission",objectives:["Validate local liquidity"],primaryValueEvent:"completed_rental",targetGeographies:["US"],languages:["en"],constraints:["No regulated equipment"],status:"DISCOVERY"} as const;
     const state={...initialOperatingState(),brandProfiles:[brand]};
