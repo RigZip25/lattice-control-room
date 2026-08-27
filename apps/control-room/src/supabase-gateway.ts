@@ -45,13 +45,19 @@ export function cloudExecutionConfigured(config:SupabaseRuntimeConfig|null):bool
   return Boolean(config?.secretKey);
 }
 
+const executionStageOrder = [
+  "PRODUCT_INTELLIGENCE","PRODUCT_DIAGNOSIS","EXPANSION_THESIS","EXPERIMENT_PLAN",
+  "CREATIVE_PROMPT","LEGAL_REVIEW","PROVIDER_EXECUTION","QA_REVIEW","LIBRARY_INGEST",
+  "DISTRIBUTION_PLAN","METRIC_INGEST","LEARNING_EVALUATION","CAPITAL_RECOMMENDATION",
+] as const;
+
 export async function persistDryRunCycle(config:SupabaseRuntimeConfig,workspaceId:string,cycle:DryRunCycleRecord):Promise<SupabaseResponse> {
   if (!config.secretKey) return {status:503,body:{error:"Supabase secret key is not configured"}};
   if (!/^[0-9a-f-]{36}$/i.test(workspaceId) || cycle.mode!=="DRY_RUN" || cycle.artifacts.externalEffects!==0) return {status:400,body:{error:"Invalid governed cycle persistence request"}};
   const authorization={Authorization:`Bearer ${config.secretKey}`};
   const running=await request(config,"/rest/v1/execution_cycle?on_conflict=workspace_id,cycle_id",{method:"POST",headers:{...authorization,Prefer:"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({workspace_id:workspaceId,cycle_id:cycle.cycleId,brand_id:cycle.brandId,mode:"DRY_RUN",status:"RUNNING",external_effects:0,artifacts:{},created_at:cycle.createdAt,completed_at:null,updated_at:cycle.createdAt})},config.secretKey);
   if (running.status>=400) return running;
-  const jobs=await request(config,"/rest/v1/execution_job?on_conflict=workspace_id,job_id",{method:"POST",headers:{...authorization,Prefer:"resolution=merge-duplicates,return=minimal"},body:JSON.stringify(cycle.jobs.map((job)=>({workspace_id:workspaceId,cycle_id:cycle.cycleId,job_id:job.id,brand_id:job.brandId,kind:job.kind,mode:job.mode,state:job.state,idempotency_key:job.idempotencyKey,payload:job.payload,attempts:job.attempts,maximum_attempts:job.maxAttempts,available_at:job.availableAt,lease_owner:job.lease?.owner??null,lease_token:job.lease?.token??null,lease_expires_at:job.lease?.expiresAt??null,last_error:job.lastError??null,result_ref:job.resultRef??null,created_at:job.createdAt,updated_at:job.updatedAt})))},config.secretKey);
+  const jobs=await request(config,"/rest/v1/execution_job?on_conflict=workspace_id,job_id",{method:"POST",headers:{...authorization,Prefer:"resolution=merge-duplicates,return=minimal"},body:JSON.stringify(cycle.jobs.map((job)=>({workspace_id:workspaceId,cycle_id:cycle.cycleId,job_id:job.id,brand_id:job.brandId,kind:job.kind,stage_order:executionStageOrder.indexOf(job.kind)+1,mode:job.mode,state:job.state,idempotency_key:job.idempotencyKey,payload:job.payload,attempts:job.attempts,maximum_attempts:job.maxAttempts,available_at:job.availableAt,lease_owner:job.lease?.owner??null,lease_token:job.lease?.token??null,lease_expires_at:job.lease?.expiresAt??null,last_error:job.lastError??null,result_ref:job.resultRef??null,created_at:job.createdAt,updated_at:job.updatedAt})))},config.secretKey);
   if (jobs.status>=400) return jobs;
   return request(config,`/rest/v1/execution_cycle?workspace_id=eq.${encodeURIComponent(workspaceId)}&cycle_id=eq.${encodeURIComponent(cycle.cycleId)}`,{method:"PATCH",headers:{...authorization,Prefer:"return=representation"},body:JSON.stringify({status:"COMPLETED",external_effects:0,artifacts:cycle.artifacts,completed_at:cycle.completedAt,updated_at:cycle.completedAt})},config.secretKey);
 }
