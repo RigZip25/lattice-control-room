@@ -81,7 +81,7 @@ describe("supabase gateway", () => {
     const [url,init]=mockedFetch.mock.calls[0] as [string,RequestInit];
     expect(url).toContain("brand_id=eq.test-brand");
     expect(init.method).toBe("PATCH");
-    expect(JSON.parse(String(init.body))).toMatchObject({status:"ARCHIVED"});
+    expect(JSON.parse(String(init.body))).toMatchObject({status:"PAUSED"});
   });
 
   it("persists a governed cycle and its jobs with a server-only key",async()=>{
