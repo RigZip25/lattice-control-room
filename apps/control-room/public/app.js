@@ -1,7 +1,7 @@
 import { blueprints } from "/screen-blueprints.js";
 import { renderChoropleths } from "/map.js";
 
-const state = { executive:false, locale:"RU", notice:"", noticeTone:"success", noticeModal:false, decisions:3, selectedFilter:"ВСЕ", selectedRegion:"WORLD", mobileNav:false, welcome:location.pathname==="/", factoryStatus:null, backendStatus:null, authOpen:false, session:null, cloudContext:null, addCountry:false, addBrand:false, addSource:false, addDiagnosis:false, addThesis:false, pendingCountry:null, pendingArea:null, addedMarkets:[], expansionAreas:[], brandProfiles:[], productUnderstandings:[], productSources:[], productEvidence:[], productDiagnoses:[], expansionTheses:[], executionCycles:[], dryRunPending:false, version:0 };
+const state = { executive:false, locale:"RU", notice:"", noticeTone:"success", noticeModal:false, decisions:3, selectedFilter:"ВСЕ", selectedRegion:"WORLD", mobileNav:false, welcome:location.pathname==="/", factoryStatus:null, backendStatus:null, authOpen:false, session:null, cloudContext:null, addCountry:false, addBrand:false, duplicateBrand:null, editBrandId:null, addSource:false, addDiagnosis:false, addThesis:false, pendingCountry:null, pendingArea:null, addedMarkets:[], expansionAreas:[], brandProfiles:[], productUnderstandings:[], productSources:[], productEvidence:[], productDiagnoses:[], expansionTheses:[], executionCycles:[], dryRunPending:false, version:0 };
 let noticeTimer;
 const isLocalRuntime = ["localhost", "127.0.0.1", "::1"].includes(location.hostname);
 let screens = [];
@@ -391,6 +391,8 @@ function render() {
     ${state.addCountry?countryModal():""}
     ${state.pendingArea?areaModal():""}
     ${state.addBrand?brandModal():""}
+    ${state.duplicateBrand?duplicateBrandModal():""}
+    ${state.editBrandId?editBrandModal():""}
     ${state.addSource?sourceModal():""}
     ${state.addDiagnosis?diagnosisModal():""}
     ${state.addThesis?thesisModal():""}
@@ -452,6 +454,18 @@ function areaModal() {
 
 function brandModal() {
   return `<div class="modal-backdrop"><form class="modal brand-modal" id="brand-form"><div class="module-title">${tr("НОВЫЙ ПРОДУКТ","NEW PRODUCT")} <button type="button" data-action="close-brand">×</button></div><h2>${tr("Расскажите о продукте любым удобным способом","Tell us about the product in any convenient way")}</h2><p>${tr("Достаточно сайта или короткого описания. LAFWIRON самостоятельно изучит материалы и покажет, как поняла продукт. Дополнительные вопросы появятся только при критическом пробеле.","A website or short description is enough. LAFWIRON will study the materials and show its understanding. Follow-up questions appear only for critical gaps.")}</p><div class="form-grid"><label>${tr("НАЗВАНИЕ","NAME")}<input name="name" required minlength="2" placeholder="Acme"></label><label>${tr("САЙТ, ЕСЛИ ЕСТЬ","WEBSITE, IF AVAILABLE")}<input name="website" type="url" placeholder="https://example.com"></label><label class="form-span">${tr("ОПИСАНИЕ ПРОДУКТА","PRODUCT DESCRIPTION")}<textarea name="description" minlength="8" placeholder="${tr("Что это за продукт, для кого он и какую проблему решает","What the product is, who it serves, and the problem it solves")}"></textarea></label><label class="form-span intake-drop">${tr("МАТЕРИАЛЫ — НЕОБЯЗАТЕЛЬНО","MATERIALS — OPTIONAL")}<input name="materials" type="file" multiple accept=".pdf,.doc,.docx,.ppt,.pptx,image/*"><span>${tr("PDF, Word, презентации, изображения и скриншоты. На первом этапе имена файлов фиксируются в intake; содержимое будет храниться в закрытой библиотеке.","PDF, Word, presentations, images, and screenshots. File names are recorded in intake; content will live in the private library.")}</span></label></div><div class="intake-promise"><b>${tr("Что произойдёт дальше","What happens next")}</b><span>${tr("Материалы приняты → продукт изучается → вы подтверждаете понимание → внутренний отдел исследует рынок","Materials received → product studied → you confirm the understanding → internal research studies the market")}</span></div><div class="modal-actions"><button type="button" data-action="close-brand">${tr("ОТМЕНА","CANCEL")}</button><button type="submit">${tr("ПОНЯТЬ ПРОДУКТ","UNDERSTAND PRODUCT")}</button></div></form></div>`;
+}
+
+function duplicateBrandModal() {
+  const brand=state.duplicateBrand;
+  return `<div class="modal-backdrop"><section class="modal duplicate-brand-modal"><div class="module-title">${tr("ПРОЕКТ УЖЕ СУЩЕСТВУЕТ","PROJECT ALREADY EXISTS")} <button type="button" data-action="close-duplicate">×</button></div><h2>${esc(brand.name)}</h2><p>${tr("LAFWIRON уже хранит этот бренд. Вы можете дополнить исходные данные или удалить ошибочную запись и начать intake заново. Прошлый технический аудит останется только в архивном журнале.","LAFWIRON already stores this brand. You can enrich its intake or remove the active record and start over. Prior technical audit remains only in the archive ledger.")}</p><div class="modal-actions"><button data-action="close-duplicate">${tr("ОТМЕНА","CANCEL")}</button><button data-action="edit-brand" data-brand-id="${esc(brand.id)}">${tr("ОТКРЫТЬ И ДОПОЛНИТЬ","OPEN AND ENRICH")}</button><button class="danger" data-action="replace-brand" data-brand-id="${esc(brand.id)}">${tr("УДАЛИТЬ И СОЗДАТЬ ЗАНОВО","DELETE AND START OVER")}</button></div></section></div>`;
+}
+
+function editBrandModal() {
+  const brand=state.brandProfiles.find((item)=>item.id===state.editBrandId);
+  const intake=state.productUnderstandings.find((item)=>item.brandId===state.editBrandId);
+  if (!brand) return "";
+  return `<div class="modal-backdrop"><form class="modal brand-modal" id="brand-edit-form"><div class="module-title">${tr("ДОПОЛНИТЬ ПРОЕКТ","ENRICH PROJECT")} <button type="button" data-action="close-edit-brand">×</button></div><h2>${esc(brand.name)}</h2><p>${tr("Добавьте новый контекст или исправьте прежнее описание. После сохранения система снова попросит подтвердить своё понимание продукта.","Add context or correct the previous description. After saving, the system will ask you to reconfirm its understanding.")}</p><input type="hidden" name="brandId" value="${esc(brand.id)}"><div class="form-grid"><label class="form-span">${tr("САЙТ","WEBSITE")}<input name="website" type="url" value="${esc(intake?.website??"")}" placeholder="https://example.com"></label><label class="form-span">${tr("ОПИСАНИЕ ПРОДУКТА","PRODUCT DESCRIPTION")}<textarea name="description" required minlength="8">${esc(intake?.ownerDescription??brand.offering)}</textarea></label><label class="form-span intake-drop">${tr("ДОПОЛНИТЕЛЬНЫЕ МАТЕРИАЛЫ","ADDITIONAL MATERIALS")}<input name="materials" type="file" multiple accept=".pdf,.doc,.docx,.ppt,.pptx,image/*"></label></div><div class="modal-actions"><button type="button" data-action="close-edit-brand">${tr("ОТМЕНА","CANCEL")}</button><button type="submit">${tr("СОХРАНИТЬ И ПЕРЕОЦЕНИТЬ","SAVE AND REASSESS")}</button></div></form></div>`;
 }
 
 function welcomeMarkup() {
@@ -531,12 +545,25 @@ document.addEventListener("click", async (event) => {
     }
     if (target.dataset.region) { state.selectedRegion=target.dataset.region; state.notice=tr("Географический охват изменён","Geographic scope changed"); }
   if (target.dataset.action === "add-country") state.addCountry=true;
-  if (target.dataset.action === "add-brand") state.addBrand=true;
+  if (target.dataset.action === "add-brand") {
+    const onboardingBrand=target.closest(".understanding-review")&&location.pathname.startsWith("/brands/")?location.pathname.split("/")[2]:null;
+    if (onboardingBrand) state.editBrandId=onboardingBrand; else state.addBrand=true;
+  }
   if (target.dataset.action === "add-source") state.addSource=true;
   if (target.dataset.action === "add-diagnosis" && !target.disabled) state.addDiagnosis=true;
   if (target.dataset.action === "add-thesis") state.addThesis=true;
   if (target.dataset.action === "close-country") { state.addCountry=false; state.pendingCountry=null; }
     if (target.dataset.action === "close-brand") state.addBrand=false;
+    if (target.dataset.action === "close-duplicate") state.duplicateBrand=null;
+    if (target.dataset.action === "close-edit-brand") state.editBrandId=null;
+    if (target.dataset.action === "edit-brand") { state.duplicateBrand=null; state.editBrandId=String(target.dataset.brandId); }
+    if (target.dataset.action === "replace-brand") {
+      const brandId=String(target.dataset.brandId);
+      await sendCommand({kind:"DELETE_BRAND_PROFILE",brandId});
+      state.duplicateBrand=null;
+      state.addBrand=true;
+      state.notice=tr("Предыдущая запись удалена. Создайте проект заново.","Previous record deleted. Create the project again.");
+    }
     if (target.dataset.action === "close-source") state.addSource=false;
     if (target.dataset.action === "close-diagnosis") state.addDiagnosis=false;
     if (target.dataset.action === "close-thesis") state.addThesis=false;
@@ -582,6 +609,8 @@ document.addEventListener("submit", async (event) => {
     const materialNames=form.getAll("materials").filter((item)=>item instanceof File&&item.size>0).map((item)=>item.name);
     if (!website&&!description&&materialNames.length===0) { state.notice=tr("Добавьте сайт, описание или хотя бы один файл","Add a website, description, or at least one file"); render(); return; }
     const id = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-zа-я0-9]+/gi,"-").replace(/^-|-$/g,"");
+    const existing=state.brandProfiles.find((item)=>item.id===id||item.name.toLowerCase()===name.toLowerCase());
+    if (existing) { state.addBrand=false; state.duplicateBrand=existing; render(); return; }
     const supplied=description||tr(`Продукт представлен на сайте ${website}`,`Product presented at ${website}`);
     const brand = { id, name, archetype:"OTHER", offering:supplied, audience:tr("Аудитория определяется внутренним исследованием","Audience to be determined by internal research"), businessModel:tr("Требует подтверждения","Requires confirmation"), objectives:[tr("Понять продукт и проверить возможность создания рынка","Understand the product and test market creation")], primaryValueEvent:"validated_customer_value", targetGeographies:["GLOBAL"], languages:[state.locale.toLowerCase()], constraints:["DRY RUN only","No publishing, spend, or external communication"], status:"DISCOVERY" };
     const understanding={brandId:id,...(website?{website}:{}),ownerDescription:supplied,materialNames,productSummary:supplied,customerSummary:brand.audience,valueSummary:tr("Система определит ключевую ценность после изучения материалов","The system will identify the core value after studying the materials"),assumptions:[tr("По умолчанию предполагается, что категорию рынка может потребоваться создать","The default assumption is that the market category may need to be created")],criticalQuestions:[],status:"DRAFT"};
@@ -591,6 +620,27 @@ document.addEventListener("submit", async (event) => {
       state.addBrand=false;
       location.assign(`/brands/${id}/onboarding`);
     } catch (error) { state.notice=`COMMAND REJECTED: ${error.message}`; render(); }
+    return;
+  }
+  if (event.target.id === "brand-edit-form") {
+    event.preventDefault();
+    const form=new FormData(event.target);
+    const brandId=String(form.get("brandId"));
+    const brand=state.brandProfiles.find((item)=>item.id===brandId);
+    const current=state.productUnderstandings.find((item)=>item.brandId===brandId);
+    if (!brand||!current) { state.notice=tr("Исходный профиль не найден","Original profile not found"); render(); return; }
+    const website=String(form.get("website")??"").trim();
+    const description=String(form.get("description")??"").trim();
+    const newMaterials=form.getAll("materials").filter((item)=>item instanceof File&&item.size>0).map((item)=>item.name);
+    const materialNames=[...new Set([...current.materialNames,...newMaterials])];
+    const updatedBrand={...brand,offering:description};
+    const understanding={...current,...(website?{website}:{}),ownerDescription:description,materialNames,productSummary:description,status:"DRAFT",confirmedAt:undefined};
+    try {
+      await sendCommand({kind:"UPDATE_BRAND_PROFILE",brand:updatedBrand});
+      await sendCommand({kind:"UPDATE_PRODUCT_INTAKE",understanding});
+      state.editBrandId=null;
+      location.assign(`/brands/${brandId}/onboarding`);
+    } catch(error) { state.notice=`COMMAND REJECTED: ${error.message}`; render(); }
     return;
   }
   if (event.target.id === "source-form") {

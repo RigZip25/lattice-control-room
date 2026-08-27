@@ -197,7 +197,7 @@ export async function persistBrandServer(config:SupabaseRuntimeConfig,workspaceI
 export async function deleteBrandServer(config:SupabaseRuntimeConfig,workspaceId:string,brandId:string):Promise<SupabaseResponse> {
   if (!config.secretKey) return {status:503,body:{error:"Supabase secret key is not configured"}};
   return request(config,`/rest/v1/brand?workspace_id=eq.${encodeURIComponent(workspaceId)}&brand_id=eq.${encodeURIComponent(brandId)}`,{
-    method:"DELETE",headers:{Authorization:`Bearer ${config.secretKey}`,Prefer:"return=representation"},
+    method:"PATCH",headers:{Authorization:`Bearer ${config.secretKey}`,Prefer:"return=representation"},body:JSON.stringify({status:"ARCHIVED",updated_at:new Date().toISOString()}),
   },config.secretKey);
 }
 
