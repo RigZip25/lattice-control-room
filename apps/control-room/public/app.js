@@ -1,7 +1,7 @@
 import { blueprints } from "/screen-blueprints.js";
 import { renderChoropleths } from "/map.js";
 
-const state = { executive:false, locale:"RU", notice:"", noticeTone:"success", decisions:3, selectedFilter:"ВСЕ", selectedRegion:"WORLD", mobileNav:false, welcome:location.pathname==="/", factoryStatus:null, backendStatus:null, authOpen:false, session:null, cloudContext:null, addCountry:false, addBrand:false, addSource:false, addDiagnosis:false, addThesis:false, pendingCountry:null, pendingArea:null, addedMarkets:[], expansionAreas:[], brandProfiles:[], productSources:[], productEvidence:[], productDiagnoses:[], expansionTheses:[], executionCycles:[], dryRunPending:false, version:0 };
+const state = { executive:false, locale:"RU", notice:"", noticeTone:"success", noticeModal:false, decisions:3, selectedFilter:"ВСЕ", selectedRegion:"WORLD", mobileNav:false, welcome:location.pathname==="/", factoryStatus:null, backendStatus:null, authOpen:false, session:null, cloudContext:null, addCountry:false, addBrand:false, addSource:false, addDiagnosis:false, addThesis:false, pendingCountry:null, pendingArea:null, addedMarkets:[], expansionAreas:[], brandProfiles:[], productSources:[], productEvidence:[], productDiagnoses:[], expansionTheses:[], executionCycles:[], dryRunPending:false, version:0 };
 let noticeTimer;
 const isLocalRuntime = ["localhost", "127.0.0.1", "::1"].includes(location.hostname);
 let screens = [];
@@ -380,7 +380,7 @@ function render() {
     ${state.addThesis?thesisModal():""}
     ${state.authOpen?authModal():""}
     ${state.welcome?welcomeMarkup():""}
-    ${state.notice?`<div class="toast ${state.noticeTone}"><i>${state.noticeTone==="error"?"!":state.noticeTone==="progress"?"◌":"✓"}</i><span><b>${state.noticeTone==="error"?tr("ОШИБКА ЦИКЛА","CYCLE ERROR"):state.noticeTone==="progress"?tr("ЦИКЛ ВЫПОЛНЯЕТСЯ","CYCLE RUNNING"):tr("DRY RUN ЗАВЕРШЁН","DRY RUN COMPLETED")}</b><small>${esc(state.notice)}</small></span></div>`:""}`;
+    ${state.notice&&state.noticeModal?`<div class="cycle-status-backdrop"><section class="cycle-status ${state.noticeTone}" role="dialog" aria-modal="true" aria-live="assertive"><i>${state.noticeTone==="error"?"!":state.noticeTone==="progress"?"◌":"✓"}</i><p>${state.noticeTone==="error"?tr("ОШИБКА ЦИКЛА","CYCLE ERROR"):state.noticeTone==="progress"?tr("ВЫПОЛНЯЕТСЯ УПРАВЛЯЕМЫЙ ЦИКЛ","GOVERNED CYCLE RUNNING"):tr("DRY RUN УСПЕШНО ЗАВЕРШЁН","DRY RUN COMPLETED")}</p><h2>${state.noticeTone==="progress"?tr("Фабрика выполняет 13 стадий","The factory is running 13 stages"):state.noticeTone==="success"?tr("13 из 13 стадий завершены","13 of 13 stages completed"):tr("Цикл остановлен","Cycle stopped")}</h2><span>${esc(state.notice)}</span><div class="cycle-safety"><b>$0</b><small>${tr("ВНЕШНИХ РАСХОДОВ","EXTERNAL SPEND")}</small><b>${state.noticeTone==="success"?"COMPLETED":"DRY RUN"}</b><small>${tr("УПРАВЛЯЕМЫЙ РЕЖИМ","GOVERNED MODE")}</small></div>${state.dryRunPending?`<div class="cycle-progress"><i></i></div>`:`<button class="primary" data-action="close-cycle-status">${tr("ЗАКРЫТЬ И ВЕРНУТЬСЯ В КОМАНДНЫЙ ЦЕНТР","CLOSE AND RETURN TO CONTROL ROOM")}</button>`}</section></div>`:state.notice?`<div class="toast ${state.noticeTone}"><i>${state.noticeTone==="error"?"!":"✓"}</i><span><b>${tr("ДЕЙСТВИЕ ЗАПИСАНО","ACTION RECORDED")}</b><small>${esc(state.notice)}</small></span></div>`:""}`;
   renderChoropleths().catch((error) => { state.notice = error.message; console.error("Map rendering failed", error); });
 }
 
@@ -460,6 +460,7 @@ document.addEventListener("click", async (event) => {
     if (target.dataset.action === "mobile-menu") { state.mobileNav=!state.mobileNav; render(); return; }
     if (target.dataset.action === "auth") state.authOpen=true;
     if (target.dataset.action === "close-auth") state.authOpen=false;
+    if (target.dataset.action === "close-cycle-status") { state.notice=""; state.noticeModal=false; render(); return; }
 
     if (target.dataset.action === "sign-out") { localStorage.removeItem("lafwiron-owner-session"); state.session=null; state.cloudContext=null; state.authOpen=false; state.notice=tr("Сессия владельца завершена","Owner session ended"); }
     if (target.dataset.action === "executive") { await sendCommand({kind:"SET_EXECUTIVE_VIEW",enabled:!state.executive}); state.notice=tr(state.executive?"Включён обзор для владельца":"Включён рабочий обзор",state.executive?"Executive view enabled":"Operator view enabled"); }
@@ -474,6 +475,7 @@ document.addEventListener("click", async (event) => {
       if (state.dryRunPending) return;
       const cycleId=`rigzip-ui-${Date.now()}`;
       state.dryRunPending=true;
+      state.noticeModal=true;
       state.noticeTone="progress";
       state.notice=tr(`Цикл ${cycleId}: выполняются 13 управляемых стадий…`,`Cycle ${cycleId}: running 13 governed stages…`);
       clearTimeout(noticeTimer);
@@ -503,7 +505,7 @@ document.addEventListener("click", async (event) => {
   } catch (error) { state.dryRunPending=false; state.noticeTone="error"; state.notice = `COMMAND REJECTED: ${error.message}`; }
   render();
   clearTimeout(noticeTimer);
-  noticeTimer=setTimeout(()=>{state.notice="";render();},state.noticeTone==="success"?10000:8000);
+  if (!state.noticeModal) noticeTimer=setTimeout(()=>{state.notice="";render();},state.noticeTone==="success"?10000:8000);
 });
 document.addEventListener("input", (event) => {
   const form = event.target.closest?.(".auth-gate-form");
