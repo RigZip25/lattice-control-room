@@ -351,8 +351,8 @@ function renderAuthGate() {
   document.title = `${tr("Вход", "Sign in")} — LAFWIRON`;
   const configured = state.backendStatus?.configured !== false;
   const form = state.otpEmail
-    ? `<form class="auth-gate-form" id="otp-form"><p>${tr("Код отправлен на", "Code sent to")} <b>${esc(state.otpEmail)}</b></p><label>${tr("6-ЗНАЧНЫЙ КОД", "6-DIGIT CODE")}<input name="token" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required autofocus></label><div class="auth-gate-actions"><button type="button" data-action="change-email">${tr("ИЗМЕНИТЬ EMAIL", "CHANGE EMAIL")}</button><button class="primary" type="submit">${tr("ВОЙТИ В CONTROL ROOM", "ENTER CONTROL ROOM")}</button></div></form>`
-    : `<form class="auth-gate-form" id="auth-form"><p>${tr("Введите рабочий email. Мы отправим одноразовый шестизначный код — пароль не нужен.", "Enter your work email. We will send a one-time six-digit code — no password required.")}</p><label>EMAIL<input name="email" type="email" autocomplete="email" required autofocus placeholder="name@company.com"></label><button class="primary auth-gate-submit" type="submit" ${configured ? "" : "disabled"}>${tr("ПОЛУЧИТЬ КОД", "SEND CODE")}</button></form>`;
+    ? `<form class="auth-gate-form" id="otp-form"><p>${tr("Код отправлен на", "Code sent to")} <b>${esc(state.otpEmail)}</b></p><label>${tr("6-ЗНАЧНЫЙ КОД", "6-DIGIT CODE")}<input name="token" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required autofocus></label><div class="auth-gate-actions"><button type="button" data-action="change-email">${tr("ИЗМЕНИТЬ EMAIL", "CHANGE EMAIL")}</button><button class="primary auth-gate-submit" type="submit" disabled>${tr("ВОЙТИ В CONTROL ROOM", "ENTER CONTROL ROOM")}</button></div></form>`
+    : `<form class="auth-gate-form" id="auth-form"><p>${tr("Введите рабочий email. Мы отправим одноразовый шестизначный код — пароль не нужен.", "Enter your work email. We will send a one-time six-digit code — no password required.")}</p><label>EMAIL<input name="email" type="email" autocomplete="email" required autofocus placeholder="name@company.com"></label><button class="primary auth-gate-submit" type="submit" disabled>${tr("ПОЛУЧИТЬ КОД", "SEND CODE")}</button></form>`;
   document.getElementById("app").innerHTML = `<main class="auth-gate"><section class="auth-gate-brand"><strong>LAFWIRON</strong><span>MARKET FACTORY OS</span><i></i><p>${tr("Автономная маркетинговая фабрика холдинга.", "The holding company's autonomous market factory.")}</p></section><section class="auth-gate-card"><div class="auth-gate-top"><span>${tr("ЗАЩИЩЁННЫЙ ДОСТУП", "SECURE ACCESS")}</span><button class="locale" type="button" data-action="locale"><span class="${state.locale==="RU"?"active":""}">RU</span><i></i><span class="${state.locale==="EN"?"active":""}">EN</span></button></div><h1>${tr("Вход в командный центр", "Enter the Control Room")}</h1>${configured ? form : `<div class="auth-gate-error">${tr("Облачная авторизация не настроена. Проверьте переменные Supabase в окружении Vercel.", "Cloud authentication is not configured. Check the Supabase environment variables in Vercel.")}</div>`}<small>${tr("Доступ предоставляется только участникам изолированного workspace. Все действия фиксируются в аудите.", "Access is limited to members of an isolated workspace. Every action is recorded in the audit trail.")}</small></section>${state.notice?`<div class="toast"><i>!</i><span><b>${tr("СТАТУС ВХОДА", "SIGN-IN STATUS")}</b><small>${esc(state.notice)}</small></span></div>`:""}</main>`;
 }
 
@@ -428,6 +428,12 @@ document.addEventListener("click", async (event) => {
     if (target.dataset.action === "reject") { await sendCommand({kind:"RESOLVE_DECISION",outcome:"REJECTED"}); state.notice=tr("Предложение отклонено и сохранено локально","Proposal rejected and recorded locally"); }
   } catch (error) { state.notice = `COMMAND REJECTED: ${error.message}`; }
   render(); setTimeout(()=>{state.notice="";render();},2200);
+});
+document.addEventListener("input", (event) => {
+  const form = event.target.closest?.(".auth-gate-form");
+  if (!form) return;
+  const submit = form.querySelector('button[type="submit"]');
+  if (submit) submit.disabled = !form.checkValidity();
 });
 document.addEventListener("submit", async (event) => {
   if (event.target.id === "auth-form") {

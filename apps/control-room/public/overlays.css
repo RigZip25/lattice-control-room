@@ -1,1 +1,32 @@
 /* Reserved for screen-specific Figma overrides. Shared colors live in styles.css. */
+
+/* Lafwiron sign-in actions: quiet while incomplete, unmistakable when ready. */
+.auth-gate-submit,
+.auth-gate-submit:disabled {
+  border: 1px solid #34425d;
+  background: #0b1427;
+  color: #d7deea;
+  font-weight: 850;
+  letter-spacing: .06em;
+  opacity: 1;
+  cursor: not-allowed;
+  transition: background-color .18s ease, border-color .18s ease, color .18s ease, transform .18s ease;
+}
+
+.auth-gate-form:valid .auth-gate-submit:not(:disabled) {
+  border-color: #ffc400;
+  background: #ffc400;
+  color: #07101f;
+  cursor: pointer;
+}
+
+.auth-gate-form:valid .auth-gate-submit:not(:disabled):hover {
+  border-color: #ffd43b;
+  background: #ffd43b;
+  transform: translateY(-1px);
+}
+
+.auth-gate-form:valid .auth-gate-submit:not(:disabled):focus-visible {
+  outline: 3px solid rgb(255 196 0 / .24);
+  outline-offset: 2px;
+}
