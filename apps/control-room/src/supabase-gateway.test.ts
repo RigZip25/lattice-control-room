@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { bearerToken, executeStepwiseDryRunCycle, persistBrand, persistDryRunCycle, requestEmailOtp, verifyEmailOtp, type SupabaseRuntimeConfig } from "./supabase-gateway.js";
+import { bearerToken, executeStepwiseDryRunCycle, fetchOperatingStateServer, persistBrand, persistBrandServer, persistDryRunCycle, persistOperatingStateServer, requestEmailOtp, verifyEmailOtp, type SupabaseRuntimeConfig } from "./supabase-gateway.js";
 import { applyOperatingCommand, initialOperatingState } from "@lattice/core";
 
 const config: SupabaseRuntimeConfig = { url: "https://project.supabase.co", publishableKey: "sb_publishable_test" };
@@ -47,6 +47,29 @@ describe("supabase gateway", () => {
     expect(bearerToken("Bearer abc.def")).toBe("abc.def");
     expect(bearerToken("Basic abc")).toBeNull();
     expect(bearerToken(undefined)).toBeNull();
+  });
+
+  it("persists and restores governed state with the server-only key",async()=>{
+    const secured={...config,secretKey:"sb_secret_server_only"};
+    const state=initialOperatingState();
+    const mockedFetch=vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify([{state}]),{status:201}))
+      .mockResolvedValueOnce(new Response(JSON.stringify([{state,version:0}]),{status:200}));
+    vi.stubGlobal("fetch",mockedFetch);
+    await persistBrandServer(secured,"e49996a3-5c2e-4093-90bf-f7afd9460adf",{id:"rigzip",name:"RigZip",archetype:"LOCAL_TWO_SIDED_MARKETPLACE",offering:"Commercial vehicle rental",audience:"Businesses",businessModel:"Commission",objectives:["Validate demand"],primaryValueEvent:"completed_booking",targetGeographies:["US"],languages:["en"],constraints:[],status:"DISCOVERY"});
+    const brandRequest=mockedFetch.mock.calls[0] as [string,RequestInit];
+    expect((brandRequest[1].headers as Record<string,string>).Authorization).toBe("Bearer sb_secret_server_only");
+    mockedFetch.mockReset();
+    mockedFetch
+      .mockResolvedValueOnce(new Response(JSON.stringify([{state}]),{status:201}))
+      .mockResolvedValueOnce(new Response(JSON.stringify([{state,version:0}]),{status:200}));
+    const saved=await persistOperatingStateServer(secured,"e49996a3-5c2e-4093-90bf-f7afd9460adf",state);
+    const loaded=await fetchOperatingStateServer(secured,"e49996a3-5c2e-4093-90bf-f7afd9460adf");
+    expect(saved.status).toBe(201);
+    expect(loaded.body).toEqual([{state,version:0}]);
+    const [saveUrl,saveInit]=mockedFetch.mock.calls[0] as [string,RequestInit];
+    expect(saveUrl).toContain("workspace_state?on_conflict=workspace_id");
+    expect(JSON.parse(String(saveInit.body))).toMatchObject({version:0,state:{mode:"DRY_RUN"}});
   });
 
   it("persists a governed cycle and its jobs with a server-only key",async()=>{

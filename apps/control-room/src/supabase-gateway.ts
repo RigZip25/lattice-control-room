@@ -1,4 +1,4 @@
-import { executeEvidenceBoundAgentChain, type BrandProfile, type DryRunCycleRecord } from "@lattice/core";
+import { executeEvidenceBoundAgentChain, type BrandProfile, type DryRunCycleRecord, type OperatingState } from "@lattice/core";
 import { readFileSync } from "node:fs";
 
 export interface SupabaseRuntimeConfig {
@@ -183,6 +183,32 @@ export async function persistBrand(
       updated_at: new Date().toISOString(),
     }),
   });
+}
+
+export async function persistBrandServer(config:SupabaseRuntimeConfig,workspaceId:string,brand:BrandProfile):Promise<SupabaseResponse> {
+  if (!config.secretKey) return {status:503,body:{error:"Supabase secret key is not configured"}};
+  return request(config,"/rest/v1/brand?on_conflict=workspace_id,brand_id",{
+    method:"POST",
+    headers:{Authorization:`Bearer ${config.secretKey}`,Prefer:"resolution=merge-duplicates,return=representation"},
+    body:JSON.stringify({workspace_id:workspaceId,brand_id:brand.id,name:brand.name,archetype:brand.archetype,profile:brand,status:brand.status,updated_at:new Date().toISOString()}),
+  },config.secretKey);
+}
+
+export async function persistOperatingStateServer(config:SupabaseRuntimeConfig,workspaceId:string,state:OperatingState):Promise<SupabaseResponse> {
+  if (!config.secretKey) return {status:503,body:{error:"Supabase secret key is not configured"}};
+  if (!/^[0-9a-f-]{36}$/i.test(workspaceId) || state.mode!=="DRY_RUN") return {status:400,body:{error:"Invalid governed operating state"}};
+  return request(config,"/rest/v1/workspace_state?on_conflict=workspace_id",{
+    method:"POST",
+    headers:{Authorization:`Bearer ${config.secretKey}`,Prefer:"resolution=merge-duplicates,return=representation"},
+    body:JSON.stringify({workspace_id:workspaceId,version:state.version,state,updated_at:new Date().toISOString()}),
+  },config.secretKey);
+}
+
+export async function fetchOperatingStateServer(config:SupabaseRuntimeConfig,workspaceId:string):Promise<SupabaseResponse> {
+  if (!config.secretKey) return {status:503,body:{error:"Supabase secret key is not configured"}};
+  return request(config,`/rest/v1/workspace_state?workspace_id=eq.${encodeURIComponent(workspaceId)}&select=state,version&limit=1`,{
+    method:"GET",headers:{Authorization:`Bearer ${config.secretKey}`},
+  },config.secretKey);
 }
 
 export function bearerToken(header: string | undefined): string | null {

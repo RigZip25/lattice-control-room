@@ -14,8 +14,10 @@ import {
   bearerToken,
   cloudExecutionConfigured,
   executeStepwiseDryRunCycle,
+  fetchOperatingStateServer,
   fetchCloudContext,
-  persistBrand,
+  persistBrandServer,
+  persistOperatingStateServer,
   requestEmailOtp,
   supabaseRuntimeConfig,
   verifyEmailOtp,
@@ -164,19 +166,28 @@ export default async function handler(request: ApiRequest, response: ApiResponse
         const cloudResult=await executeStepwiseDryRunCycle(supabase,executionWorkspaceId,cycle);
         if (cloudResult.status>=400) { response.status(cloudResult.status).json(cloudResult.body); return; }
       }
-      if (supabase && envelope.command.kind === "ADD_BRAND_PROFILE") {
-        const token = bearerToken(header(request, "authorization"));
-        const workspaceId = header(request, "x-lattice-workspace-id");
-        if (token && workspaceId) {
-          const cloudResult = await persistBrand(supabase, token, workspaceId, envelope.command.brand);
-          if (cloudResult.status >= 400) { response.status(cloudResult.status).json(cloudResult.body); return; }
+      if (supabase && executionWorkspaceId) {
+        for (const brand of next.brandProfiles) {
+          const brandResult=await persistBrandServer(supabase,executionWorkspaceId,brand);
+          if (brandResult.status>=400) { response.status(brandResult.status).json(brandResult.body); return; }
         }
+        const stateResult=await persistOperatingStateServer(supabase,executionWorkspaceId,next);
+        if (stateResult.status>=400) { response.status(stateResult.status).json(stateResult.body); return; }
       }
       response.status(200).json(next);
     } catch (error) { response.status(400).json({ error:error instanceof Error ? error.message : "Invalid command" }); }
     return;
   }
-  if (method === "GET" && pathname === "/api/v1/runtime-state") { response.status(200).json(initialOperatingState()); return; }
+  if (method === "GET" && pathname === "/api/v1/runtime-state") {
+    if (supabase && executionWorkspaceId) {
+      const stored=await fetchOperatingStateServer(supabase,executionWorkspaceId);
+      if (stored.status<400) {
+        const row=(stored.body as Array<{state?:unknown}>)[0];
+        if (row?.state && isOperatingState(row.state)) { response.status(200).json(row.state); return; }
+      }
+    }
+    response.status(200).json(initialOperatingState()); return;
+  }
   if (method === "GET" && pathname === "/api/v1/execution-status") {
     const generatedAt=new Date().toISOString();
     const cycle=runRigZipDryRun().durableCycle;
