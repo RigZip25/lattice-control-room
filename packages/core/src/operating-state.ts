@@ -2,6 +2,10 @@ import { deterministicId } from "./identity.js";
 import { recordProductEvidence, registerProductSource, type ProductEvidence, type ProductSource } from "./product-evidence.js";
 import { createProductDiagnosis, type ProductDiagnosis } from "./product-diagnosis.js";
 import { createExpansionThesis, type ExpansionThesis } from "./expansion-thesis.js";
+import { runGovernedRigZipCycle } from "./governed-cycle.js";
+import { runRigZipDryRun } from "./rigzip-scenario.js";
+import type { DurableJob } from "./durable-worker.js";
+import { runDurableDryRun } from "./durable-dry-run.js";
 
 export type OperatingFilter = "ВСЕ" | "RIGZIP" | "EVORIOS" | "TRAVEL";
 export type OperatingLocale = "RU" | "EN";
@@ -48,6 +52,18 @@ export interface OperatingEvent {
   readonly occurredAt: string;
 }
 
+export interface DryRunCycleRecord {
+  readonly id: string;
+  readonly cycleId: string;
+  readonly brandId: "rigzip";
+  readonly status: "COMPLETED";
+  readonly mode: "DRY_RUN";
+  readonly createdAt: string;
+  readonly completedAt: string;
+  readonly jobs: readonly DurableJob[];
+  readonly artifacts: ReturnType<typeof runGovernedRigZipCycle>;
+}
+
 export interface OperatingState {
   readonly version: number;
   readonly executive: boolean;
@@ -62,6 +78,7 @@ export interface OperatingState {
   readonly productEvidence: readonly ProductEvidence[];
   readonly productDiagnoses: readonly ProductDiagnosis[];
   readonly expansionTheses: readonly ExpansionThesis[];
+  readonly executionCycles: readonly DryRunCycleRecord[];
   readonly events: readonly OperatingEvent[];
   readonly mode: "DRY_RUN";
 }
@@ -78,15 +95,16 @@ export type OperatingCommand =
   | { readonly kind: "REGISTER_PRODUCT_SOURCE"; readonly source: Omit<ProductSource,"id"|"status"> }
   | { readonly kind: "RECORD_PRODUCT_EVIDENCE"; readonly evidence: Omit<ProductEvidence,"id"> }
   | { readonly kind: "CREATE_PRODUCT_DIAGNOSIS"; readonly diagnosis: Omit<ProductDiagnosis,"id"|"status"> }
-  | { readonly kind: "CREATE_EXPANSION_THESIS"; readonly thesis: Omit<ExpansionThesis,"id"|"status"> };
+  | { readonly kind: "CREATE_EXPANSION_THESIS"; readonly thesis: Omit<ExpansionThesis,"id"|"status"> }
+  | { readonly kind: "START_RIGZIP_DRY_RUN"; readonly cycleId: string };
 
 export function initialOperatingState(): OperatingState {
-  return { version: 0, executive: false, locale: "RU", selectedFilter: "ВСЕ", openDecisions: 3, discoveryMarkets: [], expansionAreas: [], brandProfiles: [], productSources: [], productEvidence: [], productDiagnoses: [], expansionTheses: [], events: [], mode: "DRY_RUN" };
+  return { version: 0, executive: false, locale: "RU", selectedFilter: "ВСЕ", openDecisions: 3, discoveryMarkets: [], expansionAreas: [], brandProfiles: [], productSources: [], productEvidence: [], productDiagnoses: [], expansionTheses: [], executionCycles: [], events: [], mode: "DRY_RUN" };
 }
 
 export function applyOperatingCommand(state: OperatingState, command: OperatingCommand, occurredAt: string): OperatingState {
   if (!Number.isFinite(Date.parse(occurredAt))) throw new Error("Operating event timestamp is invalid");
-  if (command === null || typeof command !== "object" || !["SET_EXECUTIVE_VIEW","SET_LOCALE","SET_FILTER","REFRESH_READ_MODELS","RESOLVE_DECISION","ADD_DISCOVERY_MARKET","ADD_EXPANSION_AREA","ADD_BRAND_PROFILE","REGISTER_PRODUCT_SOURCE","RECORD_PRODUCT_EVIDENCE","CREATE_PRODUCT_DIAGNOSIS","CREATE_EXPANSION_THESIS"].includes(command.kind)) {
+  if (command === null || typeof command !== "object" || !["SET_EXECUTIVE_VIEW","SET_LOCALE","SET_FILTER","REFRESH_READ_MODELS","RESOLVE_DECISION","ADD_DISCOVERY_MARKET","ADD_EXPANSION_AREA","ADD_BRAND_PROFILE","REGISTER_PRODUCT_SOURCE","RECORD_PRODUCT_EVIDENCE","CREATE_PRODUCT_DIAGNOSIS","CREATE_EXPANSION_THESIS","START_RIGZIP_DRY_RUN"].includes(command.kind)) {
     throw new Error("Operating command kind is invalid");
   }
   if (command.kind === "SET_EXECUTIVE_VIEW" && typeof command.enabled !== "boolean") throw new Error("Executive view command is invalid");
@@ -133,6 +151,10 @@ export function applyOperatingCommand(state: OperatingState, command: OperatingC
     createExpansionThesis(command.thesis,diagnosis);
     if (state.expansionTheses.some((item)=>item.brandId===command.thesis.brandId)) throw new Error("Expansion thesis already exists");
   }
+  if (command.kind === "START_RIGZIP_DRY_RUN") {
+    if (!/^[a-z0-9][a-z0-9-]{2,80}$/.test(command.cycleId)) throw new Error("Dry-run cycle id is invalid");
+    if (state.executionCycles.some((item)=>item.cycleId===command.cycleId)) throw new Error("Dry-run cycle already exists");
+  }
   const version = state.version + 1;
   const event: OperatingEvent = { id: deterministicId("operating_event", { version, command, occurredAt }), version, kind: command.kind, occurredAt };
   const next: OperatingState = { ...state, version, events: [...state.events, event] };
@@ -156,6 +178,13 @@ export function applyOperatingCommand(state: OperatingState, command: OperatingC
       const diagnosis=state.productDiagnoses.find((item)=>item.id===command.thesis.diagnosisId);
       if (!diagnosis) throw new Error("Expansion thesis product diagnosis is not registered");
       return {...next,expansionTheses:[...state.expansionTheses,createExpansionThesis(command.thesis,diagnosis)]};
+    }
+    case "START_RIGZIP_DRY_RUN": {
+      const scenario=runRigZipDryRun();
+      const artifacts=runGovernedRigZipCycle(scenario.packet);
+      const jobs=runDurableDryRun({workspaceId:"lafwiron",brandId:"rigzip",cycleId:command.cycleId,initialInputRef:"fixture://rigzip/product-evidence/v1",now:occurredAt}).jobs;
+      const cycle:DryRunCycleRecord={id:deterministicId("dry_run_cycle",{cycleId:command.cycleId,occurredAt}),cycleId:command.cycleId,brandId:"rigzip",status:"COMPLETED",mode:"DRY_RUN",createdAt:occurredAt,completedAt:occurredAt,jobs,artifacts};
+      return {...next,executionCycles:[...state.executionCycles,cycle]};
     }
     default: throw new Error("Operating command kind is invalid");
   }

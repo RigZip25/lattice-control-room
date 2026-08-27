@@ -2,7 +2,7 @@ import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
-import { applyOperatingCommand, factoryCadenceAt, initialOperatingState, productScreens, referenceGeographies, runRigZipDryRun, type OperatingCommand } from "@lattice/core";
+import { applyOperatingCommand, buildExecutionHealthSnapshot, factoryCadenceAt, initialOperatingState, productScreens, referenceGeographies, runRigZipDryRun, type OperatingCommand } from "@lattice/core";
 import { createFileOperatingStateStore } from "./state-store.js";
 import { bearerToken, fetchCloudContext, persistBrand, requestEmailOtp, supabaseRuntimeConfig, verifyEmailOtp } from "./supabase-gateway.js";
 
@@ -79,6 +79,12 @@ createServer(async (request, response) => {
   }
   if (request.method === "GET" && requestUrl.pathname === "/api/v1/runtime-state") {
     json(response, 200, operatingState);
+    return;
+  }
+  if (request.method === "GET" && requestUrl.pathname === "/api/v1/execution-status") {
+    const latest=operatingState.executionCycles.at(-1);
+    const generatedAt=new Date().toISOString();
+    json(response,200,{generatedAt,mode:operatingState.mode,cycles:operatingState.executionCycles.length,latest:latest?{id:latest.id,cycleId:latest.cycleId,brandId:latest.brandId,status:latest.status,createdAt:latest.createdAt,completedAt:latest.completedAt,health:buildExecutionHealthSnapshot({jobs:latest.jobs,telemetry:[],now:generatedAt,maximumRunnableLagMs:30_000})}:null});
     return;
   }
   if (request.method === "GET" && requestUrl.pathname === "/api/v1/factory-status") {

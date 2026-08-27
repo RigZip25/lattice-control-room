@@ -40,6 +40,15 @@ describe("governed local operating state", () => {
     expect(() => applyOperatingCommand(state, command, "2026-08-26T12:01:00.000Z")).toThrow(/already exists/);
   });
 
+  it("persists a completed, zero-effect RigZip execution cycle",()=>{
+    const state=applyOperatingCommand(initialOperatingState(),{kind:"START_RIGZIP_DRY_RUN",cycleId:"rigzip-nebraska-002"},"2026-08-27T12:00:00.000Z");
+    expect(state.executionCycles).toHaveLength(1);
+    expect(state.executionCycles[0]?.jobs).toHaveLength(13);
+    expect(state.executionCycles[0]?.artifacts.externalEffects).toBe(0);
+    expect(state.executionCycles[0]?.artifacts.distribution.state).toBe("BLOCKED");
+    expect(()=>applyOperatingCommand(state,{kind:"START_RIGZIP_DRY_RUN",cycleId:"rigzip-nebraska-002"},"2026-08-27T12:01:00.000Z")).toThrow(/already exists/);
+  });
+
   it("registers product sources before accepting cited evidence", () => {
     const sourceState = applyOperatingCommand(initialOperatingState(), { kind:"REGISTER_PRODUCT_SOURCE", source:{ brandId:"rigzip", kind:"WEBSITE", title:"RigZip website", locator:"https://rigzip.com", capturedAt:"2026-08-27T13:00:00.000Z" } }, "2026-08-27T13:00:00.000Z");
     const source = sourceState.productSources[0]!;
