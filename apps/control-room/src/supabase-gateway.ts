@@ -194,6 +194,13 @@ export async function persistBrandServer(config:SupabaseRuntimeConfig,workspaceI
   },config.secretKey);
 }
 
+export async function deleteBrandServer(config:SupabaseRuntimeConfig,workspaceId:string,brandId:string):Promise<SupabaseResponse> {
+  if (!config.secretKey) return {status:503,body:{error:"Supabase secret key is not configured"}};
+  return request(config,`/rest/v1/brand?workspace_id=eq.${encodeURIComponent(workspaceId)}&brand_id=eq.${encodeURIComponent(brandId)}`,{
+    method:"DELETE",headers:{Authorization:`Bearer ${config.secretKey}`,Prefer:"return=representation"},
+  },config.secretKey);
+}
+
 export async function persistOperatingStateServer(config:SupabaseRuntimeConfig,workspaceId:string,state:OperatingState):Promise<SupabaseResponse> {
   if (!config.secretKey) return {status:503,body:{error:"Supabase secret key is not configured"}};
   if (!/^[0-9a-f-]{36}$/i.test(workspaceId) || state.mode!=="DRY_RUN") return {status:400,body:{error:"Invalid governed operating state"}};

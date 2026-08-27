@@ -108,6 +108,7 @@ export type OperatingCommand =
   | { readonly kind: "ADD_DISCOVERY_MARKET"; readonly market: DiscoveryMarket }
   | { readonly kind: "ADD_EXPANSION_AREA"; readonly area: ExpansionArea }
   | { readonly kind: "ADD_BRAND_PROFILE"; readonly brand: BrandProfile }
+  | { readonly kind: "DELETE_BRAND_PROFILE"; readonly brandId: string }
   | { readonly kind: "CAPTURE_PRODUCT_INTAKE"; readonly understanding: ProductUnderstanding }
   | { readonly kind: "CONFIRM_PRODUCT_UNDERSTANDING"; readonly brandId: string }
   | { readonly kind: "REGISTER_PRODUCT_SOURCE"; readonly source: Omit<ProductSource,"id"|"status"> }
@@ -123,7 +124,7 @@ export function initialOperatingState(): OperatingState {
 
 export function applyOperatingCommand(state: OperatingState, command: OperatingCommand, occurredAt: string): OperatingState {
   if (!Number.isFinite(Date.parse(occurredAt))) throw new Error("Operating event timestamp is invalid");
-  if (command === null || typeof command !== "object" || !["SET_EXECUTIVE_VIEW","SET_LOCALE","SET_FILTER","REFRESH_READ_MODELS","RESOLVE_DECISION","ADD_DISCOVERY_MARKET","ADD_EXPANSION_AREA","ADD_BRAND_PROFILE","CAPTURE_PRODUCT_INTAKE","CONFIRM_PRODUCT_UNDERSTANDING","REGISTER_PRODUCT_SOURCE","RECORD_PRODUCT_EVIDENCE","CREATE_PRODUCT_DIAGNOSIS","CREATE_EXPANSION_THESIS","START_RIGZIP_DRY_RUN","START_BRAND_DRY_RUN"].includes(command.kind)) {
+  if (command === null || typeof command !== "object" || !["SET_EXECUTIVE_VIEW","SET_LOCALE","SET_FILTER","REFRESH_READ_MODELS","RESOLVE_DECISION","ADD_DISCOVERY_MARKET","ADD_EXPANSION_AREA","ADD_BRAND_PROFILE","DELETE_BRAND_PROFILE","CAPTURE_PRODUCT_INTAKE","CONFIRM_PRODUCT_UNDERSTANDING","REGISTER_PRODUCT_SOURCE","RECORD_PRODUCT_EVIDENCE","CREATE_PRODUCT_DIAGNOSIS","CREATE_EXPANSION_THESIS","START_RIGZIP_DRY_RUN","START_BRAND_DRY_RUN"].includes(command.kind)) {
     throw new Error("Operating command kind is invalid");
   }
   if (command.kind === "SET_EXECUTIVE_VIEW" && typeof command.enabled !== "boolean") throw new Error("Executive view command is invalid");
@@ -156,6 +157,10 @@ export function applyOperatingCommand(state: OperatingState, command: OperatingC
     if (!state.brandProfiles.some((brand)=>brand.id===item.brandId)) throw new Error("Product intake brand is not registered");
     if (item.status!=="DRAFT" || item.ownerDescription.trim().length<8 || item.productSummary.trim().length<8) throw new Error("Product intake is incomplete");
     if (state.productUnderstandings.some((entry)=>entry.brandId===item.brandId)) throw new Error("Product intake already exists");
+  }
+  if (command.kind === "DELETE_BRAND_PROFILE") {
+    if (!state.brandProfiles.some((brand)=>brand.id===command.brandId)) throw new Error("Brand profile is not registered");
+    if (state.executionCycles.some((cycle)=>cycle.brandId===command.brandId)) throw new Error("A brand with governed execution history cannot be deleted");
   }
   if (command.kind === "CONFIRM_PRODUCT_UNDERSTANDING" && !state.productUnderstandings.some((item)=>item.brandId===command.brandId)) throw new Error("Product understanding is not registered");
   if (command.kind === "REGISTER_PRODUCT_SOURCE") {
@@ -205,6 +210,7 @@ export function applyOperatingCommand(state: OperatingState, command: OperatingC
     case "ADD_DISCOVERY_MARKET": return { ...next, discoveryMarkets: [...state.discoveryMarkets, command.market] };
     case "ADD_EXPANSION_AREA": return { ...next, expansionAreas: [...state.expansionAreas, command.area] };
     case "ADD_BRAND_PROFILE": return { ...next, brandProfiles: [...state.brandProfiles, command.brand] };
+    case "DELETE_BRAND_PROFILE": return { ...next, brandProfiles:state.brandProfiles.filter((item)=>item.id!==command.brandId),productUnderstandings:state.productUnderstandings.filter((item)=>item.brandId!==command.brandId),productSources:state.productSources.filter((item)=>item.brandId!==command.brandId),productEvidence:state.productEvidence.filter((item)=>item.brandId!==command.brandId),productDiagnoses:state.productDiagnoses.filter((item)=>item.brandId!==command.brandId),expansionTheses:state.expansionTheses.filter((item)=>item.brandId!==command.brandId) };
     case "CAPTURE_PRODUCT_INTAKE": return { ...next, productUnderstandings:[...state.productUnderstandings,command.understanding] };
     case "CONFIRM_PRODUCT_UNDERSTANDING": return { ...next, productUnderstandings:state.productUnderstandings.map((item)=>item.brandId===command.brandId?{...item,status:"CONFIRMED",confirmedAt:occurredAt}:item) };
     case "REGISTER_PRODUCT_SOURCE": return { ...next, productSources:[...state.productSources,registerProductSource(command.source)] };

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { bearerToken, executeStepwiseDryRunCycle, fetchOperatingStateServer, persistBrand, persistBrandServer, persistDryRunCycle, persistOperatingStateServer, requestEmailOtp, verifyEmailOtp, type SupabaseRuntimeConfig } from "./supabase-gateway.js";
+import { bearerToken, deleteBrandServer, executeStepwiseDryRunCycle, fetchOperatingStateServer, persistBrand, persistBrandServer, persistDryRunCycle, persistOperatingStateServer, requestEmailOtp, verifyEmailOtp, type SupabaseRuntimeConfig } from "./supabase-gateway.js";
 import { applyOperatingCommand, initialOperatingState } from "@lattice/core";
 
 const config: SupabaseRuntimeConfig = { url: "https://project.supabase.co", publishableKey: "sb_publishable_test" };
@@ -70,6 +70,17 @@ describe("supabase gateway", () => {
     const [saveUrl,saveInit]=mockedFetch.mock.calls[0] as [string,RequestInit];
     expect(saveUrl).toContain("workspace_state?on_conflict=workspace_id");
     expect(JSON.parse(String(saveInit.body))).toMatchObject({version:0,state:{mode:"DRY_RUN"}});
+  });
+
+  it("deletes a user-created brand with the server-only key",async()=>{
+    const secured={...config,secretKey:"sb_secret_server_only"};
+    const mockedFetch=vi.fn().mockResolvedValue(new Response(JSON.stringify([{brand_id:"test-brand"}]),{status:200}));
+    vi.stubGlobal("fetch",mockedFetch);
+    const result=await deleteBrandServer(secured,"e49996a3-5c2e-4093-90bf-f7afd9460adf","test-brand");
+    expect(result.status).toBe(200);
+    const [url,init]=mockedFetch.mock.calls[0] as [string,RequestInit];
+    expect(url).toContain("brand_id=eq.test-brand");
+    expect(init.method).toBe("DELETE");
   });
 
   it("persists a governed cycle and its jobs with a server-only key",async()=>{

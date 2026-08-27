@@ -14,6 +14,7 @@ import {
   bearerToken,
   cloudExecutionConfigured,
   executeStepwiseDryRunCycle,
+  deleteBrandServer,
   fetchOperatingStateServer,
   fetchCloudContext,
   persistBrandServer,
@@ -168,6 +169,10 @@ export default async function handler(request: ApiRequest, response: ApiResponse
         if (cloudResult.status>=400) { response.status(cloudResult.status).json(cloudResult.body); return; }
       }
       if (supabase && executionWorkspaceId) {
+        if (envelope.command.kind==="DELETE_BRAND_PROFILE") {
+          const deletion=await deleteBrandServer(supabase,executionWorkspaceId,envelope.command.brandId);
+          if (deletion.status>=400) { response.status(deletion.status).json(deletion.body); return; }
+        }
         for (const brand of next.brandProfiles) {
           const brandResult=await persistBrandServer(supabase,executionWorkspaceId,brand);
           if (brandResult.status>=400) { response.status(brandResult.status).json(brandResult.body); return; }

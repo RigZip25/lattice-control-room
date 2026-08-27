@@ -67,6 +67,9 @@ describe("governed local operating state", () => {
     expect(captured.productUnderstandings[0]).toMatchObject({brandId:brand.id,status:"DRAFT",materialNames:["brief.pdf"]});
     const confirmed=applyOperatingCommand(captured,{kind:"CONFIRM_PRODUCT_UNDERSTANDING",brandId:brand.id},"2026-08-27T15:02:00.000Z");
     expect(confirmed.productUnderstandings[0]).toMatchObject({status:"CONFIRMED",confirmedAt:"2026-08-27T15:02:00.000Z"});
+    const deleted=applyOperatingCommand(confirmed,{kind:"DELETE_BRAND_PROFILE",brandId:brand.id},"2026-08-27T15:03:00.000Z");
+    expect(deleted.brandProfiles).toHaveLength(0);
+    expect(deleted.productUnderstandings).toHaveLength(0);
   });
 
   it("blocks a generic brand cycle until the evidence and strategy gates are complete",()=>{
