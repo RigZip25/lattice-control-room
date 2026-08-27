@@ -23,6 +23,7 @@ export * from "./opportunity-scout.js";
 export * from "./product-line.js";
 export * from "./product-evidence.js";
 export * from "./product-diagnosis.js";
+export * from "./expansion-thesis.js";
 export * from "./rigzip-scenario.js";
 export * from "./screen-registry.js";
 export * from "./wallet.js";
