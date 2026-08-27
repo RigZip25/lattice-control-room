@@ -3,7 +3,7 @@ import { expansionCandidateScore } from "./expansion-thesis.js";
 import type { runGovernedRigZipCycle } from "./governed-cycle.js";
 
 type GovernedArtifacts = ReturnType<typeof runGovernedRigZipCycle>;
-export type EvidenceBoundStage = "PRODUCT_INTELLIGENCE" | "PRODUCT_DIAGNOSIS" | "EXPANSION_THESIS";
+export type EvidenceBoundStage = "PRODUCT_INTELLIGENCE" | "PRODUCT_DIAGNOSIS" | "EXPANSION_THESIS" | "EXPERIMENT_PLAN" | "CREATIVE_PROMPT" | "LEGAL_REVIEW";
 
 export interface AgentArtifactEnvelope<T> {
   readonly id: string;
@@ -65,9 +65,81 @@ export function executeExpansionThesisAgent(input:{cycleId:string;artifacts:Gove
   });
 }
 
+export function executeExperimentPlannerAgent(input:{cycleId:string;artifacts:GovernedArtifacts;expansion:ReturnType<typeof executeExpansionThesisAgent>;createdAt:string}) {
+  const geography=input.expansion.payload.recommendedCandidate;
+  if (!geography) throw new Error("Experiment Planner requires a ranked expansion candidate");
+  const primaryMetric=input.artifacts.metric;
+  const hypothesis=`Showing verified nearby commercial asset availability in ${geography} increases qualified registrations.`;
+  const payload={
+    geography,
+    hypothesis,
+    primaryMetric:{id:primaryMetric.id,key:primaryMetric.key,semanticClass:"FORECAST" as const},
+    design:{control:"Current generic marketplace message",treatment:"Local verified-availability message",unit:"market-cell",minimumObservations:500},
+    channelCandidates:["meta_ads","seo_local_landing","regional_marketplace_partnership"],
+    simulatedBudgetUsd:100,
+    realSpendAuthorized:false,
+    stopConditions:["Any legal decision other than ALLOW","Qualified registration lift is non-positive","Evidence quality falls below USABLE"],
+  };
+  return envelope({
+    cycleId:input.cycleId,stage:"EXPERIMENT_PLAN",createdAt:input.createdAt,
+    agent:{role:"Senior Growth Experiment Designer",implementation:"LOCAL_EVIDENCE_BOUND",version:1},
+    evidenceRefs:[input.expansion.id,...input.expansion.evidenceRefs,primaryMetric.id],
+    facts:input.expansion.facts,
+    inferences:[hypothesis,`Test geography: ${geography}`],
+    unknowns:["The strongest incremental acquisition channel remains unverified."],
+    payload,
+  });
+}
+
+export function executeCreativeBriefAgent(input:{cycleId:string;artifacts:GovernedArtifacts;experiment:ReturnType<typeof executeExperimentPlannerAgent>;createdAt:string}) {
+  const packet=input.artifacts.creativePacket;
+  if (!input.experiment.evidenceRefs.length || !packet.evidenceIds.length) throw new Error("Creative Brief Agent requires experiment and creative evidence");
+  return envelope({
+    cycleId:input.cycleId,stage:"CREATIVE_PROMPT",createdAt:input.createdAt,
+    agent:{role:"Senior Creative Strategy Director",implementation:"LOCAL_EVIDENCE_BOUND",version:1},
+    evidenceRefs:[input.experiment.id,...packet.evidenceIds],
+    facts:input.experiment.facts,
+    inferences:[`Creative treatment supports experiment ${input.experiment.id}`],
+    unknowns:["No first-party winning creative exists yet; cited research is used as the starting prior."],
+    payload:{
+      experimentId:input.experiment.id,
+      packet,
+      supportedClaims:["Find nearby commercial assets"],
+      requiredDisclosures:["Marketplace availability varies"],
+      constraints:[...packet.culturalContext,"Do not publish","Do not claim guaranteed inventory"],
+      providerDispatchAuthorized:false,
+    },
+  });
+}
+
+export function executeLegalReviewAgent(input:{cycleId:string;artifacts:GovernedArtifacts;creative:ReturnType<typeof executeCreativeBriefAgent>;createdAt:string}) {
+  const decision=input.artifacts.legalDecision;
+  if (decision.decidedBy!=="LEGAL_POLICY_AGENT") throw new Error("Legal review provenance is invalid");
+  if (decision.state!=="ALLOW" || decision.executionAuthority!=="AUTONOMOUS") throw new Error(`Legal gate withheld provider execution: ${decision.reasonCodes.join(",")||decision.state}`);
+  const policy=input.artifacts.legalPolicy;
+  return envelope({
+    cycleId:input.cycleId,stage:"LEGAL_REVIEW",createdAt:input.createdAt,
+    agent:{role:"Autonomous Marketing Legal Counsel",implementation:"LOCAL_EVIDENCE_BOUND",version:1},
+    evidenceRefs:[input.creative.id,decision.policyId,...decision.evidence],
+    facts:[...input.creative.facts,`Policy ${policy.id} reviewed at ${policy.reviewedAt}.`],
+    inferences:["Creative content is authorized inside the governed dry-run envelope."],
+    unknowns:[],
+    payload:{
+      creativeArtifactId:input.creative.id,
+      policy,
+      decision,
+      checks:{scope:true,claims:true,disclosures:true,contentRights:true,audienceConsent:true,automationLimit:true},
+      gate:{contentAuthorized:true,providerDispatchAuthorized:false,reason:"DRY_RUN_EXTERNAL_EFFECTS_DISABLED" as const},
+    },
+  });
+}
+
 export function executeEvidenceBoundAgentChain(input:{cycleId:string;artifacts:GovernedArtifacts;createdAt:string}) {
   const intelligence=executeProductIntelligenceAgent(input);
   const diagnosis=executeProductDiagnosisAgent({...input,intelligence});
   const expansion=executeExpansionThesisAgent({...input,diagnosis});
-  return {intelligence,diagnosis,expansion};
+  const experimentPlan=executeExperimentPlannerAgent({...input,expansion});
+  const creativeBrief=executeCreativeBriefAgent({...input,experiment:experimentPlan});
+  const legalReview=executeLegalReviewAgent({...input,creative:creativeBrief});
+  return {intelligence,diagnosis,expansion,experimentPlan,creativeBrief,legalReview};
 }

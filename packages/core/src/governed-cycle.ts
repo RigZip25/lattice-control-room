@@ -65,5 +65,5 @@ export function runGovernedRigZipCycle(packet: DecisionPacket) {
   const metricEvent = ingestCanonicalEvent(metric, { workspaceId: packet.productSnapshot.workspaceId, brandId: packet.productSnapshot.brandId, marketCellId: packet.marketCell.id, occurredAt: now, ingestedAt: now, value: 8.7, semanticClass: "FORECAST", sourceProvider: "dry-run-simulator", sourceEventId: "rigzip-nebraska-001", quality: "USABLE", attributionMethod: "MODELLED", consentClass: "ANONYMOUS_AGGREGATE" });
   const report = analyticsAgentReport({ packet: qaPacket, spendUsd: 0, engagements: 87, impressions: 1000, penetrationBefore: .02, penetrationAfter: .027, recommendedNextBudgetUsd: 100, availableCapitalUsd: 500 });
 
-  return { mode: "DRY_RUN" as const, externalEffects: 0 as const, sources: [repository, ownerBrief], evidence, readiness, diagnosis, expansionThesis, creativePacket, legalDecision, providerRequest, qaPacket, asset, libraryAsset, marketingDecision, distribution, metric, metricEvent, report };
+  return { mode: "DRY_RUN" as const, externalEffects: 0 as const, sources: [repository, ownerBrief], evidence, readiness, diagnosis, expansionThesis, creativePacket, legalPolicy, legalDecision, providerRequest, qaPacket, asset, libraryAsset, marketingDecision, distribution, metric, metricEvent, report };
 }

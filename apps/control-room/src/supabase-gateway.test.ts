@@ -94,6 +94,11 @@ describe("supabase gateway", () => {
     const completions=mockedFetch.mock.calls.filter(([url])=>String(url).includes("/rpc/complete_execution_job"));
     expect(JSON.parse(String((completions[1]?.[1] as RequestInit).body)).p_result_payload.stage).toBe("PRODUCT_DIAGNOSIS");
     expect(JSON.parse(String((completions[2]?.[1] as RequestInit).body)).p_result_payload.stage).toBe("EXPANSION_THESIS");
-    expect(JSON.parse(String((completions[3]?.[1] as RequestInit).body)).p_result_payload).toMatchObject({stage:"EXPERIMENT_PLAN",mode:"DRY_RUN",externalEffects:0});
+    const experiment=JSON.parse(String((completions[3]?.[1] as RequestInit).body)).p_result_payload;
+    const creative=JSON.parse(String((completions[4]?.[1] as RequestInit).body)).p_result_payload;
+    const legal=JSON.parse(String((completions[5]?.[1] as RequestInit).body)).p_result_payload;
+    expect(experiment).toMatchObject({stage:"EXPERIMENT_PLAN",mode:"DRY_RUN",externalEffects:0,payload:{geography:"Nebraska",realSpendAuthorized:false}});
+    expect(creative).toMatchObject({stage:"CREATIVE_PROMPT",payload:{providerDispatchAuthorized:false}});
+    expect(legal).toMatchObject({stage:"LEGAL_REVIEW",payload:{decision:{state:"ALLOW",decidedBy:"LEGAL_POLICY_AGENT"},gate:{contentAuthorized:true,providerDispatchAuthorized:false}}});
   });
 });
