@@ -20,7 +20,7 @@ export function createFileOperatingStateStore(path:string):OperatingStateStore {
       if (!existsSync(path)) return initialOperatingState();
       const parsed:unknown=JSON.parse(readFileSync(path,"utf8"));
       assertStoredState(parsed);
-      return parsed;
+      return { ...parsed, productSources:parsed.productSources ?? [], productEvidence:parsed.productEvidence ?? [], productDiagnoses:parsed.productDiagnoses ?? [] };
     },
     save(state) {
       mkdirSync(dirname(path),{recursive:true});
