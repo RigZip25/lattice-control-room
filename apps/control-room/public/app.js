@@ -433,7 +433,9 @@ document.addEventListener("input", (event) => {
   const form = event.target.closest?.(".auth-gate-form");
   if (!form) return;
   const submit = form.querySelector('button[type="submit"]');
-  if (submit) submit.disabled = !form.checkValidity();
+  const ready = form.checkValidity();
+  form.classList.toggle("ready", ready);
+  if (submit) submit.disabled = !ready;
 });
 document.addEventListener("submit", async (event) => {
   if (event.target.id === "auth-form") {

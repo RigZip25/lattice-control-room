@@ -13,20 +13,20 @@
   transition: background-color .18s ease, border-color .18s ease, color .18s ease, transform .18s ease;
 }
 
-.auth-gate-form:valid .auth-gate-submit:not(:disabled) {
+.auth-gate-form.ready .auth-gate-submit:not(:disabled) {
   border-color: #ffc400;
   background: #ffc400;
   color: #07101f;
   cursor: pointer;
 }
 
-.auth-gate-form:valid .auth-gate-submit:not(:disabled):hover {
+.auth-gate-form.ready .auth-gate-submit:not(:disabled):hover {
   border-color: #ffd43b;
   background: #ffd43b;
   transform: translateY(-1px);
 }
 
-.auth-gate-form:valid .auth-gate-submit:not(:disabled):focus-visible {
+.auth-gate-form.ready .auth-gate-submit:not(:disabled):focus-visible {
   outline: 3px solid rgb(255 196 0 / .24);
   outline-offset: 2px;
 }
