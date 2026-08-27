@@ -96,6 +96,10 @@ export async function executeStepwiseDryRunCycle(config:SupabaseRuntimeConfig,wo
     PROVIDER_EXECUTION:agentArtifacts.providerExecution,
     QA_REVIEW:agentArtifacts.qaReview,
     LIBRARY_INGEST:agentArtifacts.libraryIngest,
+    DISTRIBUTION_PLAN:agentArtifacts.distributionPlan,
+    METRIC_INGEST:agentArtifacts.metricIngest,
+    LEARNING_EVALUATION:agentArtifacts.learningEvaluation,
+    CAPITAL_RECOMMENDATION:agentArtifacts.capitalRecommendation,
   };
   let completed=0;
   for (let stage=0;stage<cycle.jobs.length;stage+=1) {
@@ -185,3 +189,4 @@ export function bearerToken(header: string | undefined): string | null {
   const match = header?.match(/^Bearer\s+([^\s]+)$/i);
   return match?.[1] ?? null;
 }
+

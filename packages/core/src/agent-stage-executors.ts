@@ -3,7 +3,7 @@ import { expansionCandidateScore } from "./expansion-thesis.js";
 import type { runGovernedRigZipCycle } from "./governed-cycle.js";
 
 type GovernedArtifacts = ReturnType<typeof runGovernedRigZipCycle>;
-export type EvidenceBoundStage = "PRODUCT_INTELLIGENCE" | "PRODUCT_DIAGNOSIS" | "EXPANSION_THESIS" | "EXPERIMENT_PLAN" | "CREATIVE_PROMPT" | "LEGAL_REVIEW" | "PROVIDER_EXECUTION" | "QA_REVIEW" | "LIBRARY_INGEST";
+export type EvidenceBoundStage = "PRODUCT_INTELLIGENCE" | "PRODUCT_DIAGNOSIS" | "EXPANSION_THESIS" | "EXPERIMENT_PLAN" | "CREATIVE_PROMPT" | "LEGAL_REVIEW" | "PROVIDER_EXECUTION" | "QA_REVIEW" | "LIBRARY_INGEST" | "DISTRIBUTION_PLAN" | "METRIC_INGEST" | "LEARNING_EVALUATION" | "CAPITAL_RECOMMENDATION";
 
 export interface AgentArtifactEnvelope<T> {
   readonly id: string;
@@ -205,6 +205,91 @@ export function executeLibraryIngestAgent(input:{cycleId:string;artifacts:Govern
   });
 }
 
+export function executeDistributionPlannerAgent(input:{cycleId:string;artifacts:GovernedArtifacts;library:ReturnType<typeof executeLibraryIngestAgent>;createdAt:string}) {
+  const distribution=input.artifacts.distribution;
+  if (!input.library.payload.rightsGate.usageAuthorized) throw new Error("Distribution Planner requires authorized asset usage rights");
+  if (distribution.assetId!==input.artifacts.asset.id || input.library.payload.record.lineage.requestId!==input.artifacts.asset.requestId) throw new Error("Distribution Planner asset lineage is invalid");
+  if (distribution.state!=="BLOCKED" || distribution.reason!=="DRY_RUN_PREVENTS_EXTERNAL_DISTRIBUTION") throw new Error("DRY RUN Distribution Planner refuses a publishable queue item");
+  return envelope({
+    cycleId:input.cycleId,stage:"DISTRIBUTION_PLAN",createdAt:input.createdAt,
+    agent:{role:"Autonomous Distribution Strategy Director",implementation:"LOCAL_EVIDENCE_BOUND",version:1},
+    evidenceRefs:[input.library.id,input.library.payload.record.id,input.artifacts.marketingDecision.id,input.artifacts.legalDecision.id],
+    facts:input.library.facts,
+    inferences:[`Channel ${distribution.channel} is eligible for a simulated placement plan.`],
+    unknowns:["Real reach, auction price and placement availability remain unobserved."],
+    payload:{
+      libraryArtifactId:input.library.id,
+      queueItem:distribution,
+      plan:{channel:distribution.channel,simulatedBudgetUsd:distribution.promotionBudgetUsd,placementState:"SIMULATED_ONLY" as const},
+      execution:{publishAuthorized:false,externalCommunicationMade:false,actualSpendUsd:0},
+    },
+  });
+}
+
+export function executeMetricIngestAgent(input:{cycleId:string;artifacts:GovernedArtifacts;distribution:ReturnType<typeof executeDistributionPlannerAgent>;createdAt:string}) {
+  const metric=input.artifacts.metric;
+  const event=input.artifacts.metricEvent;
+  if (input.distribution.payload.execution.actualSpendUsd!==0 || input.distribution.payload.execution.publishAuthorized) throw new Error("Metric Ingest received an externally executed DRY RUN plan");
+  if (event.metricDefinitionId!==metric.id || event.brandId!==input.distribution.payload.queueItem.brandId) throw new Error("Metric event scope or definition provenance is invalid");
+  if (!metric.allowedSemanticClasses.includes(event.semanticClass)) throw new Error("Metric semantic class is not allowed by its definition");
+  if (event.semanticClass!=="FORECAST" || event.attributionMethod!=="MODELLED") throw new Error("DRY RUN Metric Ingest accepts only explicitly modelled forecasts");
+  return envelope({
+    cycleId:input.cycleId,stage:"METRIC_INGEST",createdAt:input.createdAt,
+    agent:{role:"Canonical Marketing Measurement Agent",implementation:"LOCAL_EVIDENCE_BOUND",version:1},
+    evidenceRefs:[input.distribution.id,metric.id,event.id],
+    facts:[...input.distribution.facts,`Metric ${metric.key} is defined as ${metric.aggregation} ${metric.unit}.`],
+    inferences:[`Modelled outcome: ${event.value} ${metric.unit}.`],
+    unknowns:["No observed customer event or provider delivery metric exists in DRY RUN."],
+    payload:{
+      distributionArtifactId:input.distribution.id,
+      metric,
+      event,
+      ingestion:{accepted:true,semanticClass:"FORECAST" as const,observedFact:false,sourceVerified:true},
+    },
+  });
+}
+
+export function executeLearningEvaluationAgent(input:{cycleId:string;artifacts:GovernedArtifacts;metrics:ReturnType<typeof executeMetricIngestAgent>;createdAt:string}) {
+  const event=input.metrics.payload.event;
+  if (event.semanticClass!=="FORECAST" || input.metrics.payload.ingestion.observedFact) throw new Error("Learning Evaluation refuses to classify simulated data as observed evidence");
+  const report=input.artifacts.report;
+  if (report.brandId!==event.brandId || report.marketCellId!==event.marketCellId || report.spendUsd!==0) throw new Error("Learning report provenance or DRY RUN spend is invalid");
+  return envelope({
+    cycleId:input.cycleId,stage:"LEARNING_EVALUATION",createdAt:input.createdAt,
+    agent:{role:"Causal Learning and Knowledge Graph Agent",implementation:"LOCAL_EVIDENCE_BOUND",version:1},
+    evidenceRefs:[input.metrics.id,event.id,report.id],
+    facts:input.metrics.facts,
+    inferences:[`Simulated engagement rate: ${report.engagementRate}.`,`Simulated penetration delta: ${report.penetrationDelta}.`],
+    unknowns:["Incremental lift is not established without a live controlled experiment.","Channel efficiency cannot be learned from zero-spend modelled output."],
+    payload:{
+      metricArtifactId:input.metrics.id,
+      report,
+      evaluation:{classification:"SIMULATION_PRIOR" as const,causalClaimAuthorized:false,knowledgeGraphWrite:"PRIOR_ONLY" as const,decision:"CONTINUE_SIMULATION" as const},
+    },
+  });
+}
+
+export function executeCapitalRecommendationAgent(input:{cycleId:string;artifacts:GovernedArtifacts;learning:ReturnType<typeof executeLearningEvaluationAgent>;createdAt:string}) {
+  if (input.learning.payload.evaluation.causalClaimAuthorized) throw new Error("Capital Recommendation cannot scale an unverified simulation");
+  const decision=input.artifacts.marketingDecision;
+  if (decision.packetId!==input.artifacts.qaPacket.id) throw new Error("Capital Recommendation decision lineage is invalid");
+  const recommendedUsd=decision.budgetUsd;
+  return envelope({
+    cycleId:input.cycleId,stage:"CAPITAL_RECOMMENDATION",createdAt:input.createdAt,
+    agent:{role:"Governed Capital Allocation Advisor",implementation:"LOCAL_EVIDENCE_BOUND",version:1},
+    evidenceRefs:[input.learning.id,input.learning.payload.report.id,decision.id],
+    facts:input.learning.facts,
+    inferences:[`Reserve a simulated ${recommendedUsd} USD test envelope after live-mode approval and evidence readiness.`],
+    unknowns:["Observed incremental return and real channel cost are unavailable."],
+    payload:{
+      learningArtifactId:input.learning.id,
+      recommendation:{amountUsd:recommendedUsd,purpose:"CONTROLLED_VALIDATION_TEST" as const,state:"PROPOSED_ONLY" as const},
+      authority:{decisionId:decision.id,decisionState:decision.state,autonomousExecutionAuthorized:false,ownerApprovalRequested:false},
+      execution:{walletReservationMade:false,paymentInitiated:false,actualSpendUsd:0},
+    },
+  });
+}
+
 export function executeEvidenceBoundAgentChain(input:{cycleId:string;artifacts:GovernedArtifacts;createdAt:string}) {
   const intelligence=executeProductIntelligenceAgent(input);
   const diagnosis=executeProductDiagnosisAgent({...input,intelligence});
@@ -215,5 +300,10 @@ export function executeEvidenceBoundAgentChain(input:{cycleId:string;artifacts:G
   const providerExecution=executeProviderSimulatorAgent({...input,legal:legalReview});
   const qaReview=executeQaReviewAgent({...input,provider:providerExecution});
   const libraryIngest=executeLibraryIngestAgent({...input,qa:qaReview});
-  return {intelligence,diagnosis,expansion,experimentPlan,creativeBrief,legalReview,providerExecution,qaReview,libraryIngest};
+  const distributionPlan=executeDistributionPlannerAgent({...input,library:libraryIngest});
+  const metricIngest=executeMetricIngestAgent({...input,distribution:distributionPlan});
+  const learningEvaluation=executeLearningEvaluationAgent({...input,metrics:metricIngest});
+  const capitalRecommendation=executeCapitalRecommendationAgent({...input,learning:learningEvaluation});
+  return {intelligence,diagnosis,expansion,experimentPlan,creativeBrief,legalReview,providerExecution,qaReview,libraryIngest,distributionPlan,metricIngest,learningEvaluation,capitalRecommendation};
 }
+

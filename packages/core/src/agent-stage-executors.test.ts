@@ -1,5 +1,5 @@
 import {describe,expect,it} from "vitest";
-import {executeEvidenceBoundAgentChain,executeLegalReviewAgent,executeQaReviewAgent} from "./agent-stage-executors.js";
+import {executeEvidenceBoundAgentChain,executeLegalReviewAgent,executeMetricIngestAgent,executeQaReviewAgent} from "./agent-stage-executors.js";
 import {runGovernedRigZipCycle} from "./governed-cycle.js";
 import {runRigZipDryRun} from "./rigzip-scenario.js";
 
@@ -24,11 +24,22 @@ describe("evidence-bound stage agents",()=>{
     expect(result.qaReview.payload).toMatchObject({disposition:"PASS",reworkRequired:false,findings:[]});
     expect(result.libraryIngest.payload.storage).toMatchObject({metadataPersisted:true,binaryUploaded:false});
     expect(result.libraryIngest.payload.rightsGate).toMatchObject({ownerVerified:true,usageAuthorized:true});
+    expect(result.distributionPlan.payload.execution).toEqual({publishAuthorized:false,externalCommunicationMade:false,actualSpendUsd:0});
+    expect(result.metricIngest.payload.ingestion).toEqual({accepted:true,semanticClass:"FORECAST",observedFact:false,sourceVerified:true});
+    expect(result.learningEvaluation.payload.evaluation).toMatchObject({classification:"SIMULATION_PRIOR",causalClaimAuthorized:false,knowledgeGraphWrite:"PRIOR_ONLY"});
+    expect(result.capitalRecommendation.payload).toMatchObject({recommendation:{amountUsd:100,state:"PROPOSED_ONLY"},execution:{walletReservationMade:false,paymentInitiated:false,actualSpendUsd:0}});
     for(const artifact of Object.values(result)) {
       expect(artifact.mode).toBe("DRY_RUN");
       expect(artifact.externalEffects).toBe(0);
       expect(artifact.agent.implementation).toBe("LOCAL_EVIDENCE_BOUND");
     }
+  });
+
+  it("refuses to ingest simulated output disguised as an observed fact",()=>{
+    const artifacts=runGovernedRigZipCycle(runRigZipDryRun().packet);
+    const result=executeEvidenceBoundAgentChain({cycleId:"rigzip-metric-gate",artifacts,createdAt:"2026-08-27T12:00:00.000Z"});
+    const observedArtifacts={...artifacts,metric:{...artifacts.metric,allowedSemanticClasses:["FACT" as const]},metricEvent:{...artifacts.metricEvent,semanticClass:"FACT" as const,attributionMethod:"DIRECT" as const}};
+    expect(()=>executeMetricIngestAgent({cycleId:"rigzip-metric-block",artifacts:observedArtifacts,distribution:result.distributionPlan,createdAt:"2026-08-27T12:00:00.000Z"})).toThrow(/accepts only explicitly modelled forecasts/);
   });
 
   it("withholds execution when the autonomous legal agent does not allow the creative",()=>{
@@ -45,3 +56,4 @@ describe("evidence-bound stage agents",()=>{
     expect(()=>executeQaReviewAgent({cycleId:"rigzip-qa-block",artifacts,provider:unsafeProvider,createdAt:"2026-08-27T12:00:00.000Z"})).toThrow(/Automated QA requires rework: UNSUPPORTED_CLAIM/);
   });
 });
+
