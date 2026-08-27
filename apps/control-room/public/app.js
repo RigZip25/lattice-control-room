@@ -1,7 +1,7 @@
 import { blueprints } from "/screen-blueprints.js";
 import { renderChoropleths } from "/map.js";
 
-const state = { executive:false, locale:"RU", notice:"", decisions:3, selectedFilter:"ВСЕ", selectedRegion:"WORLD", mobileNav:false, welcome:location.pathname==="/", factoryStatus:null, backendStatus:null, authOpen:false, session:null, cloudContext:null, addCountry:false, addBrand:false, addSource:false, addDiagnosis:false, addThesis:false, pendingCountry:null, pendingArea:null, addedMarkets:[], expansionAreas:[], brandProfiles:[], productSources:[], productEvidence:[], productDiagnoses:[], expansionTheses:[], version:0 };
+const state = { executive:false, locale:"RU", notice:"", decisions:3, selectedFilter:"ВСЕ", selectedRegion:"WORLD", mobileNav:false, welcome:location.pathname==="/", factoryStatus:null, backendStatus:null, authOpen:false, session:null, cloudContext:null, addCountry:false, addBrand:false, addSource:false, addDiagnosis:false, addThesis:false, pendingCountry:null, pendingArea:null, addedMarkets:[], expansionAreas:[], brandProfiles:[], productSources:[], productEvidence:[], productDiagnoses:[], expansionTheses:[], executionCycles:[], version:0 };
 const isLocalRuntime = ["localhost", "127.0.0.1", "::1"].includes(location.hostname);
 let screens = [];
 let control = null;
@@ -57,6 +57,7 @@ function applyRuntime(runtime) {
   state.productEvidence = runtime.productEvidence ?? [];
   state.productDiagnoses = runtime.productDiagnoses ?? [];
   state.expansionTheses = runtime.expansionTheses ?? [];
+  state.executionCycles = runtime.executionCycles ?? [];
   state.version = runtime.version;
 }
 async function sendCommand(command) {
@@ -77,6 +78,7 @@ async function sendCommand(command) {
     productEvidence:state.productEvidence,
     productDiagnoses:state.productDiagnoses,
     expansionTheses:state.expansionTheses,
+    executionCycles:state.executionCycles,
     events:[],
   };
   const response = await fetch("/api/v1/commands", { method:"POST", headers, body:JSON.stringify({command,currentState}) });
@@ -362,7 +364,7 @@ function render() {
     <div class="workspace">
       <aside class="side-nav ${state.mobileNav?"mobile-open":""}"><button class="mobile-nav-close" data-action="mobile-menu" aria-label="${tr("Закрыть навигацию","Close navigation")}">×</button><small>НАВИГАЦИЯ</small>${groups.map(([label,keys])=>`<details ${state.mobileNav||keys.includes(screen.key)?"open":""}><summary>${label}<i>⌄</i></summary><section>${keys.map(key=>{const item=byKey(key);return item?`<button class="${item.key===screen.key?"active":""}" data-route="${item.route}">${esc(item.title)}<span>${String(item.order).padStart(2,"0")}</span></button>`:""}).join("")}</section></details>`).join("")}<div class="health"><span>ЗДОРОВЬЕ <b>99.97%</b></span><span>ПОЛИТИКИ <b>GATED</b></span><span>РЕЖИМ <b>DRY RUN</b></span></div></aside>${state.mobileNav?'<button class="mobile-nav-scrim" data-action="mobile-menu" aria-label="Закрыть навигацию"></button>':""}
       <main>
-        <div class="page-head"><div><p>${screen.domain} / SCREEN ${String(screen.order).padStart(2,"0")}</p><h1>${esc(screen.title)}</h1><span>${esc(blueprint.subtitle)}</span></div><div class="head-actions">${screen.domain==="MARKET"?'<button class="primary" data-action="add-country">＋ ДОБАВИТЬ СТРАНУ</button>':""}${screen.key==="brands"?`<button class="primary" data-action="add-brand">＋ ${tr("ДОБАВИТЬ БРЕНД","ADD BRAND")}</button>`:""}<button data-action="filter">${state.selectedFilter} ▾</button><button data-action="refresh">ОБНОВИТЬ</button></div></div>
+        <div class="page-head"><div><p>${screen.domain} / SCREEN ${String(screen.order).padStart(2,"0")}</p><h1>${esc(screen.title)}</h1><span>${esc(blueprint.subtitle)}</span></div><div class="head-actions">${screen.key==="command"?`<button class="primary" data-action="start-dry-run">▶ ${tr("ЗАПУСТИТЬ DRY RUN","START DRY RUN")}</button>`:""}${screen.domain==="MARKET"?'<button class="primary" data-action="add-country">＋ ДОБАВИТЬ СТРАНУ</button>':""}${screen.key==="brands"?`<button class="primary" data-action="add-brand">＋ ${tr("ДОБАВИТЬ БРЕНД","ADD BRAND")}</button>`:""}<button data-action="filter">${state.selectedFilter} ▾</button><button data-action="refresh">ОБНОВИТЬ</button></div></div>
         <div class="metric-ribbon">${metrics.map(([label,value])=>`<div><small>${esc(label)}</small><b>${esc(value)}</b><span>${screen.key === "brand-onboarding" ? tr("СТАТУС","STATUS") : tr("ФАКТ","FACT")}</span></div>`).join("")}</div>
         ${screen.key === "command" ? commandCenterMarkup(screen, blueprint) : screen.key === "brand-onboarding" ? brandOnboardingMarkup() : screen.key === "factory-config" ? productIntelligenceMarkup()+expansionThesisControlMarkup() : productionScreens[screen.key] ? productionSurfaceMarkup(screen) : strategyScreens[screen.key] ? strategySurfaceMarkup(screen) : `<div class="screen-grid ${state.executive?"executive-grid":""}">${blueprint.panels.map(panel=>panelMarkup(panel,screen)).join("")}</div>`}
         <section class="linked"><div class="module-title">СВЯЗАННЫЕ ПОВЕРХНОСТИ <span>INTERACTION GRAPH</span></div>${screen.linksTo.map(key=>{const item=byKey(key);return item?`<button data-route="${item.route}"><small>${String(item.order).padStart(2,"0")}</small><b>${esc(item.title)}</b><span>${item.domain} →</span></button>`:""}).join("")}</section>
@@ -467,6 +469,7 @@ document.addEventListener("click", async (event) => {
     }
     if (target.dataset.action === "filter") { const values=["ВСЕ","RIGZIP","EVORIOS","TRAVEL"]; const filter=values[(values.indexOf(state.selectedFilter)+1)%values.length]; await sendCommand({kind:"SET_FILTER",filter}); state.notice=tr(`Выбран фильтр: ${state.selectedFilter}`,`Filter selected: ${state.selectedFilter}`); }
     if (target.dataset.action === "refresh") { await sendCommand({kind:"REFRESH_READ_MODELS"}); state.notice=tr("Данные обновлены локально. Внешние вызовы не выполнялись","Read models refreshed locally. No external calls were made"); }
+    if (target.dataset.action === "start-dry-run") { const cycleId=`rigzip-ui-${Date.now()}`; await sendCommand({kind:"START_RIGZIP_DRY_RUN",cycleId}); state.notice=tr(`Цикл ${cycleId} завершён: 13 стадий, $0 внешних расходов`,`Cycle ${cycleId} completed: 13 stages, $0 external spend`); }
     if (target.dataset.region) { state.selectedRegion=target.dataset.region; state.notice=tr("Географический охват изменён","Geographic scope changed"); }
   if (target.dataset.action === "add-country") state.addCountry=true;
   if (target.dataset.action === "add-brand") state.addBrand=true;
