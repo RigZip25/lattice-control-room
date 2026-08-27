@@ -158,7 +158,7 @@ export default async function handler(request: ApiRequest, response: ApiResponse
       if (!envelope.command) throw new Error("Command is required");
       const base = isOperatingState(envelope.currentState) ? envelope.currentState : initialOperatingState();
       const next = applyOperatingCommand(base, envelope.command, new Date().toISOString());
-      if (supabase && executionWorkspaceId && envelope.command.kind === "START_RIGZIP_DRY_RUN") {
+      if (supabase && executionWorkspaceId && ["START_RIGZIP_DRY_RUN","START_BRAND_DRY_RUN"].includes(envelope.command.kind)) {
         const cycle=next.executionCycles.at(-1);
         if (!cycle) throw new Error("Completed dry-run cycle was not produced");
         const cloudResult=await executeStepwiseDryRunCycle(supabase,executionWorkspaceId,cycle);

@@ -325,6 +325,13 @@ function brandOnboardingMarkup() {
   const brandId = location.pathname.split("/")[2];
   const brand = state.brandProfiles.find((item)=>item.id===brandId);
   if (!brand) return `<section class="module onboarding-empty"><h2>${tr("Профиль бренда не найден","Brand profile not found")}</h2><button data-route="/brands">${tr("ВЕРНУТЬСЯ К БРЕНДАМ","BACK TO BRANDS")}</button></section>`;
+  const sources=state.productSources.filter((item)=>item.brandId===brand.id);
+  const evidence=state.productEvidence.filter((item)=>item.brandId===brand.id);
+  const facts=evidence.filter((item)=>item.classification==="FACT").length;
+  const unknowns=evidence.filter((item)=>item.classification==="UNKNOWN").length;
+  const diagnosis=state.productDiagnoses.find((item)=>item.brandId===brand.id);
+  const thesis=state.expansionTheses.find((item)=>item.brandId===brand.id);
+  const cycleReady=sources.length>=2&&facts>=3&&unknowns>=1&&Boolean(diagnosis&&thesis);
   const stages = [
     [tr("Паспорт и задачи","Profile and objectives"),"COMPLETE",brand.objectives.join(" · ")],
     [tr("Изучение продукта","Product intelligence"),"NEXT",tr("Репозиторий, сайт, аналитика, интервью и материалы","Repository, website, analytics, interviews and collateral")],
@@ -335,7 +342,10 @@ function brandOnboardingMarkup() {
     [tr("Производство и запуск","Production and launch"),"LOCKED",tr("Контент, QA, дистрибуция и атрибуция","Content, QA, distribution and attribution")],
     [tr("Обучение и следующий цикл","Learning and next cycle"),"LOCKED",tr("Вовлечение, удержание, экономика и перераспределение бюджета","Engagement, retention, economics and budget reallocation")],
   ];
-  return `<section class="brand-journey"><article class="module brand-brief"><div class="module-title">${tr("ИСХОДНЫЙ КОНТЕКСТ","SOURCE CONTEXT")} <span>DISCOVERY</span></div><h2>${esc(brand.name)}</h2><p>${esc(brand.offering)}</p><dl><div><dt>${tr("АУДИТОРИЯ","AUDIENCE")}</dt><dd>${esc(brand.audience)}</dd></div><div><dt>${tr("БИЗНЕС-МОДЕЛЬ","BUSINESS MODEL")}</dt><dd>${esc(brand.businessModel)}</dd></div><div><dt>${tr("ЦЕННОСТНОЕ СОБЫТИЕ","VALUE EVENT")}</dt><dd>${esc(brand.primaryValueEvent)}</dd></div><div><dt>${tr("ГЕОГРАФИИ И ЯЗЫКИ","GEOGRAPHIES AND LANGUAGES")}</dt><dd>${esc([...brand.targetGeographies,...brand.languages].join(" · "))}</dd></div></dl></article><article class="module journey-flow"><div class="module-title">${tr("МАРШРУТ ЗАПУСКА БРЕНДА","BRAND LAUNCH JOURNEY")} <span>${tr("ШАГ 2 ИЗ 8","STEP 2 OF 8")}</span></div>${stages.map(([title,status,note],index)=>`<button class="journey-step ${status.toLowerCase()}" data-route="${status==="NEXT"?"/factory-config":location.pathname}"><i>${String(index+1).padStart(2,"0")}</i><span><b>${esc(title)}</b><small>${esc(note)}</small></span><em>${status}</em></button>`).join("")}</article><aside class="module journey-next"><div class="module-title">${tr("СЛЕДУЮЩЕЕ ДЕЙСТВИЕ","NEXT ACTION")} <span>GOVERNED</span></div><h3>${tr("Передайте системе источники о продукте","Provide product source material")}</h3><p>${tr("Система не предложит рынок или бюджет до фиксации продуктовых фактов и источников. Предположения будут отделены от доказательств.","The system will not recommend a market or budget until product facts and sources are recorded. Assumptions remain separate from evidence.")}</p><button data-route="/factory-config">${tr("ДОБАВИТЬ ИСТОЧНИКИ ПРОДУКТА","ADD PRODUCT SOURCES")} →</button></aside></section>`;
+  const nextAction=cycleReady
+    ? `<h3>${tr("Бренд готов к управляемому циклу","Brand is ready for a governed cycle")}</h3><p>${tr("Все входные контракты зафиксированы. Запуск выполнит 13 стадий без публикаций, платежей и внешних коммуникаций.","All admission contracts are recorded. The run executes 13 stages without publishing, payments or external communication.")}</p><button class="primary" data-action="start-brand-dry-run" data-brand-id="${esc(brand.id)}">▶ ${tr("ЗАПУСТИТЬ DRY RUN БРЕНДА","START BRAND DRY RUN")}</button>`
+    : `<h3>${tr("Передайте системе источники о продукте","Provide product source material")}</h3><p>${tr("Нужно: 2 источника, 3 факта, 1 открытый вопрос, диагноз и сравнительный тезис экспансии. До этого бюджет не предлагается.","Required: 2 sources, 3 facts, 1 open question, a diagnosis and a comparative expansion thesis. No budget is proposed before then.")}</p><button data-route="/factory-config">${tr("ПРОДОЛЖИТЬ ПОДГОТОВКУ","CONTINUE PREPARATION")} →</button>`;
+  return `<section class="brand-journey"><article class="module brand-brief"><div class="module-title">${tr("ИСХОДНЫЙ КОНТЕКСТ","SOURCE CONTEXT")} <span>DISCOVERY</span></div><h2>${esc(brand.name)}</h2><p>${esc(brand.offering)}</p><dl><div><dt>${tr("АУДИТОРИЯ","AUDIENCE")}</dt><dd>${esc(brand.audience)}</dd></div><div><dt>${tr("БИЗНЕС-МОДЕЛЬ","BUSINESS MODEL")}</dt><dd>${esc(brand.businessModel)}</dd></div><div><dt>${tr("ЦЕННОСТНОЕ СОБЫТИЕ","VALUE EVENT")}</dt><dd>${esc(brand.primaryValueEvent)}</dd></div><div><dt>${tr("ГОТОВНОСТЬ","READINESS")}</dt><dd>${sources.length}/2 · ${facts}/3 · ${unknowns}/1 · ${diagnosis?"DIAGNOSIS ✓":"DIAGNOSIS ×"} · ${thesis?"THESIS ✓":"THESIS ×"}</dd></div></dl></article><article class="module journey-flow"><div class="module-title">${tr("МАРШРУТ ЗАПУСКА БРЕНДА","BRAND LAUNCH JOURNEY")} <span>${cycleReady?tr("ГОТОВ К ЦИКЛУ","READY FOR CYCLE"):tr("ПОДГОТОВКА","PREPARATION")}</span></div>${stages.map(([title,status,note],index)=>`<button class="journey-step ${status.toLowerCase()}" data-route="${status==="NEXT"?"/factory-config":location.pathname}"><i>${String(index+1).padStart(2,"0")}</i><span><b>${esc(title)}</b><small>${esc(note)}</small></span><em>${status}</em></button>`).join("")}</article><aside class="module journey-next"><div class="module-title">${tr("СЛЕДУЮЩЕЕ ДЕЙСТВИЕ","NEXT ACTION")} <span>GOVERNED</span></div>${nextAction}</aside></section>`;
 }
 
 function render() {
@@ -487,6 +497,18 @@ document.addEventListener("click", async (event) => {
       } finally {
         state.dryRunPending=false;
       }
+    }
+    if (target.dataset.action === "start-brand-dry-run") {
+      if (state.dryRunPending) return;
+      const brandId=String(target.dataset.brandId??"");
+      const cycleId=`${brandId}-ui-${Date.now()}`;
+      state.dryRunPending=true; state.noticeModal=true; state.noticeTone="progress";
+      state.notice=tr(`Цикл ${cycleId}: выполняются 13 управляемых стадий…`,`Cycle ${cycleId}: running 13 governed stages…`); render();
+      try {
+        await sendCommand({kind:"START_BRAND_DRY_RUN",brandId,cycleId});
+        state.noticeTone="success";
+        state.notice=tr(`Цикл ${cycleId} завершён: 13 стадий, внешние расходы — $0.`,`Cycle ${cycleId} completed: 13 stages, external spend — $0.`);
+      } finally { state.dryRunPending=false; }
     }
     if (target.dataset.region) { state.selectedRegion=target.dataset.region; state.notice=tr("Географический охват изменён","Geographic scope changed"); }
   if (target.dataset.action === "add-country") state.addCountry=true;
