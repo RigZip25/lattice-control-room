@@ -93,6 +93,9 @@ export async function executeStepwiseDryRunCycle(config:SupabaseRuntimeConfig,wo
     EXPERIMENT_PLAN:agentArtifacts.experimentPlan,
     CREATIVE_PROMPT:agentArtifacts.creativeBrief,
     LEGAL_REVIEW:agentArtifacts.legalReview,
+    PROVIDER_EXECUTION:agentArtifacts.providerExecution,
+    QA_REVIEW:agentArtifacts.qaReview,
+    LIBRARY_INGEST:agentArtifacts.libraryIngest,
   };
   let completed=0;
   for (let stage=0;stage<cycle.jobs.length;stage+=1) {

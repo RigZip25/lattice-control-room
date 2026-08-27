@@ -3,7 +3,7 @@ import { expansionCandidateScore } from "./expansion-thesis.js";
 import type { runGovernedRigZipCycle } from "./governed-cycle.js";
 
 type GovernedArtifacts = ReturnType<typeof runGovernedRigZipCycle>;
-export type EvidenceBoundStage = "PRODUCT_INTELLIGENCE" | "PRODUCT_DIAGNOSIS" | "EXPANSION_THESIS" | "EXPERIMENT_PLAN" | "CREATIVE_PROMPT" | "LEGAL_REVIEW";
+export type EvidenceBoundStage = "PRODUCT_INTELLIGENCE" | "PRODUCT_DIAGNOSIS" | "EXPANSION_THESIS" | "EXPERIMENT_PLAN" | "CREATIVE_PROMPT" | "LEGAL_REVIEW" | "PROVIDER_EXECUTION" | "QA_REVIEW" | "LIBRARY_INGEST";
 
 export interface AgentArtifactEnvelope<T> {
   readonly id: string;
@@ -134,6 +134,77 @@ export function executeLegalReviewAgent(input:{cycleId:string;artifacts:Governed
   });
 }
 
+export function executeProviderSimulatorAgent(input:{cycleId:string;artifacts:GovernedArtifacts;legal:ReturnType<typeof executeLegalReviewAgent>;createdAt:string}) {
+  if (!input.legal.payload.gate.contentAuthorized) throw new Error("Provider Simulator requires legal content authorization");
+  const request=input.artifacts.providerRequest;
+  if (request.externalExecution!=="BLOCKED") throw new Error("DRY RUN Provider Simulator refuses externally authorized requests");
+  const output=input.artifacts.asset;
+  if (output.requestId!==request.id || output.actualCostUsd!==0) throw new Error("Provider simulation provenance or cost is invalid");
+  return envelope({
+    cycleId:input.cycleId,stage:"PROVIDER_EXECUTION",createdAt:input.createdAt,
+    agent:{role:"Content Production Capability Router",implementation:"LOCAL_EVIDENCE_BOUND",version:1},
+    evidenceRefs:[input.legal.id,input.legal.payload.decision.id,request.id],
+    facts:input.legal.facts,
+    inferences:[`Capability ${request.providerCapability} can satisfy the governed brief in simulation.`],
+    unknowns:["Real provider latency, quality and unit cost remain unobserved."],
+    payload:{
+      request,
+      output,
+      execution:{mode:"SIMULATED" as const,externalCallMade:false,binaryGenerated:false,actualCostUsd:0},
+    },
+  });
+}
+
+export function executeQaReviewAgent(input:{cycleId:string;artifacts:GovernedArtifacts;provider:ReturnType<typeof executeProviderSimulatorAgent>;createdAt:string}) {
+  const {request,output}=input.provider.payload;
+  const briefClaims=input.artifacts.creativePacket.prompt;
+  const unsupportedClaims=output.usedClaims.filter((claim)=>!briefClaims.includes(claim));
+  const findings:string[]=[];
+  if (output.requestId!==request.id) findings.push("REQUEST_LINEAGE_MISMATCH");
+  if (output.brandId!==input.artifacts.creativePacket.brandId) findings.push("BRAND_LINEAGE_MISMATCH");
+  if (unsupportedClaims.length) findings.push("UNSUPPORTED_CLAIM");
+  if (input.artifacts.legalDecision.state!=="ALLOW") findings.push("LEGAL_CLEARANCE_MISSING");
+  if (output.actualCostUsd>request.maximumCostUsd) findings.push("PRODUCTION_COST_LIMIT_EXCEEDED");
+  if (findings.length) throw new Error(`Automated QA requires rework: ${findings.join(",")}`);
+  return envelope({
+    cycleId:input.cycleId,stage:"QA_REVIEW",createdAt:input.createdAt,
+    agent:{role:"Autonomous Creative Quality Director",implementation:"LOCAL_EVIDENCE_BOUND",version:1},
+    evidenceRefs:[input.provider.id,request.id,output.id,input.artifacts.legalDecision.id],
+    facts:input.provider.facts,
+    inferences:["The simulated output preserves approved claims, legal clearance and production lineage."],
+    unknowns:["Visual and audiovisual quality require provider-specific analyzers when binary generation is enabled."],
+    payload:{
+      providerArtifactId:input.provider.id,
+      output,
+      checks:{requestLineage:true,brandLineage:true,supportedClaims:true,legalClearance:true,costAuthority:true},
+      findings:[],
+      disposition:"PASS" as const,
+      reworkRequired:false,
+    },
+  });
+}
+
+export function executeLibraryIngestAgent(input:{cycleId:string;artifacts:GovernedArtifacts;qa:ReturnType<typeof executeQaReviewAgent>;createdAt:string}) {
+  if (input.qa.payload.disposition!=="PASS" || input.qa.payload.reworkRequired) throw new Error("Creative Library accepts only QA-approved output");
+  const record=input.artifacts.libraryAsset;
+  if (record.lineage.requestId!==input.qa.payload.output.requestId || record.state!=="APPROVED") throw new Error("Creative Library lineage is invalid");
+  if (!record.rights.usage.includes("DRY_RUN_EVALUATION")) throw new Error("Creative Library usage rights do not allow dry-run evaluation");
+  return envelope({
+    cycleId:input.cycleId,stage:"LIBRARY_INGEST",createdAt:input.createdAt,
+    agent:{role:"Brand Asset Librarian",implementation:"LOCAL_EVIDENCE_BOUND",version:1},
+    evidenceRefs:[input.qa.id,input.qa.payload.output.id,record.lineage.briefId,record.lineage.requestId],
+    facts:input.qa.facts,
+    inferences:["The approved metadata record is reusable for governed dry-run evaluation."],
+    unknowns:["No binary creative has been generated or uploaded in DRY RUN."],
+    payload:{
+      qaArtifactId:input.qa.id,
+      record,
+      storage:{metadataPersisted:true,binaryUploaded:false,objectKeyReserved:record.objectKey},
+      rightsGate:{ownerVerified:Boolean(record.rights.owner),usageAuthorized:true,territories:record.territories},
+    },
+  });
+}
+
 export function executeEvidenceBoundAgentChain(input:{cycleId:string;artifacts:GovernedArtifacts;createdAt:string}) {
   const intelligence=executeProductIntelligenceAgent(input);
   const diagnosis=executeProductDiagnosisAgent({...input,intelligence});
@@ -141,5 +212,8 @@ export function executeEvidenceBoundAgentChain(input:{cycleId:string;artifacts:G
   const experimentPlan=executeExperimentPlannerAgent({...input,expansion});
   const creativeBrief=executeCreativeBriefAgent({...input,experiment:experimentPlan});
   const legalReview=executeLegalReviewAgent({...input,creative:creativeBrief});
-  return {intelligence,diagnosis,expansion,experimentPlan,creativeBrief,legalReview};
+  const providerExecution=executeProviderSimulatorAgent({...input,legal:legalReview});
+  const qaReview=executeQaReviewAgent({...input,provider:providerExecution});
+  const libraryIngest=executeLibraryIngestAgent({...input,qa:qaReview});
+  return {intelligence,diagnosis,expansion,experimentPlan,creativeBrief,legalReview,providerExecution,qaReview,libraryIngest};
 }

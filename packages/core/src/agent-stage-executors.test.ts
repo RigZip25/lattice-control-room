@@ -1,5 +1,5 @@
 import {describe,expect,it} from "vitest";
-import {executeEvidenceBoundAgentChain,executeLegalReviewAgent} from "./agent-stage-executors.js";
+import {executeEvidenceBoundAgentChain,executeLegalReviewAgent,executeQaReviewAgent} from "./agent-stage-executors.js";
 import {runGovernedRigZipCycle} from "./governed-cycle.js";
 import {runRigZipDryRun} from "./rigzip-scenario.js";
 
@@ -20,6 +20,10 @@ describe("evidence-bound stage agents",()=>{
     expect(result.creativeBrief.payload.constraints).toContain("Do not publish");
     expect(result.legalReview.payload.decision.state).toBe("ALLOW");
     expect(result.legalReview.payload.gate).toEqual({contentAuthorized:true,providerDispatchAuthorized:false,reason:"DRY_RUN_EXTERNAL_EFFECTS_DISABLED"});
+    expect(result.providerExecution.payload.execution).toEqual({mode:"SIMULATED",externalCallMade:false,binaryGenerated:false,actualCostUsd:0});
+    expect(result.qaReview.payload).toMatchObject({disposition:"PASS",reworkRequired:false,findings:[]});
+    expect(result.libraryIngest.payload.storage).toMatchObject({metadataPersisted:true,binaryUploaded:false});
+    expect(result.libraryIngest.payload.rightsGate).toMatchObject({ownerVerified:true,usageAuthorized:true});
     for(const artifact of Object.values(result)) {
       expect(artifact.mode).toBe("DRY_RUN");
       expect(artifact.externalEffects).toBe(0);
@@ -32,5 +36,12 @@ describe("evidence-bound stage agents",()=>{
     const result=executeEvidenceBoundAgentChain({cycleId:"rigzip-legal-gate",artifacts,createdAt:"2026-08-27T12:00:00.000Z"});
     const blockedArtifacts={...artifacts,legalDecision:{...artifacts.legalDecision,state:"BLOCK" as const,executionAuthority:"WITHHELD" as const,reasonCodes:["PROHIBITED_CLAIM"]}};
     expect(()=>executeLegalReviewAgent({cycleId:"rigzip-legal-block",artifacts:blockedArtifacts,creative:result.creativeBrief,createdAt:"2026-08-27T12:00:00.000Z"})).toThrow(/Legal gate withheld provider execution: PROHIBITED_CLAIM/);
+  });
+
+  it("routes provider output with unsupported claims to rework before library ingestion",()=>{
+    const artifacts=runGovernedRigZipCycle(runRigZipDryRun().packet);
+    const result=executeEvidenceBoundAgentChain({cycleId:"rigzip-qa-gate",artifacts,createdAt:"2026-08-27T12:00:00.000Z"});
+    const unsafeProvider={...result.providerExecution,payload:{...result.providerExecution.payload,output:{...result.providerExecution.payload.output,usedClaims:["Guaranteed availability"]}}};
+    expect(()=>executeQaReviewAgent({cycleId:"rigzip-qa-block",artifacts,provider:unsafeProvider,createdAt:"2026-08-27T12:00:00.000Z"})).toThrow(/Automated QA requires rework: UNSUPPORTED_CLAIM/);
   });
 });

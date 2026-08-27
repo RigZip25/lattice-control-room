@@ -100,5 +100,11 @@ describe("supabase gateway", () => {
     expect(experiment).toMatchObject({stage:"EXPERIMENT_PLAN",mode:"DRY_RUN",externalEffects:0,payload:{geography:"Nebraska",realSpendAuthorized:false}});
     expect(creative).toMatchObject({stage:"CREATIVE_PROMPT",payload:{providerDispatchAuthorized:false}});
     expect(legal).toMatchObject({stage:"LEGAL_REVIEW",payload:{decision:{state:"ALLOW",decidedBy:"LEGAL_POLICY_AGENT"},gate:{contentAuthorized:true,providerDispatchAuthorized:false}}});
+    const provider=JSON.parse(String((completions[6]?.[1] as RequestInit).body)).p_result_payload;
+    const qa=JSON.parse(String((completions[7]?.[1] as RequestInit).body)).p_result_payload;
+    const library=JSON.parse(String((completions[8]?.[1] as RequestInit).body)).p_result_payload;
+    expect(provider).toMatchObject({stage:"PROVIDER_EXECUTION",payload:{execution:{mode:"SIMULATED",externalCallMade:false,binaryGenerated:false,actualCostUsd:0}}});
+    expect(qa).toMatchObject({stage:"QA_REVIEW",payload:{disposition:"PASS",reworkRequired:false}});
+    expect(library).toMatchObject({stage:"LIBRARY_INGEST",payload:{storage:{metadataPersisted:true,binaryUploaded:false},rightsGate:{usageAuthorized:true}}});
   });
 });
