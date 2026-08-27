@@ -1,7 +1,7 @@
 import { blueprints } from "/screen-blueprints.js";
 import { renderChoropleths } from "/map.js";
 
-const state = { executive:false, locale:"RU", notice:"", decisions:3, selectedFilter:"ВСЕ", selectedRegion:"WORLD", welcome:location.pathname==="/", factoryStatus:null, backendStatus:null, authOpen:false, session:null, cloudContext:null, addCountry:false, addBrand:false, addSource:false, addDiagnosis:false, addThesis:false, pendingCountry:null, pendingArea:null, addedMarkets:[], expansionAreas:[], brandProfiles:[], productSources:[], productEvidence:[], productDiagnoses:[], expansionTheses:[], version:0 };
+const state = { executive:false, locale:"RU", notice:"", decisions:3, selectedFilter:"ВСЕ", selectedRegion:"WORLD", mobileNav:false, welcome:location.pathname==="/", factoryStatus:null, backendStatus:null, authOpen:false, session:null, cloudContext:null, addCountry:false, addBrand:false, addSource:false, addDiagnosis:false, addThesis:false, pendingCountry:null, pendingArea:null, addedMarkets:[], expansionAreas:[], brandProfiles:[], productSources:[], productEvidence:[], productDiagnoses:[], expansionTheses:[], version:0 };
 const isLocalRuntime = ["localhost", "127.0.0.1", "::1"].includes(location.hostname);
 let screens = [];
 let control = null;
@@ -308,6 +308,16 @@ function productIntelligenceMarkup() {
   return `<section class="intelligence-surface"><header class="strategy-bar"><div><small>${tr("ИЗУЧЕНИЕ ПРОДУКТА","PRODUCT INTELLIGENCE")}</small><b>${esc(brand.name)} · ${diagnosis?tr("ДИАГНОЗ СОЗДАН","DIAGNOSIS CREATED"):ready?tr("ГОТОВО К ДИАГНОЗУ","READY FOR DIAGNOSIS"):tr("СБОР ДОКАЗАТЕЛЬСТВ","EVIDENCE INTAKE")}</b></div><button class="primary" data-action="add-source">＋ ${tr("ДОБАВИТЬ ИСТОЧНИК","ADD SOURCE")}</button></header><div class="readiness-grid"><article><small>${tr("ИСТОЧНИКИ","SOURCES")}</small><b>${sources.length} / 2</b><span>${sources.length>=2?"✓":"→"}</span></article><article><small>${tr("ПОДТВЕРЖДЁННЫЕ ФАКТЫ","VERIFIED FACTS")}</small><b>${facts} / 3</b><span>${facts>=3?"✓":"→"}</span></article><article><small>${tr("ОТКРЫТЫЕ ВОПРОСЫ","OPEN QUESTIONS")}</small><b>${unknowns} / 1</b><span>${unknowns>=1?"✓":"→"}</span></article><article class="${ready?"ready":"blocked"}"><small>${tr("ДИАГНОЗ ПРОДУКТА","PRODUCT DIAGNOSIS")}</small><b>${diagnosis?tr("СОЗДАН","CREATED"):ready?tr("РАЗБЛОКИРОВАН","UNLOCKED"):tr("ЗАБЛОКИРОВАН","BLOCKED")}</b><span>${ready?"✓":"×"}</span></article></div><article class="module evidence-register"><div class="module-title">${tr("РЕЕСТР ДОКАЗАТЕЛЬСТВ","EVIDENCE REGISTER")} <span>${tr("ЦИТИРУЕМЫЙ","TRACEABLE")}</span></div>${register}</article>${side}</section>`;
 }
 
+function expansionThesisControlMarkup() {
+  const brand=state.brandProfiles[0] ?? {id:"rigzip",name:"RigZip"};
+  const diagnosis=state.productDiagnoses.find((item)=>item.brandId===brand.id);
+  const thesis=state.expansionTheses.find((item)=>item.brandId===brand.id);
+  if (!diagnosis) return "";
+  const score=(item)=>Math.round((item.demandScore*.35+item.supplyScore*.25+item.accessibilityScore*.2+item.regulatoryScore*.2)*10)/10;
+  const ranked=thesis?[...thesis.candidates].sort((a,b)=>score(b)-score(a)):[];
+  return `<section class="module expansion-thesis"><div class="module-title">${tr("ТЕЗИС ЭКСПАНСИИ","EXPANSION THESIS")} <span>${thesis?"DRAFT · RANKED":"DIAGNOSIS REQUIRED · PASSED"}</span></div><header><div><h2>${tr("Сравнение географий до выделения бюджета","Compare geographies before budget allocation")}</h2><p>${tr("Рейтинг определяет порядок исследования, а не разрешение на запуск.","The ranking determines research order, not launch authority.")}</p></div>${thesis?"":`<button data-action="add-thesis">＋ ${tr("СОЗДАТЬ ТЕЗИС","CREATE THESIS")}</button>`}</header>${thesis?`<div class="thesis-ranking">${ranked.map((item,index)=>`<article><i>${String(index+1).padStart(2,"0")}</i><span><b>${esc(item.geographyName)}</b><small>${esc(item.countryCode)} · ${esc(item.administrativeLevel)}</small></span><strong>${score(item)}</strong><p>${esc(item.rationale)}</p><em>${tr("ПРОВЕРИТЬ","VALIDATE")}: ${esc(item.validationQuestions.join(" · "))}</em></article>`).join("")}</div>`:`<div class="thesis-empty"><b>${tr("Диагноз готов. Географии ещё не сравнены.","Diagnosis ready. Geographies have not been compared.")}</b><span>${tr("Добавьте минимум две страны, штата или региона и зафиксируйте, что система должна проверить.","Add at least two countries, states, or regions and record what the system must validate.")}</span></div>`}</section>`;
+}
+
 function brandOnboardingMarkup() {
   const brandId = location.pathname.split("/")[2];
   const brand = state.brandProfiles.find((item)=>item.id===brandId);
@@ -338,7 +348,7 @@ function render() {
   document.title = `${screen.title} — LAFWIRON`;
   document.getElementById("app").innerHTML = `
     <header class="command-bar">
-      <button class="brand" data-route="/command"><strong>LAFWIRON</strong><small>MARKET FACTORY OS</small></button>
+      <button class="brand" data-route="/command"><strong>LAFWIRON</strong><small>MARKET FACTORY OS</small></button><button class="mobile-menu" data-action="mobile-menu" aria-label="${tr("Открыть навигацию","Open navigation")}" aria-expanded="${state.mobileNav}"><i></i><i></i><i></i></button>
       <div class="factory-state"><i></i> ${tr("ФАБРИКА РАБОТАЕТ","FACTORY ONLINE")}</div>
       <button class="attention" data-route="/owner"><i></i><span>${pendingDecisionLabel(state.decisions)}</span><em>→</em></button>
       <div class="signal"><small>${tr("ЛУЧШЕЕ ВЛОЖЕНИЕ $100","BEST NEXT $100")}</small><b>RigZip / Nebraska → +87 ${tr("рег.","sign-ups")}</b><span>83% · ${tr("прогноз","forecast")}</span></div>
@@ -350,11 +360,11 @@ function render() {
     </header>
     <div class="stats-ribbon"><span>5 БРЕНДОВ • 87 ЯЧЕЕК • 29 КАНАЛОВ • $684K КАПИТАЛ</span><b>DRY RUN / LOCAL GOVERNED STATE</b></div>
     <div class="workspace">
-      <aside class="side-nav"><small>НАВИГАЦИЯ</small>${groups.map(([label,keys])=>`<details ${keys.includes(screen.key)?"open":""}><summary>${label}<i>⌄</i></summary><section>${keys.map(key=>{const item=byKey(key);return item?`<button class="${item.key===screen.key?"active":""}" data-route="${item.route}">${esc(item.title)}<span>${String(item.order).padStart(2,"0")}</span></button>`:""}).join("")}</section></details>`).join("")}<div class="health"><span>ЗДОРОВЬЕ <b>99.97%</b></span><span>ПОЛИТИКИ <b>GATED</b></span><span>РЕЖИМ <b>DRY RUN</b></span></div></aside>
+      <aside class="side-nav ${state.mobileNav?"mobile-open":""}"><button class="mobile-nav-close" data-action="mobile-menu" aria-label="${tr("Закрыть навигацию","Close navigation")}">×</button><small>НАВИГАЦИЯ</small>${groups.map(([label,keys])=>`<details ${state.mobileNav||keys.includes(screen.key)?"open":""}><summary>${label}<i>⌄</i></summary><section>${keys.map(key=>{const item=byKey(key);return item?`<button class="${item.key===screen.key?"active":""}" data-route="${item.route}">${esc(item.title)}<span>${String(item.order).padStart(2,"0")}</span></button>`:""}).join("")}</section></details>`).join("")}<div class="health"><span>ЗДОРОВЬЕ <b>99.97%</b></span><span>ПОЛИТИКИ <b>GATED</b></span><span>РЕЖИМ <b>DRY RUN</b></span></div></aside>${state.mobileNav?'<button class="mobile-nav-scrim" data-action="mobile-menu" aria-label="Закрыть навигацию"></button>':""}
       <main>
         <div class="page-head"><div><p>${screen.domain} / SCREEN ${String(screen.order).padStart(2,"0")}</p><h1>${esc(screen.title)}</h1><span>${esc(blueprint.subtitle)}</span></div><div class="head-actions">${screen.domain==="MARKET"?'<button class="primary" data-action="add-country">＋ ДОБАВИТЬ СТРАНУ</button>':""}${screen.key==="brands"?`<button class="primary" data-action="add-brand">＋ ${tr("ДОБАВИТЬ БРЕНД","ADD BRAND")}</button>`:""}<button data-action="filter">${state.selectedFilter} ▾</button><button data-action="refresh">ОБНОВИТЬ</button></div></div>
         <div class="metric-ribbon">${metrics.map(([label,value])=>`<div><small>${esc(label)}</small><b>${esc(value)}</b><span>${screen.key === "brand-onboarding" ? tr("СТАТУС","STATUS") : tr("ФАКТ","FACT")}</span></div>`).join("")}</div>
-        ${screen.key === "command" ? commandCenterMarkup(screen, blueprint) : screen.key === "brand-onboarding" ? brandOnboardingMarkup() : screen.key === "factory-config" ? productIntelligenceMarkup() : productionScreens[screen.key] ? productionSurfaceMarkup(screen) : strategyScreens[screen.key] ? strategySurfaceMarkup(screen) : `<div class="screen-grid ${state.executive?"executive-grid":""}">${blueprint.panels.map(panel=>panelMarkup(panel,screen)).join("")}</div>`}
+        ${screen.key === "command" ? commandCenterMarkup(screen, blueprint) : screen.key === "brand-onboarding" ? brandOnboardingMarkup() : screen.key === "factory-config" ? productIntelligenceMarkup()+expansionThesisControlMarkup() : productionScreens[screen.key] ? productionSurfaceMarkup(screen) : strategyScreens[screen.key] ? strategySurfaceMarkup(screen) : `<div class="screen-grid ${state.executive?"executive-grid":""}">${blueprint.panels.map(panel=>panelMarkup(panel,screen)).join("")}</div>`}
         <section class="linked"><div class="module-title">СВЯЗАННЫЕ ПОВЕРХНОСТИ <span>INTERACTION GRAPH</span></div>${screen.linksTo.map(key=>{const item=byKey(key);return item?`<button data-route="${item.route}"><small>${String(item.order).padStart(2,"0")}</small><b>${esc(item.title)}</b><span>${item.domain} →</span></button>`:""}).join("")}</section>
       </main>
     </div>
@@ -364,6 +374,7 @@ function render() {
     ${state.addBrand?brandModal():""}
     ${state.addSource?sourceModal():""}
     ${state.addDiagnosis?diagnosisModal():""}
+    ${state.addThesis?thesisModal():""}
     ${state.authOpen?authModal():""}
     ${state.welcome?welcomeMarkup():""}
     ${state.notice?`<div class="toast"><i>✓</i><span><b>${tr("ДЕЙСТВИЕ ЗАПИСАНО","ACTION RECORDED")}</b><small>${esc(state.notice)}</small></span></div>`:""}`;
@@ -386,6 +397,13 @@ function countryModal() {
 function sourceModal() {
   const brands = state.brandProfiles.length ? state.brandProfiles : [{id:"rigzip",name:"RigZip"}];
   return `<div class="modal-backdrop"><form class="modal source-modal" id="source-form"><div class="module-title">${tr("ИСТОЧНИК И ДОКАЗАТЕЛЬСТВО","SOURCE AND EVIDENCE")} <button type="button" data-action="close-source">×</button></div><h2>${tr("Зафиксировать знание о продукте","Record product knowledge")}</h2><p>${tr("Сначала регистрируется первоисточник, затем утверждение с классификацией и уверенностью. Это не запускает внешних действий.","The primary source is registered first, followed by a classified statement and confidence. This does not trigger external actions.")}</p><div class="form-grid"><label>${tr("БРЕНД","BRAND")}<select name="brandId" required>${brands.map((brand)=>`<option value="${esc(brand.id)}">${esc(brand.name)}</option>`).join("")}</select></label><label>${tr("ТИП ИСТОЧНИКА","SOURCE TYPE")}<select name="kind" required><option value="WEBSITE">Website</option><option value="REPOSITORY">Repository</option><option value="DOCUMENT">Document</option><option value="ANALYTICS">Analytics</option><option value="INTERVIEW">Interview</option><option value="OWNER_NOTE">Owner note</option></select></label><label class="form-span">${tr("НАЗВАНИЕ ИСТОЧНИКА","SOURCE TITLE")}<input name="title" required minlength="2" placeholder="Product website / customer interview"></label><label class="form-span">${tr("ССЫЛКА ИЛИ ИДЕНТИФИКАТОР","URL OR IDENTIFIER")}<input name="locator" required minlength="2" placeholder="https://… or internal://…"></label><label class="form-span">${tr("УТВЕРЖДЕНИЕ","STATEMENT")}<textarea name="statement" required minlength="5" placeholder="${tr("Что именно этот источник подтверждает или оставляет неизвестным","What this source confirms or leaves unknown")}"></textarea></label><label>${tr("КЛАССИФИКАЦИЯ","CLASSIFICATION")}<select name="classification" required><option value="FACT">${tr("Факт","Fact")}</option><option value="INFERENCE">${tr("Вывод / гипотеза","Inference")}</option><option value="UNKNOWN">${tr("Неизвестно / вопрос","Unknown / question")}</option></select></label><label>${tr("УВЕРЕННОСТЬ","CONFIDENCE")}<select name="confidence" required><option value="0.9">90%</option><option value="0.8">80%</option><option value="0.7">70%</option><option value="0.5">50%</option><option value="0.3">30%</option></select></label></div><div class="modal-actions"><button type="button" data-action="close-source">${tr("ОТМЕНА","CANCEL")}</button><button type="submit">${tr("ЗАПИСАТЬ В РЕЕСТР","RECORD IN REGISTER")}</button></div></form></div>`;
+}
+
+function thesisModal() {
+  const brand=state.brandProfiles[0] ?? {id:"rigzip",name:"RigZip"};
+  const diagnosis=state.productDiagnoses.find((item)=>item.brandId===brand.id);
+  const candidate=(index)=>`<fieldset><legend>${tr("ГЕОГРАФИЯ","GEOGRAPHY")} ${index}</legend><div class="form-grid"><label>${tr("ISO-КОД СТРАНЫ","COUNTRY ISO CODE")}<input name="countryCode${index}" required maxlength="2" placeholder="US"></label><label>${tr("НАЗВАНИЕ","NAME")}<input name="geographyName${index}" required placeholder="Nebraska"></label><label>${tr("УРОВЕНЬ","LEVEL")}<select name="administrativeLevel${index}"><option value="COUNTRY">Country</option><option value="STATE">State</option><option value="REGION">Region</option></select></label><label>${tr("СПРОС 0–100","DEMAND 0–100")}<input name="demandScore${index}" type="number" min="0" max="100" required></label><label>${tr("ПРЕДЛОЖЕНИЕ 0–100","SUPPLY 0–100")}<input name="supplyScore${index}" type="number" min="0" max="100" required></label><label>${tr("ДОСТУПНОСТЬ 0–100","ACCESSIBILITY 0–100")}<input name="accessibilityScore${index}" type="number" min="0" max="100" required></label><label>${tr("РЕГУЛЯТОРНАЯ СРЕДА 0–100","REGULATORY 0–100")}<input name="regulatoryScore${index}" type="number" min="0" max="100" required></label><label class="form-span">${tr("ОБОСНОВАНИЕ","RATIONALE")}<textarea name="rationale${index}" required minlength="12"></textarea></label><label>${tr("ДОПУЩЕНИЯ","ASSUMPTIONS")}<textarea name="assumptions${index}" required></textarea></label><label>${tr("ЧТО ПРОВЕРИТЬ","VALIDATION QUESTIONS")}<textarea name="validationQuestions${index}" required></textarea></label></div></fieldset>`;
+  return `<div class="modal-backdrop"><form class="modal thesis-modal" id="thesis-form"><div class="module-title">${tr("ТЕЗИС ЭКСПАНСИИ","EXPANSION THESIS")} <button type="button" data-action="close-thesis">×</button></div><h2>${esc(brand.name)} · ${tr("сравнение географий","geography comparison")}</h2><p>${tr("Оценки формируют исследовательский приоритет. Они не создают кампанию и не резервируют деньги.","Scores create a research priority. They do not create a campaign or reserve money.")}</p><input type="hidden" name="brandId" value="${esc(brand.id)}"><input type="hidden" name="diagnosisId" value="${esc(diagnosis?.id ?? "")}">${candidate(1)}${candidate(2)}<div class="modal-actions"><button type="button" data-action="close-thesis">${tr("ОТМЕНА","CANCEL")}</button><button type="submit">${tr("ЗАФИКСИРОВАТЬ ТЕЗИС","RECORD THESIS")}</button></div></form></div>`;
 }
 
 function diagnosisModal() {
@@ -426,7 +444,7 @@ function welcomeMarkup() {
   return `<div class="welcome-backdrop"><section class="welcome-panel"><header><div class="welcome-brand"><strong>LAFWIRON</strong><small>MARKET FACTORY OS</small></div><span><i></i>${status?tr("ЛОКАЛЬНОЕ СОСТОЯНИЕ ПОДТВЕРЖДЕНО","LOCAL STATE VERIFIED"):tr("ДАННЫЕ НЕДОСТУПНЫ","DATA UNAVAILABLE")}</span></header><div class="welcome-hero"><p>${tr("ДОБРО ПОЖАЛОВАТЬ В КОМАНДНЫЙ ЦЕНТР","WELCOME TO THE COMMAND CENTER")}</p><h1>${tr("Маркетинговая фабрика, которая работает круглосуточно.","A marketing factory that operates around the clock.")}</h1><p>${tr("Это фактический снимок локального управляемого состояния. Значения получены из runtime API и пересчитываются при загрузке.","This is an actual snapshot of local governed state. Values come from the runtime API and are recomputed on load.")}</p></div><div class="welcome-status"><article><small>${tr("ТЕКУЩАЯ СМЕНА","CURRENT SHIFT")}</small><b>${esc(shift)}</b><span>${esc(value(status?.cadence?.mode))}</span></article><article><small>${transition}</small><b>${esc(value(status?.cadence?.minutesUntilTransition))} MIN</b><span>5 ${tr("минут · очереди продолжаются","minutes · queues continue")}</span></article><article><small>${tr("РЕЖИМ","MODE")}</small><b>${esc(value(status?.mode))}</b><span>runtime v${esc(value(status?.runtimeVersion))}</span></article><article><small>${tr("БРЕНДЫ / РЫНКИ","BRANDS / MARKETS")}</small><b>${esc(value(status?.brands))} / ${esc(value(status?.expansionMarkets))}</b><span>${tr("Территорий добавлено","Expansion areas")}: ${esc(value(status?.expansionAreas))}</span></article><article><small>${tr("ОТКРЫТЫЕ РЕШЕНИЯ","OPEN DECISIONS")}</small><b>${esc(value(status?.openDecisions))}</b><span>${status?.killSwitch?"KILL SWITCH ACTIVE":tr("Политики активны","Policies active")}</span></article><article><small>${tr("ДОСТУПНЫЙ КАПИТАЛ","AVAILABLE CAPITAL")}</small><b>${esc(capital)}</b><span>${esc(value(status?.source))}</span></article></div><div class="welcome-flow"><span>${tr("Исследование","Intelligence")}</span><i>→</i><span>${tr("Эксперименты","Experiments")}</span><i>→</i><span>${tr("Контент","Content")}</span><i>→</i><span>${tr("Дистрибуция","Distribution")}</span><i>→</i><span>${tr("Обучение","Learning")}</span><i>→</i><span>${tr("Капитал","Capital")}</span></div><footer><small>${status?new Date(status.generatedAt).toLocaleString():tr("API не ответил","API did not respond")}</small><button data-action="welcome-factory">${tr("ПОСМОТРЕТЬ РАБОТУ ЦЕХОВ","VIEW FACTORY FLOOR")}</button><button class="primary" data-action="welcome-command">${tr("ВОЙТИ В КОМАНДНЫЙ ЦЕНТР","ENTER COMMAND CENTER")} →</button></footer></section></div>`;
 }
 
-function navigate(route) { history.pushState({},"",route); render(); window.scrollTo(0,0); }
+function navigate(route) { state.mobileNav=false; history.pushState({},"",route); render(); window.scrollTo(0,0); }
 document.addEventListener("click", async (event) => {
   const target = event.target.closest("[data-route],[data-geo-action],button"); if (!target) return;
   if (target.dataset.geoAction === "add-expansion") { state.pendingCountry=String(target.dataset.geoCode ?? ""); state.addCountry=true; render(); return; }
@@ -436,6 +454,7 @@ document.addEventListener("click", async (event) => {
   try {
     if (target.dataset.action === "welcome-command") { state.welcome=false; navigate("/command"); return; }
     if (target.dataset.action === "welcome-factory") { state.welcome=false; navigate("/factory"); return; }
+    if (target.dataset.action === "mobile-menu") { state.mobileNav=!state.mobileNav; render(); return; }
     if (target.dataset.action === "auth") state.authOpen=true;
     if (target.dataset.action === "close-auth") state.authOpen=false;
 
@@ -453,10 +472,12 @@ document.addEventListener("click", async (event) => {
   if (target.dataset.action === "add-brand") state.addBrand=true;
   if (target.dataset.action === "add-source") state.addSource=true;
   if (target.dataset.action === "add-diagnosis" && !target.disabled) state.addDiagnosis=true;
+  if (target.dataset.action === "add-thesis") state.addThesis=true;
   if (target.dataset.action === "close-country") { state.addCountry=false; state.pendingCountry=null; }
     if (target.dataset.action === "close-brand") state.addBrand=false;
     if (target.dataset.action === "close-source") state.addSource=false;
     if (target.dataset.action === "close-diagnosis") state.addDiagnosis=false;
+    if (target.dataset.action === "close-thesis") state.addThesis=false;
     if (target.dataset.action === "close-area") state.pendingArea=null;
     if (target.dataset.action === "approve") { await sendCommand({kind:"RESOLVE_DECISION",outcome:"APPROVED"}); state.notice=tr("Решение сохранено в режиме проверки. Средства не перемещались","Dry-run approval recorded. No funds moved"); }
     if (target.dataset.action === "reject") { await sendCommand({kind:"RESOLVE_DECISION",outcome:"REJECTED"}); state.notice=tr("Предложение отклонено и сохранено локально","Proposal rejected and recorded locally"); }
@@ -528,6 +549,17 @@ document.addEventListener("submit", async (event) => {
     const diagnosis={brandId,valueThesis:String(form.get("valueThesis")),priorityAudiences:split("priorityAudiences"),customerProblems:split("customerProblems"),adoptionBarriers:split("adoptionBarriers"),competitiveAlternatives:split("competitiveAlternatives"),materialRisks:split("materialRisks"),unresolvedQuestions:split("unresolvedQuestions"),evidenceIds:state.productEvidence.filter((item)=>item.brandId===brandId).map((item)=>item.id),createdAt:new Date().toISOString()};
     try { await sendCommand({kind:"CREATE_PRODUCT_DIAGNOSIS",diagnosis}); state.addDiagnosis=false; state.notice=tr("Диагноз продукта зафиксирован","Product diagnosis recorded"); }
     catch (error) { state.notice=`COMMAND REJECTED: ${error.message}`; }
+    render();
+    return;
+  }
+  if (event.target.id === "thesis-form") {
+    event.preventDefault();
+    const form=new FormData(event.target);
+    const split=(name)=>String(form.get(name) ?? "").split(/[,;\n]/).map((item)=>item.trim()).filter(Boolean);
+    const candidate=(index)=>({countryCode:String(form.get(`countryCode${index}`) ?? "").trim().toUpperCase(),geographyName:String(form.get(`geographyName${index}`) ?? "").trim(),administrativeLevel:String(form.get(`administrativeLevel${index}`)),demandScore:Number(form.get(`demandScore${index}`)),supplyScore:Number(form.get(`supplyScore${index}`)),accessibilityScore:Number(form.get(`accessibilityScore${index}`)),regulatoryScore:Number(form.get(`regulatoryScore${index}`)),rationale:String(form.get(`rationale${index}`)),assumptions:split(`assumptions${index}`),validationQuestions:split(`validationQuestions${index}`)});
+    const thesis={brandId:String(form.get("brandId")),diagnosisId:String(form.get("diagnosisId")),candidates:[candidate(1),candidate(2)],createdAt:new Date().toISOString()};
+    try { await sendCommand({kind:"CREATE_EXPANSION_THESIS",thesis}); state.addThesis=false; state.notice=tr("Тезис экспансии зафиксирован","Expansion thesis recorded"); }
+    catch(error){state.notice=`COMMAND REJECTED: ${error.message}`;}
     render();
     return;
   }
