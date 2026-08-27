@@ -306,4 +306,3 @@ export function executeEvidenceBoundAgentChain(input:{cycleId:string;artifacts:G
   const capitalRecommendation=executeCapitalRecommendationAgent({...input,learning:learningEvaluation});
   return {intelligence,diagnosis,expansion,experimentPlan,creativeBrief,legalReview,providerExecution,qaReview,libraryIngest,distributionPlan,metricIngest,learningEvaluation,capitalRecommendation};
 }
-

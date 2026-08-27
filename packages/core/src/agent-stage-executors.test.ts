@@ -56,4 +56,3 @@ describe("evidence-bound stage agents",()=>{
     expect(()=>executeQaReviewAgent({cycleId:"rigzip-qa-block",artifacts,provider:unsafeProvider,createdAt:"2026-08-27T12:00:00.000Z"})).toThrow(/Automated QA requires rework: UNSUPPORTED_CLAIM/);
   });
 });
-
