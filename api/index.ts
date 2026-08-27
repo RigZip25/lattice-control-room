@@ -85,7 +85,9 @@ function isOperatingState(value: unknown): value is OperatingState {
     && Array.isArray(state.events)
     && Array.isArray(state.discoveryMarkets)
     && Array.isArray(state.expansionAreas)
-    && Array.isArray(state.brandProfiles);
+    && Array.isArray(state.brandProfiles)
+    && Array.isArray(state.productSources)
+    && Array.isArray(state.productEvidence);
 }
 
 function countries(): Array<{ code: string; name: string }> {

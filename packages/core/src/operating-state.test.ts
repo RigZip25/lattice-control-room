@@ -39,4 +39,12 @@ describe("governed local operating state", () => {
     expect(state.brandProfiles[0]?.status).toBe("DISCOVERY");
     expect(() => applyOperatingCommand(state, command, "2026-08-26T12:01:00.000Z")).toThrow(/already exists/);
   });
+
+  it("registers product sources before accepting cited evidence", () => {
+    const sourceState = applyOperatingCommand(initialOperatingState(), { kind:"REGISTER_PRODUCT_SOURCE", source:{ brandId:"rigzip", kind:"WEBSITE", title:"RigZip website", locator:"https://rigzip.com", capturedAt:"2026-08-27T13:00:00.000Z" } }, "2026-08-27T13:00:00.000Z");
+    const source = sourceState.productSources[0]!;
+    const evidenceState = applyOperatingCommand(sourceState, { kind:"RECORD_PRODUCT_EVIDENCE", evidence:{ brandId:"rigzip", sourceId:source.id, statement:"RigZip serves commercial transport rental demand", classification:"FACT", confidence:.9, recordedAt:"2026-08-27T13:01:00.000Z" } }, "2026-08-27T13:01:00.000Z");
+    expect(evidenceState.productEvidence).toHaveLength(1);
+    expect(evidenceState.productEvidence[0]?.sourceId).toBe(source.id);
+  });
 });

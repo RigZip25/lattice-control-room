@@ -1,4 +1,5 @@
 import { deterministicId } from "./identity.js";
+import { recordProductEvidence, registerProductSource, type ProductEvidence, type ProductSource } from "./product-evidence.js";
 
 export type OperatingFilter = "ВСЕ" | "RIGZIP" | "EVORIOS" | "TRAVEL";
 export type OperatingLocale = "RU" | "EN";
@@ -55,6 +56,8 @@ export interface OperatingState {
   readonly discoveryMarkets: readonly DiscoveryMarket[];
   readonly expansionAreas: readonly ExpansionArea[];
   readonly brandProfiles: readonly BrandProfile[];
+  readonly productSources: readonly ProductSource[];
+  readonly productEvidence: readonly ProductEvidence[];
   readonly events: readonly OperatingEvent[];
   readonly mode: "DRY_RUN";
 }
@@ -67,15 +70,17 @@ export type OperatingCommand =
   | { readonly kind: "RESOLVE_DECISION"; readonly outcome: "APPROVED" | "REJECTED" }
   | { readonly kind: "ADD_DISCOVERY_MARKET"; readonly market: DiscoveryMarket }
   | { readonly kind: "ADD_EXPANSION_AREA"; readonly area: ExpansionArea }
-  | { readonly kind: "ADD_BRAND_PROFILE"; readonly brand: BrandProfile };
+  | { readonly kind: "ADD_BRAND_PROFILE"; readonly brand: BrandProfile }
+  | { readonly kind: "REGISTER_PRODUCT_SOURCE"; readonly source: Omit<ProductSource,"id"|"status"> }
+  | { readonly kind: "RECORD_PRODUCT_EVIDENCE"; readonly evidence: Omit<ProductEvidence,"id"> };
 
 export function initialOperatingState(): OperatingState {
-  return { version: 0, executive: false, locale: "RU", selectedFilter: "ВСЕ", openDecisions: 3, discoveryMarkets: [], expansionAreas: [], brandProfiles: [], events: [], mode: "DRY_RUN" };
+  return { version: 0, executive: false, locale: "RU", selectedFilter: "ВСЕ", openDecisions: 3, discoveryMarkets: [], expansionAreas: [], brandProfiles: [], productSources: [], productEvidence: [], events: [], mode: "DRY_RUN" };
 }
 
 export function applyOperatingCommand(state: OperatingState, command: OperatingCommand, occurredAt: string): OperatingState {
   if (!Number.isFinite(Date.parse(occurredAt))) throw new Error("Operating event timestamp is invalid");
-  if (command === null || typeof command !== "object" || !["SET_EXECUTIVE_VIEW","SET_LOCALE","SET_FILTER","REFRESH_READ_MODELS","RESOLVE_DECISION","ADD_DISCOVERY_MARKET","ADD_EXPANSION_AREA","ADD_BRAND_PROFILE"].includes(command.kind)) {
+  if (command === null || typeof command !== "object" || !["SET_EXECUTIVE_VIEW","SET_LOCALE","SET_FILTER","REFRESH_READ_MODELS","RESOLVE_DECISION","ADD_DISCOVERY_MARKET","ADD_EXPANSION_AREA","ADD_BRAND_PROFILE","REGISTER_PRODUCT_SOURCE","RECORD_PRODUCT_EVIDENCE"].includes(command.kind)) {
     throw new Error("Operating command kind is invalid");
   }
   if (command.kind === "SET_EXECUTIVE_VIEW" && typeof command.enabled !== "boolean") throw new Error("Executive view command is invalid");
@@ -103,6 +108,15 @@ export function applyOperatingCommand(state: OperatingState, command: OperatingC
     if (command.brand.status !== "DISCOVERY") throw new Error("New brands must start in DISCOVERY");
     if (state.brandProfiles.some((brand) => brand.id === command.brand.id || brand.name.toLowerCase() === command.brand.name.toLowerCase())) throw new Error("Brand already exists");
   }
+  if (command.kind === "REGISTER_PRODUCT_SOURCE") {
+    const source = registerProductSource(command.source);
+    if (state.productSources.some((item) => item.id === source.id)) throw new Error("Product source already exists");
+  }
+  if (command.kind === "RECORD_PRODUCT_EVIDENCE") {
+    const source = state.productSources.find((item) => item.id === command.evidence.sourceId);
+    if (!source) throw new Error("Evidence source is not registered");
+    recordProductEvidence(command.evidence,source);
+  }
   const version = state.version + 1;
   const event: OperatingEvent = { id: deterministicId("operating_event", { version, command, occurredAt }), version, kind: command.kind, occurredAt };
   const next: OperatingState = { ...state, version, events: [...state.events, event] };
@@ -115,6 +129,12 @@ export function applyOperatingCommand(state: OperatingState, command: OperatingC
     case "ADD_DISCOVERY_MARKET": return { ...next, discoveryMarkets: [...state.discoveryMarkets, command.market] };
     case "ADD_EXPANSION_AREA": return { ...next, expansionAreas: [...state.expansionAreas, command.area] };
     case "ADD_BRAND_PROFILE": return { ...next, brandProfiles: [...state.brandProfiles, command.brand] };
+    case "REGISTER_PRODUCT_SOURCE": return { ...next, productSources:[...state.productSources,registerProductSource(command.source)] };
+    case "RECORD_PRODUCT_EVIDENCE": {
+      const source = state.productSources.find((item) => item.id === command.evidence.sourceId);
+      if (!source) throw new Error("Evidence source is not registered");
+      return { ...next, productEvidence:[...state.productEvidence,recordProductEvidence(command.evidence,source)] };
+    }
     default: throw new Error("Operating command kind is invalid");
   }
 }
