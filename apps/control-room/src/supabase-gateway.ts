@@ -218,6 +218,13 @@ export async function fetchOperatingStateServer(config:SupabaseRuntimeConfig,wor
   },config.secretKey);
 }
 
+export async function fetchBrandsServer(config:SupabaseRuntimeConfig,workspaceId:string):Promise<SupabaseResponse> {
+  if (!config.secretKey) return {status:503,body:{error:"Supabase secret key is not configured"}};
+  return request(config,`/rest/v1/brand?workspace_id=eq.${encodeURIComponent(workspaceId)}&select=brand_id,name,profile,status&order=created_at.asc`,{
+    method:"GET",headers:{Authorization:`Bearer ${config.secretKey}`},
+  },config.secretKey);
+}
+
 export function bearerToken(header: string | undefined): string | null {
   const match = header?.match(/^Bearer\s+([^\s]+)$/i);
   return match?.[1] ?? null;

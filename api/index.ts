@@ -20,6 +20,7 @@ import {
   executeStepwiseDryRunCycle,
   deleteBrandServer,
   fetchOperatingStateServer,
+  fetchBrandsServer,
   fetchCloudContext,
   persistBrandServer,
   persistOperatingStateServer,
@@ -306,6 +307,25 @@ function isOperatingState(value: unknown): value is OperatingState {
     && Array.isArray(state.executionCycles);
 }
 
+async function canonicalOperatingState(candidate:OperatingState):Promise<OperatingState> {
+  if(!supabase||!executionWorkspaceId)return candidate;
+  const [stored,registered]=await Promise.all([fetchOperatingStateServer(supabase,executionWorkspaceId),fetchBrandsServer(supabase,executionWorkspaceId)]);
+  const storedRow=stored.status<400?(stored.body as Array<{state?:unknown}>)[0]:undefined;
+  const persisted=isOperatingState(storedRow?.state)&&storedRow.state.version>=candidate.version?storedRow.state:candidate;
+  if(registered.status>=400)return persisted;
+  const rows=registered.body as Array<{brand_id:string;profile?:unknown;status:string}>;
+  const registryProfiles=rows.filter((row)=>row.status!=="PAUSED"&&row.profile&&typeof row.profile==="object").map((row)=>row.profile as OperatingState["brandProfiles"][number]);
+  const profiles=[...persisted.brandProfiles];
+  for(const profile of registryProfiles)if(!profiles.some((item)=>item.id===profile.id))profiles.push(profile);
+  const understandings=[...persisted.productUnderstandings];
+  for(const brand of profiles){
+    if(understandings.some((item)=>item.brandId===brand.id))continue;
+    const website=brand.offering.match(/https:\/\/[^\s]+/i)?.[0];
+    understandings.push({brandId:brand.id,...(website?{website}:{}),ownerDescription:brand.offering,materialNames:[],productSummary:brand.offering,customerSummary:brand.audience,valueSummary:"Требует повторного подтверждения владельца",assumptions:["Карточка восстановлена из реестра брендов после рассинхронизации состояния"],criticalQuestions:[],status:"DRAFT"});
+  }
+  return {...persisted,brandProfiles:profiles,productUnderstandings:understandings};
+}
+
 function countries(): Array<{ code: string; name: string }> {
   const names = new Intl.DisplayNames(["ru"], { type: "region" });
   const codes = "AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS YE YT ZA ZM ZW".split(" ");
@@ -367,7 +387,8 @@ export default async function handler(request: ApiRequest, response: ApiResponse
     try {
       const envelope = parseBody(request.body) as { command?: OperatingCommand; currentState?: unknown };
       if (!envelope.command) throw new Error("Command is required");
-      const base = isOperatingState(envelope.currentState) ? envelope.currentState : initialOperatingState();
+      const submitted = isOperatingState(envelope.currentState) ? envelope.currentState : initialOperatingState();
+      const base = await canonicalOperatingState(submitted);
       const next = applyOperatingCommand(base, envelope.command, new Date().toISOString());
       if (supabase && executionWorkspaceId && ["START_RIGZIP_DRY_RUN","START_BRAND_DRY_RUN"].includes(envelope.command.kind)) {
         const cycle=next.executionCycles.at(-1);
@@ -396,7 +417,7 @@ export default async function handler(request: ApiRequest, response: ApiResponse
       const stored=await fetchOperatingStateServer(supabase,executionWorkspaceId);
       if (stored.status<400) {
         const row=(stored.body as Array<{state?:unknown}>)[0];
-        if (row?.state && isOperatingState(row.state)) { response.status(200).json(row.state); return; }
+        if (row?.state && isOperatingState(row.state)) { response.status(200).json(await canonicalOperatingState(row.state)); return; }
       }
     }
     response.status(200).json(initialOperatingState()); return;
