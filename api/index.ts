@@ -208,17 +208,18 @@ async function researchWebsite(raw:string) {
     .map((url)=>url.toString().split("#")[0]);
   const urls=[first.url,...new Set(candidates)].slice(0,5);
   const fetched=[first,...(await Promise.allSettled(urls.slice(1).map(fetchResearchPage))).flatMap((item)=>item.status==="fulfilled"?[item.value]:[])];
+  const lastItem=<T>(items:readonly T[]|undefined):T|undefined=>items?.[items.length-1];
   const pages=fetched.map(({url,html})=>{
     const metadata=metaValues(html); const titles=elementText(html,"title");
-    const title=metadata.get("og:title")?.at(-1)??metadata.get("twitter:title")?.at(-1)??titles.at(-1)??"Untitled page";
-    const description=metadata.get("og:description")?.at(-1)??metadata.get("twitter:description")?.at(-1)??metadata.get("description")?.at(-1)??"";
-    const keywords=(metadata.get("keywords")?.at(-1)??"").split(",").map((item)=>item.trim()).filter(Boolean).slice(0,12);
+    const title=lastItem(metadata.get("og:title"))??lastItem(metadata.get("twitter:title"))??lastItem(titles)??"Untitled page";
+    const description=lastItem(metadata.get("og:description"))??lastItem(metadata.get("twitter:description"))??lastItem(metadata.get("description"))??"";
+    const keywords=(lastItem(metadata.get("keywords"))??"").split(",").map((item)=>item.trim()).filter(Boolean).slice(0,12);
     return {url,title,description,headings:[...elementText(html,"h1"),...elementText(html,"h2"),...(keywords.length?[`Keywords: ${keywords.join(", ")}`]:[])].filter((value)=>!/^created with figma$/i.test(value)&&!/^this site requires javascript/i.test(value)).slice(0,12)};
   });
   const componentPath=first.html.match(/(?:href|src)=["']([^"']*\/_components\/v2\/[^"']+\.js)["']/i)?.[1];
   let componentClaims:string[]=[];
   if(componentPath){try{const component=await fetchResearchAsset(new URL(componentPath,first.url).toString());componentClaims=figmaObservedClaims(figmaEnglishContent(component));}catch{/* metadata remains available as a safe fallback */}}
-  const claims=[...new Set([...componentClaims,...pages.flatMap((page)=>[page.description,...page.headings]).filter((value)=>value.length>=12&&!/^created with figma$/i.test(value)))].slice(0,12);
+  const claims=[...new Set([...componentClaims,...pages.flatMap((page)=>[page.description,...page.headings]).filter((value)=>value.length>=12&&!/^created with figma$/i.test(value))])].slice(0,12);
   if(componentClaims.length){pages[0]={...pages[0],title:componentClaims[0].replace(/^Product:\s*/,"").split(" · ")[0],description:componentClaims[0],headings:componentClaims.slice(1)};}
   return {status:"COMPLETED" as const,researchedAt:new Date().toISOString(),pages,observedClaims:claims.length?claims:[`The public website did not expose enough product content for a reliable summary`],unresolvedQuestions:["Which website claims are supported by independent product or analytics evidence?","Who is the primary paying customer: an individual driver, fleet, or partner?","Which customer value event should govern the first market test?"]};
 }
@@ -392,12 +393,13 @@ async function continueAnalystDialogue(input:{brandId:string;understanding:NonNu
 }
 
 function websiteResearchError(error:unknown):{status:number;message:string} {
-  console.error("[website-research] failed",{name:error instanceof Error?error.name:"UnknownError",message:error instanceof Error?error.message:String(error),statusCode:APICallError.isInstance(error)?error.statusCode:undefined});
-  if (APICallError.isInstance(error)) {
-    if (error.statusCode===402) return {status:402,message:"Бесплатный лимит AI Gateway исчерпан. Анализ не выполнен, расходы не произведены."};
-    if (error.statusCode===429) return {status:429,message:"AI Gateway временно ограничил частоту запросов. Повторите изучение через несколько минут."};
-    if (error.statusCode===403) return {status:503,message:"Выбранная AI-модель недоступна в текущем режиме. LAFWIRON не использовала платные кредиты."};
-    if (error.statusCode===503) return {status:503,message:"Сервис анализа временно недоступен. Исходные материалы сохранены; повторите попытку позже."};
+  const statusCode=APICallError.isInstance(error)?(error as {statusCode?:number}).statusCode:undefined;
+  console.error("[website-research] failed",{name:error instanceof Error?error.name:"UnknownError",message:error instanceof Error?error.message:String(error),statusCode});
+  if (statusCode!==undefined) {
+    if (statusCode===402) return {status:402,message:"Бесплатный лимит AI Gateway исчерпан. Анализ не выполнен, расходы не произведены."};
+    if (statusCode===429) return {status:429,message:"AI Gateway временно ограничил частоту запросов. Повторите изучение через несколько минут."};
+    if (statusCode===403) return {status:503,message:"Выбранная AI-модель недоступна в текущем режиме. LAFWIRON не использовала платные кредиты."};
+    if (statusCode===503) return {status:503,message:"Сервис анализа временно недоступен. Исходные материалы сохранены; повторите попытку позже."};
   }
   return {status:400,message:error instanceof Error?error.message:"Не удалось изучить сайт"};
 }
@@ -492,7 +494,7 @@ export default async function handler(request: ApiRequest, response: ApiResponse
       const base = await canonicalOperatingState(submitted);
       const next = applyOperatingCommand(base, envelope.command, new Date().toISOString());
       if (supabase && executionWorkspaceId && ["START_RIGZIP_DRY_RUN","START_BRAND_DRY_RUN"].includes(envelope.command.kind)) {
-        const cycle=next.executionCycles.at(-1);
+        const cycle=next.executionCycles[next.executionCycles.length-1];
         if (!cycle) throw new Error("Completed dry-run cycle was not produced");
         const cloudResult=await executeStepwiseDryRunCycle(supabase,executionWorkspaceId,cycle);
         if (cloudResult.status>=400) { response.status(cloudResult.status).json(cloudResult.body); return; }
