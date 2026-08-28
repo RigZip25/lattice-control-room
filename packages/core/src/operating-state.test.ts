@@ -65,7 +65,10 @@ describe("governed local operating state", () => {
     const created=applyOperatingCommand(initialOperatingState(),{kind:"ADD_BRAND_PROFILE",brand},"2026-08-27T15:00:00.000Z");
     const captured=applyOperatingCommand(created,{kind:"CAPTURE_PRODUCT_INTAKE",understanding:{brandId:brand.id,website:"https://example.test",ownerDescription:"A concise owner description of the new product.",materialNames:["brief.pdf"],productSummary:"A concise owner description of the new product.",customerSummary:"To be determined by research",valueSummary:"To be determined by research",assumptions:["The category may need to be created"],criticalQuestions:[],status:"DRAFT"}},"2026-08-27T15:01:00.000Z");
     expect(captured.productUnderstandings[0]).toMatchObject({brandId:brand.id,status:"DRAFT",materialNames:["brief.pdf"]});
-    const confirmed=applyOperatingCommand(captured,{kind:"CONFIRM_PRODUCT_UNDERSTANDING",brandId:brand.id},"2026-08-27T15:02:00.000Z");
+    const resumed=applyOperatingCommand(captured,{kind:"CAPTURE_PRODUCT_INTAKE",understanding:{...captured.productUnderstandings[0]!,ownerDescription:"A corrected owner description for the resumed intake.",productSummary:"A corrected owner description for the resumed intake."}},"2026-08-27T15:01:30.000Z");
+    expect(resumed.productUnderstandings).toHaveLength(1);
+    expect(resumed.productUnderstandings[0]?.ownerDescription).toBe("A corrected owner description for the resumed intake.");
+    const confirmed=applyOperatingCommand(resumed,{kind:"CONFIRM_PRODUCT_UNDERSTANDING",brandId:brand.id},"2026-08-27T15:02:00.000Z");
     expect(confirmed.productUnderstandings[0]).toMatchObject({status:"CONFIRMED",confirmedAt:"2026-08-27T15:02:00.000Z"});
     const deleted=applyOperatingCommand(confirmed,{kind:"DELETE_BRAND_PROFILE",brandId:brand.id},"2026-08-27T15:03:00.000Z");
     expect(deleted.brandProfiles).toHaveLength(0);
