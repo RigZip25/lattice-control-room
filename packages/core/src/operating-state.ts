@@ -75,12 +75,41 @@ export interface WebsiteResearchPage {
   readonly headings: readonly string[];
 }
 
+export interface SemanticProductAnalysis {
+  readonly generationId: string;
+  readonly status: "COMPLETED";
+  readonly model: string;
+  readonly createdAt: string;
+  readonly productName: string;
+  readonly oneLineSummary: string;
+  readonly companyContext: string;
+  readonly customerSegments: readonly string[];
+  readonly jobsToBeDone: readonly string[];
+  readonly valuePropositions: readonly string[];
+  readonly businessModelHypotheses: readonly string[];
+  readonly productCapabilities: readonly string[];
+  readonly claims: readonly {
+    readonly statement: string;
+    readonly classification: "OWNER_CLAIM" | "OBSERVED" | "UNKNOWN";
+    readonly evidenceUrls: readonly string[];
+  }[];
+  readonly risks: readonly string[];
+  readonly criticalQuestions: readonly string[];
+  readonly recommendedNextResearch: readonly string[];
+  readonly usage: {
+    readonly inputTokens?: number;
+    readonly outputTokens?: number;
+    readonly totalTokens?: number;
+  };
+}
+
 export interface WebsiteResearch {
   readonly status: "COMPLETED";
   readonly researchedAt: string;
   readonly pages: readonly WebsiteResearchPage[];
   readonly observedClaims: readonly string[];
   readonly unresolvedQuestions: readonly string[];
+  readonly analysis?: SemanticProductAnalysis;
 }
 
 export interface DryRunCycleRecord {
@@ -244,7 +273,7 @@ export function applyOperatingCommand(state: OperatingState, command: OperatingC
     case "DELETE_BRAND_PROFILE": return { ...next, brandProfiles:state.brandProfiles.filter((item)=>item.id!==command.brandId),productUnderstandings:state.productUnderstandings.filter((item)=>item.brandId!==command.brandId),productSources:state.productSources.filter((item)=>item.brandId!==command.brandId),productEvidence:state.productEvidence.filter((item)=>item.brandId!==command.brandId),productDiagnoses:state.productDiagnoses.filter((item)=>item.brandId!==command.brandId),expansionTheses:state.expansionTheses.filter((item)=>item.brandId!==command.brandId) };
     case "CAPTURE_PRODUCT_INTAKE": return { ...next, productUnderstandings:[...state.productUnderstandings,command.understanding] };
     case "UPDATE_PRODUCT_INTAKE": return { ...next, productUnderstandings:state.productUnderstandings.map((item)=>item.brandId===command.understanding.brandId?command.understanding:item) };
-    case "RECORD_WEBSITE_RESEARCH": return { ...next, productUnderstandings:state.productUnderstandings.map((item)=>{ if(item.brandId!==command.brandId)return item; const {confirmedAt:_,...unconfirmed}=item; return {...unconfirmed,websiteResearch:command.research,productSummary:command.research.observedClaims[0]??item.productSummary,criticalQuestions:command.research.unresolvedQuestions,status:"DRAFT"}; }) };
+    case "RECORD_WEBSITE_RESEARCH": return { ...next, productUnderstandings:state.productUnderstandings.map((item)=>{ if(item.brandId!==command.brandId)return item; const {confirmedAt:_,...unconfirmed}=item; return {...unconfirmed,websiteResearch:command.research,productSummary:command.research.analysis?.oneLineSummary??command.research.observedClaims[0]??item.productSummary,customerSummary:command.research.analysis?.customerSegments.join(" · ")??item.customerSummary,valueSummary:command.research.analysis?.valuePropositions.join(" · ")??item.valueSummary,criticalQuestions:command.research.analysis?.criticalQuestions??command.research.unresolvedQuestions,status:"DRAFT"}; }) };
     case "CONFIRM_PRODUCT_UNDERSTANDING": return { ...next, productUnderstandings:state.productUnderstandings.map((item)=>item.brandId===command.brandId?{...item,status:"CONFIRMED",confirmedAt:occurredAt}:item) };
     case "REGISTER_PRODUCT_SOURCE": return { ...next, productSources:[...state.productSources,registerProductSource(command.source)] };
     case "RECORD_PRODUCT_EVIDENCE": {

@@ -1,6 +1,8 @@
-import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
+import { generateText, Output } from "ai";
+import { z } from "zod";
 import {
   applyOperatingCommand,
   buildExecutionHealthSnapshot,
@@ -45,6 +47,7 @@ const sessionSecret = process.env.LAFWIRON_SESSION_SECRET;
 const ownerAccessConfigured = Boolean(ownerPassword && sessionSecret && sessionSecret.length >= 32);
 const ownerSessionSeconds = 12 * 60 * 60;
 const executionWorkspaceId = process.env.LAFWIRON_WORKSPACE_ID;
+const analysisModel = process.env.LAFWIRON_ANALYSIS_MODEL ?? "openai/gpt-5.6-luna";
 
 function digest(value: string): Buffer {
   return createHash("sha256").update(value, "utf8").digest();
@@ -196,6 +199,34 @@ async function researchWebsite(raw:string) {
   return {status:"COMPLETED" as const,researchedAt:new Date().toISOString(),pages,observedClaims:claims.length?claims:[`The public website did not expose enough product content for a reliable summary`],unresolvedQuestions:["Which website claims are supported by independent product or analytics evidence?","Who is the primary paying customer: an individual driver, fleet, or partner?","Which customer value event should govern the first market test?"]};
 }
 
+const semanticProductSchema=z.object({
+  productName:z.string().min(1).max(160),
+  oneLineSummary:z.string().min(1).max(360),
+  companyContext:z.string().max(500),
+  customerSegments:z.array(z.string().max(240)).max(6),
+  jobsToBeDone:z.array(z.string().max(280)).max(6),
+  valuePropositions:z.array(z.string().max(280)).max(6),
+  businessModelHypotheses:z.array(z.string().max(280)).max(5),
+  productCapabilities:z.array(z.string().max(240)).max(8),
+  claims:z.array(z.object({statement:z.string().max(360),classification:z.enum(["OWNER_CLAIM","OBSERVED","UNKNOWN"]),evidenceUrls:z.array(z.string().url()).max(5)})).max(10),
+  risks:z.array(z.string().max(280)).max(6),
+  criticalQuestions:z.array(z.string().max(280)).max(6),
+  recommendedNextResearch:z.array(z.string().max(280)).max(6),
+});
+
+async function analyzeProductSemantics(research:Awaited<ReturnType<typeof researchWebsite>>,ownerDescription:string) {
+  const generationId=`product-analysis-${randomUUID()}`;
+  const source=JSON.stringify({ownerDescription,pages:research.pages,websiteObservations:research.observedClaims}).slice(0,24_000);
+  const result=await generateText({
+    model:analysisModel,
+    output:Output.object({schema:semanticProductSchema}),
+    system:"Ты — старший продуктовый и маркетинговый аналитик LAFWIRON. Анализируй только переданные материалы. Не выдумывай факты, метрики, клиентов или доказательства. Все заявления сайта считай заявлениями владельца, пока нет независимого подтверждения. Пиши естественным, ясным русским языком, коротко и конкретно. Не предлагай бюджет и запуск до отдельного исследования рынка.",
+    prompt:`Создай паспорт понимания продукта по публичному сайту. Отдели продукт от компании, функции от ценности, а наблюдения от неизвестного. Для claims используй OWNER_CLAIM для утверждений сайта, OBSERVED только для непосредственно наблюдаемой структуры/предложения и UNKNOWN для пробелов. evidenceUrls должны содержать только URL из входных страниц. Следующие исследования должны быть конкретными задачами внутренней исследовательской системы, а не вопросами пользователю, если ответ можно найти независимо.\n\nВходные данные:\n${source}`,
+    abortSignal:AbortSignal.timeout(55_000),
+  });
+  return {...result.output,generationId,status:"COMPLETED" as const,model:analysisModel,createdAt:new Date().toISOString(),usage:{inputTokens:result.usage.inputTokens,outputTokens:result.usage.outputTokens,totalTokens:result.usage.totalTokens}};
+}
+
 function isOperatingState(value: unknown): value is OperatingState {
   if (!value || typeof value !== "object") return false;
   const state = value as Partial<OperatingState>;
@@ -314,7 +345,9 @@ export default async function handler(request: ApiRequest, response: ApiResponse
       const brandId=typeof envelope.brandId==="string"?envelope.brandId:"";
       const intake=base.productUnderstandings.find((item)=>item.brandId===brandId);
       if (!intake?.website) throw new Error("A website is required to start website research");
-      const research=await researchWebsite(intake.website);
+      const rawResearch=await researchWebsite(intake.website);
+      const analysis=await analyzeProductSemantics(rawResearch,intake.ownerDescription);
+      const research={...rawResearch,analysis,unresolvedQuestions:analysis.criticalQuestions};
       const next=applyOperatingCommand(base,{kind:"RECORD_WEBSITE_RESEARCH",brandId,research},new Date().toISOString());
       if (supabase&&executionWorkspaceId) {
         const result=await persistOperatingStateServer(supabase,executionWorkspaceId,next);
