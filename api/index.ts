@@ -142,6 +142,36 @@ async function fetchResearchPage(raw:string):Promise<{url:string;html:string}> {
   throw new Error("Website redirected too many times");
 }
 
+async function fetchResearchAsset(raw:string,maximumBytes=5_000_000):Promise<string> {
+  const url=await safeResearchUrl(raw);
+  const response=await fetch(url,{redirect:"error",headers:{"User-Agent":"LAFWIRON-Research/1.0 (+read-only; dry-run)",Accept:"text/javascript,application/javascript"},signal:AbortSignal.timeout(12_000)});
+  if (!response.ok) throw new Error(`Research asset returned HTTP ${response.status}`);
+  const reader=response.body?.getReader(); if(!reader)throw new Error("Research asset is empty");
+  const chunks:Uint8Array[]=[]; let size=0;
+  while(true){const part=await reader.read();if(part.done)break;size+=part.value.byteLength;if(size>maximumBytes){await reader.cancel();throw new Error("Research asset exceeds the safe size limit");}chunks.push(part.value);}
+  return new TextDecoder().decode(Buffer.concat(chunks));
+}
+
+function figmaEnglishContent(component:string):Map<string,string> {
+  const start=component.indexOf('en:{"nav.home"'); if(start<0)return new Map();
+  const end=component.indexOf('},es:{',start); if(end<0)return new Map();
+  const block=component.slice(start+3,end+1); const values=new Map<string,string>();
+  for(const match of block.matchAll(/"([\w.-]+)":"((?:\\.|[^"\\])*)"/g)) {
+    try { values.set(match[1],JSON.parse(`"${match[2]}"`)); } catch { /* malformed strings are ignored */ }
+  }
+  return values;
+}
+
+function figmaObservedClaims(values:Map<string,string>):string[] {
+  const groups:Array<[string,string[]]>=[
+    ["Product",["hero.title","hero.subtitle","hero.description"]],
+    ["Company",["about.hero.subtitle","about.mission.description"]],
+    ["Capabilities",["features.voiceControl.desc","features.smartRouting.desc","features.fuelOptimization.desc","features.obdDiagnostics.desc","features.maintenanceAlerts.desc","featureCard.iftaReports.desc"]],
+    ["Commercial offer",["cta.benefit1","cta.benefit2","cta.benefit3","explore.card3.desc"]],
+  ];
+  return groups.flatMap(([label,keys])=>{const found=keys.map((key)=>values.get(key)).filter((value):value is string=>Boolean(value));return found.length?[`${label}: ${found.join(" · ")}`]:[];});
+}
+
 async function researchWebsite(raw:string) {
   const first=await fetchResearchPage(raw);
   const origin=new URL(first.url).origin;
@@ -158,8 +188,12 @@ async function researchWebsite(raw:string) {
     const keywords=(metadata.get("keywords")?.at(-1)??"").split(",").map((item)=>item.trim()).filter(Boolean).slice(0,12);
     return {url,title,description,headings:[...elementText(html,"h1"),...elementText(html,"h2"),...(keywords.length?[`Keywords: ${keywords.join(", ")}`]:[])].filter((value)=>!/^created with figma$/i.test(value)&&!/^this site requires javascript/i.test(value)).slice(0,12)};
   });
-  const claims=[...new Set(pages.flatMap((page)=>[page.description,...page.headings]).filter((value)=>value.length>=12))].slice(0,12);
-  return {status:"COMPLETED" as const,researchedAt:new Date().toISOString(),pages,observedClaims:claims.length?claims:[`Website identifies itself as ${pages[0].title}`],unresolvedQuestions:["Who is the primary paying customer?","What measurable event proves customer value?","Which claims have independent evidence beyond the product website?"]};
+  const componentPath=first.html.match(/(?:href|src)=["']([^"']*\/_components\/v2\/[^"']+\.js)["']/i)?.[1];
+  let componentClaims:string[]=[];
+  if(componentPath){try{const component=await fetchResearchAsset(new URL(componentPath,first.url).toString());componentClaims=figmaObservedClaims(figmaEnglishContent(component));}catch{/* metadata remains available as a safe fallback */}}
+  const claims=[...new Set([...componentClaims,...pages.flatMap((page)=>[page.description,...page.headings]).filter((value)=>value.length>=12&&!/^created with figma$/i.test(value)))].slice(0,12);
+  if(componentClaims.length){pages[0]={...pages[0],title:componentClaims[0].replace(/^Product:\s*/,"").split(" · ")[0],description:componentClaims[0],headings:componentClaims.slice(1)};}
+  return {status:"COMPLETED" as const,researchedAt:new Date().toISOString(),pages,observedClaims:claims.length?claims:[`The public website did not expose enough product content for a reliable summary`],unresolvedQuestions:["Which website claims are supported by independent product or analytics evidence?","Who is the primary paying customer: an individual driver, fleet, or partner?","Which customer value event should govern the first market test?"]};
 }
 
 function isOperatingState(value: unknown): value is OperatingState {
