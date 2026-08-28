@@ -597,7 +597,7 @@ document.addEventListener("click", async (event) => {
     if (target.dataset.action === "close-area") state.pendingArea=null;
     if (target.dataset.action === "approve") { await sendCommand({kind:"RESOLVE_DECISION",outcome:"APPROVED"}); state.notice=tr("Решение сохранено в режиме проверки. Средства не перемещались","Dry-run approval recorded. No funds moved"); }
     if (target.dataset.action === "reject") { await sendCommand({kind:"RESOLVE_DECISION",outcome:"REJECTED"}); state.notice=tr("Предложение отклонено и сохранено локально","Proposal rejected and recorded locally"); }
-  } catch (error) { state.dryRunPending=false; state.noticeTone="error"; state.notice = `COMMAND REJECTED: ${error.message}`; }
+  } catch (error) { state.dryRunPending=false; state.noticeTone="error"; state.notice = error.message; }
   render();
   clearTimeout(noticeTimer);
   if (!state.noticeModal) noticeTimer=setTimeout(()=>{state.notice="";render();},state.noticeTone==="success"?10000:8000);

@@ -1,7 +1,7 @@
 import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
-import { generateText, Output } from "ai";
+import { APICallError, generateText, Output } from "ai";
 import { z } from "zod";
 import {
   applyOperatingCommand,
@@ -47,7 +47,7 @@ const sessionSecret = process.env.LAFWIRON_SESSION_SECRET;
 const ownerAccessConfigured = Boolean(ownerPassword && sessionSecret && sessionSecret.length >= 32);
 const ownerSessionSeconds = 12 * 60 * 60;
 const executionWorkspaceId = process.env.LAFWIRON_WORKSPACE_ID;
-const analysisModel = process.env.LAFWIRON_ANALYSIS_MODEL ?? "openai/gpt-5.6-luna";
+const analysisModel = process.env.LAFWIRON_ANALYSIS_MODEL ?? "minimax/minimax-m3-free";
 
 function digest(value: string): Buffer {
   return createHash("sha256").update(value, "utf8").digest();
@@ -222,9 +222,20 @@ async function analyzeProductSemantics(research:Awaited<ReturnType<typeof resear
     output:Output.object({schema:semanticProductSchema}),
     system:"Ты — старший продуктовый и маркетинговый аналитик LAFWIRON. Анализируй только переданные материалы. Не выдумывай факты, метрики, клиентов или доказательства. Все заявления сайта считай заявлениями владельца, пока нет независимого подтверждения. Пиши естественным, ясным русским языком, коротко и конкретно. Не предлагай бюджет и запуск до отдельного исследования рынка.",
     prompt:`Создай паспорт понимания продукта по публичному сайту. Отдели продукт от компании, функции от ценности, а наблюдения от неизвестного. Для claims используй OWNER_CLAIM для утверждений сайта, OBSERVED только для непосредственно наблюдаемой структуры/предложения и UNKNOWN для пробелов. evidenceUrls должны содержать только URL из входных страниц. Следующие исследования должны быть конкретными задачами внутренней исследовательской системы, а не вопросами пользователю, если ответ можно найти независимо.\n\nВходные данные:\n${source}`,
+    providerOptions:{gateway:{user:executionWorkspaceId??"lafwiron-owner",tags:["feature:product-intelligence","mode:dry-run","budget:free-only"],cacheControl:"s-maxage=86400"}},
     abortSignal:AbortSignal.timeout(55_000),
   });
   return {...result.output,generationId,status:"COMPLETED" as const,model:analysisModel,createdAt:new Date().toISOString(),usage:{inputTokens:result.usage.inputTokens,outputTokens:result.usage.outputTokens,totalTokens:result.usage.totalTokens}};
+}
+
+function websiteResearchError(error:unknown):{status:number;message:string} {
+  if (APICallError.isInstance(error)) {
+    if (error.statusCode===402) return {status:402,message:"Бесплатный лимит AI Gateway исчерпан. Анализ не выполнен, расходы не произведены."};
+    if (error.statusCode===429) return {status:429,message:"AI Gateway временно ограничил частоту запросов. Повторите изучение через несколько минут."};
+    if (error.statusCode===403) return {status:503,message:"Выбранная AI-модель недоступна в текущем режиме. LAFWIRON не использовала платные кредиты."};
+    if (error.statusCode===503) return {status:503,message:"Сервис анализа временно недоступен. Исходные материалы сохранены; повторите попытку позже."};
+  }
+  return {status:400,message:error instanceof Error?error.message:"Не удалось изучить сайт"};
 }
 
 function isOperatingState(value: unknown): value is OperatingState {
@@ -354,7 +365,7 @@ export default async function handler(request: ApiRequest, response: ApiResponse
         if (result.status>=400) { response.status(result.status).json(result.body); return; }
       }
       response.status(200).json(next);
-    } catch(error) { response.status(400).json({error:error instanceof Error?error.message:"Website research failed"}); }
+    } catch(error) { const failure=websiteResearchError(error); response.status(failure.status).json({error:failure.message}); }
     return;
   }
   if (method === "GET" && pathname === "/api/v1/execution-status") {
