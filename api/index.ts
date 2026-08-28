@@ -305,9 +305,9 @@ async function continueAnalystDialogue(input:{understanding:NonNullable<Operatin
   const system="Ты — председатель партнёрского совета директоров продукта LAFWIRON. Сначала пойми продукт целиком, а не экзаменуй одно маркетинговое заявление. Используй конечную повестку из пяти областей: целостное видение и стадия продукта; главный пользователь и его работа; конкурентное отличие; модель оплаты и ценностное событие; следующий минимальный внутренний тест. Пропускай то, что уже ясно из сайта, описания или предыдущих ответов. Не трать отдельный вопрос на доказательство конкретной цифры, если ещё не понятен общий продуктовый контур. Совет дополняет компетенции владельца и строит актив, способный зарабатывать. Не превращай разговор в экзамен. Незрелость блокирует публикацию и расходы, но не подготовку pre-launch материалов. Задавай не более одного нового вопроса и никогда не повторяй закрытый. Всего допускается максимум пять ответов владельца; после пятого сформируй сводное партнёрское заключение и status SUFFICIENT без nextQuestion. Если владелец не знает, предложи рабочую гипотезу и альтернативы. Пиши естественным русским языком.";
   const prompt=`Верни только один валидный JSON-объект без markdown: {"analystResponse":"партнёрское решение совета","nextQuestion":"один новый вопрос","alternatives":["вариант"],"councilViews":[{"role":"PRODUCT","opinion":"конкретное дополнение"}],"status":"ASKING"}. Сначала отрази ценность нового ответа владельца, затем предложи продуктовый и коммерческий ход, потом обозначь риск. Не повторяй предыдущий вопрос. При достаточности убери nextQuestion и поставь SUFFICIENT.\n\nКонтекст:\n${context}`;
   for(let attempt=1;attempt<=2;attempt+=1){
-    const result=await generateText({model:analysisModel,system,prompt,providerOptions:{gateway:{user:executionWorkspaceId??"lafwiron-owner",tags:["feature:brand-analyst","mode:dry-run","budget:free-only"],cacheControl:"s-maxage=3600"}},maxOutputTokens:1_600,abortSignal:AbortSignal.timeout(55_000)});
-    const raw=result.text.trim().replace(/^```(?:json)?\s*/i,"").replace(/\s*```$/i,"");
     try {
+      const result=await generateText({model:analysisModel,system,prompt,providerOptions:{gateway:{user:executionWorkspaceId??"lafwiron-owner",tags:["feature:brand-analyst","mode:dry-run","budget:free-only"],cacheControl:"s-maxage=3600"}},maxOutputTokens:1_600,abortSignal:AbortSignal.timeout(55_000)});
+      const raw=result.text.trim().replace(/^```(?:json)?\s*/i,"").replace(/\s*```$/i,"");
       const start=raw.indexOf("{"); const end=raw.lastIndexOf("}");
       const parsed=analystDialogueSchema.safeParse(JSON.parse(start>=0&&end>start?raw.slice(start,end+1):raw));
       if(parsed.success&&(JSON.stringify(parsed.data).match(/[А-Яа-яЁё]/g)?.length??0)>=20) {
@@ -316,11 +316,14 @@ async function continueAnalystDialogue(input:{understanding:NonNullable<Operatin
         return {id:`analyst-${randomUUID()}`,createdAt:new Date().toISOString(),ownerMessage:input.userMessage,...data};
       }
       console.warn("[analyst-dialogue] invalid structure",{attempt,issues:parsed.success?[]:parsed.error.issues.map((issue)=>issue.path.join("."))});
-    } catch(error) { console.warn("[analyst-dialogue] malformed JSON",{attempt,message:error instanceof Error?error.message:String(error),characters:raw.length}); }
+    } catch(error) {
+      console.warn("[analyst-dialogue] generation fallback",{attempt,message:error instanceof Error?error.message:String(error),statusCode:APICallError.isInstance(error)?error.statusCode:undefined});
+      if(APICallError.isInstance(error)&&[402,403,429,503].includes(error.statusCode??0))break;
+    }
   }
   const finalTurn=transcript.length+1>=maximumQuestions;
-  const previousQuestions=new Set(transcript.map((turn)=>turn.question).filter(Boolean));
-  const nextQuestion=(analysis.criticalQuestions??[]).find((question)=>!previousQuestions.has(question))??"Какой один сценарий использования должен стать главным в первом внутреннем прототипе?";
+  const agendaQuestions=["Опишите продукт целиком своими словами: что он делает сегодня, а что пока остаётся замыслом?","Кто должен стать главным первым пользователем продукта и какую наиболее болезненную задачу он решает?","Почему этот пользователь выберет продукт вместо привычного решения или ближайшего конкурента?","За какое ценностное событие пользователь будет готов платить и как лучше проверить модель оплаты?","Какой минимальный внутренний тест подтвердит, что главный сценарий продукта работает?"];
+  const nextQuestion=agendaQuestions[Math.min(transcript.length+1,agendaQuestions.length-1)];
   return {id:`analyst-${randomUUID()}`,createdAt:new Date().toISOString(),ownerMessage:input.userMessage,analystResponse:finalTurn?"Совет завершил установочный брейншторм. Ответы владельца сведены в рабочий продуктовый контур; следующий шаг — оформить единый паспорт продукта, продуктовые гипотезы и план минимальных внутренних тестов без публикации и реальных расходов.":"Ваш ответ сохранён и принят советом как новый контекст продукта. Совет рекомендует продолжить BUILD_AND_TEST: превратить эту мысль в один проверяемый пользовательский сценарий, параллельно подготовить pre-launch нарративы без публикации и реальных расходов.",...(finalTurn?{}:{nextQuestion}),alternatives:["Сфокусировать первый прототип на одном наиболее частом сценарии","Собрать два облегчённых прототипа и сравнить понятность ценности"],councilViews:[{role:"PRODUCT" as const,opinion:"Зафиксировать минимальный работающий сценарий и критерий его успешности."},{role:"MARKET" as const,opinion:"Проверить формулировку боли на небольшом числе целевых пользователей без платного трафика."},{role:"FINANCE" as const,opinion:"До подтверждения сценария сохранить нулевой внешний бюджет и считать только стоимость разработки теста."}],status:finalTurn?"SUFFICIENT" as const:"ASKING" as const};
 }
 
