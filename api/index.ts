@@ -1,7 +1,7 @@
 import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
-import { APICallError, generateText, Output } from "ai";
+import { APICallError, generateText } from "ai";
 import { z } from "zod";
 import {
   applyOperatingCommand,
@@ -217,18 +217,29 @@ const semanticProductSchema=z.object({
 async function analyzeProductSemantics(research:Awaited<ReturnType<typeof researchWebsite>>,ownerDescription:string) {
   const generationId=`product-analysis-${randomUUID()}`;
   const source=JSON.stringify({ownerDescription,pages:research.pages,websiteObservations:research.observedClaims}).slice(0,24_000);
+  console.log("[product-analysis] started",{generationId,model:analysisModel,pages:research.pages.length});
   const result=await generateText({
     model:analysisModel,
-    output:Output.object({schema:semanticProductSchema}),
     system:"Ты — старший продуктовый и маркетинговый аналитик LAFWIRON. Анализируй только переданные материалы. Не выдумывай факты, метрики, клиентов или доказательства. Все заявления сайта считай заявлениями владельца, пока нет независимого подтверждения. Пиши естественным, ясным русским языком, коротко и конкретно. Не предлагай бюджет и запуск до отдельного исследования рынка.",
-    prompt:`Создай паспорт понимания продукта по публичному сайту. Отдели продукт от компании, функции от ценности, а наблюдения от неизвестного. Для claims используй OWNER_CLAIM для утверждений сайта, OBSERVED только для непосредственно наблюдаемой структуры/предложения и UNKNOWN для пробелов. evidenceUrls должны содержать только URL из входных страниц. Следующие исследования должны быть конкретными задачами внутренней исследовательской системы, а не вопросами пользователю, если ответ можно найти независимо.\n\nВходные данные:\n${source}`,
+    prompt:`Верни ТОЛЬКО корректный JSON-объект без markdown и комментариев. Все пользовательские строки внутри JSON должны быть на русском языке, кроме названий бренда, продукта и URL. Формат: {"productName":"","oneLineSummary":"","companyContext":"","customerSegments":[],"jobsToBeDone":[],"valuePropositions":[],"businessModelHypotheses":[],"productCapabilities":[],"claims":[{"statement":"","classification":"OWNER_CLAIM|OBSERVED|UNKNOWN","evidenceUrls":[]}],"risks":[],"criticalQuestions":[],"recommendedNextResearch":[]}. Создай паспорт понимания продукта по публичному сайту. Отдели продукт от компании, функции от ценности, а наблюдения от неизвестного. OWNER_CLAIM означает утверждение сайта, OBSERVED — непосредственно наблюдаемую структуру или предложение, UNKNOWN — пробел. В evidenceUrls используй только URL из входных страниц. Следующие исследования формулируй как конкретные задачи внутренней системы, а не вопросы пользователю, если ответ можно найти независимо. Не более 6 пунктов в каждом массиве.\n\nВходные данные:\n${source}`,
     providerOptions:{gateway:{user:executionWorkspaceId??"lafwiron-owner",tags:["feature:product-intelligence","mode:dry-run","budget:free-only"],cacheControl:"s-maxage=86400"}},
+    maxOutputTokens:2_500,
     abortSignal:AbortSignal.timeout(55_000),
   });
-  return {...result.output,generationId,status:"COMPLETED" as const,model:analysisModel,createdAt:new Date().toISOString(),usage:{inputTokens:result.usage.inputTokens,outputTokens:result.usage.outputTokens,totalTokens:result.usage.totalTokens}};
+  const json=result.text.trim().replace(/^```(?:json)?\s*/i,"").replace(/\s*```$/i,"");
+  let parsed:unknown;
+  try { parsed=JSON.parse(json); }
+  catch { const start=json.indexOf("{"); const end=json.lastIndexOf("}"); if(start<0||end<=start)throw new Error("AI-анализ не вернул структурированный результат. Повторите попытку."); parsed=JSON.parse(json.slice(start,end+1)); }
+  const validated=semanticProductSchema.safeParse(parsed);
+  if(!validated.success){console.error("[product-analysis] validation failed",{generationId,issues:validated.error.issues.map((issue)=>({path:issue.path.join("."),code:issue.code}))});throw new Error("AI-анализ получен, но не прошёл проверку структуры. Повторите попытку.");}
+  const russianText=JSON.stringify(validated.data).match(/[А-Яа-яЁё]/g)?.length??0;
+  if(russianText<40)throw new Error("AI-анализ не прошёл проверку русского языка. Повторите попытку.");
+  console.log("[product-analysis] completed",{generationId,model:analysisModel,totalTokens:result.usage.totalTokens});
+  return {...validated.data,generationId,status:"COMPLETED" as const,model:analysisModel,createdAt:new Date().toISOString(),usage:{inputTokens:result.usage.inputTokens,outputTokens:result.usage.outputTokens,totalTokens:result.usage.totalTokens}};
 }
 
 function websiteResearchError(error:unknown):{status:number;message:string} {
+  console.error("[website-research] failed",{name:error instanceof Error?error.name:"UnknownError",message:error instanceof Error?error.message:String(error),statusCode:APICallError.isInstance(error)?error.statusCode:undefined});
   if (APICallError.isInstance(error)) {
     if (error.statusCode===402) return {status:402,message:"Бесплатный лимит AI Gateway исчерпан. Анализ не выполнен, расходы не произведены."};
     if (error.statusCode===429) return {status:429,message:"AI Gateway временно ограничил частоту запросов. Повторите изучение через несколько минут."};
