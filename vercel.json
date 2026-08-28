@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "pnpm --filter @lattice/core build",
+  "buildCommand": "pnpm typecheck && pnpm test && pnpm build",
   "outputDirectory": "apps/control-room/public",
   "rewrites": [
     { "source": "/api/v1/:path*", "destination": "/api/index" },
