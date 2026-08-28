@@ -72,6 +72,18 @@ describe("supabase gateway", () => {
     expect(JSON.parse(String(saveInit.body))).toMatchObject({version:0,state:{mode:"DRY_RUN"}});
   });
 
+  it("rejects a stale workspace_state compare-and-swap",async()=>{
+    const secured={...config,secretKey:"sb_secret_server_only"};
+    const next=applyOperatingCommand(initialOperatingState(),{kind:"SET_EXECUTIVE_VIEW",enabled:true},"2026-08-28T12:00:00.000Z");
+    const mockedFetch=vi.fn().mockResolvedValue(new Response(JSON.stringify([]),{status:200}));
+    vi.stubGlobal("fetch",mockedFetch);
+    const result=await persistOperatingStateServer(secured,"e49996a3-5c2e-4093-90bf-f7afd9460adf",next,0);
+    expect(result.status).toBe(409);
+    const [url,init]=mockedFetch.mock.calls[0] as [string,RequestInit];
+    expect(url).toContain("workspace_id=eq.e49996a3-5c2e-4093-90bf-f7afd9460adf&version=eq.0");
+    expect(init.method).toBe("PATCH");
+  });
+
   it("deletes a user-created brand with the server-only key",async()=>{
     const secured={...config,secretKey:"sb_secret_server_only"};
     const mockedFetch=vi.fn().mockResolvedValue(new Response(JSON.stringify([{brand_id:"test-brand"}]),{status:200}));

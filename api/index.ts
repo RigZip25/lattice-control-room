@@ -31,6 +31,7 @@ import {
   supabaseRuntimeConfig,
   verifyEmailOtp,
 } from "../apps/control-room/src/supabase-gateway.js";
+import { reconcileRegisteredBrands, type RegisteredBrandRow } from "../apps/control-room/src/state-reconciliation.js";
 
 interface ApiRequest {
   method?: string;
@@ -410,20 +411,11 @@ function isOperatingState(value: unknown): value is OperatingState {
 async function canonicalOperatingState(candidate:OperatingState):Promise<OperatingState> {
   if(!supabase||!executionWorkspaceId)return candidate;
   const [stored,registered]=await Promise.all([fetchOperatingStateServer(supabase,executionWorkspaceId),fetchBrandsServer(supabase,executionWorkspaceId)]);
-  const storedRow=stored.status<400?(stored.body as Array<{state?:unknown}>)[0]:undefined;
-  const persisted=isOperatingState(storedRow?.state)&&storedRow.state.version>=candidate.version?storedRow.state:candidate;
-  if(registered.status>=400)return persisted;
-  const rows=registered.body as Array<{brand_id:string;profile?:unknown;status:string}>;
-  const registryProfiles=rows.filter((row)=>row.status!=="PAUSED"&&row.profile&&typeof row.profile==="object").map((row)=>row.profile as OperatingState["brandProfiles"][number]);
-  const profiles=[...persisted.brandProfiles];
-  for(const profile of registryProfiles)if(!profiles.some((item)=>item.id===profile.id))profiles.push(profile);
-  const understandings=[...persisted.productUnderstandings];
-  for(const brand of profiles){
-    if(understandings.some((item)=>item.brandId===brand.id))continue;
-    const website=brand.offering.match(/https:\/\/[^\s]+/i)?.[0];
-    understandings.push({brandId:brand.id,...(website?{website}:{}),ownerDescription:brand.offering,materialNames:[],productSummary:brand.offering,customerSummary:brand.audience,valueSummary:"Требует повторного подтверждения владельца",assumptions:["Карточка восстановлена из реестра брендов после рассинхронизации состояния"],criticalQuestions:[],status:"DRAFT"});
-  }
-  return {...persisted,brandProfiles:profiles,productUnderstandings:understandings};
+  const storedRow=stored.status<400?(stored.body as Array<{state?:unknown;version?:number}>)[0]:undefined;
+  const persisted=isOperatingState(storedRow?.state)?storedRow.state:candidate;
+  const normalized={...persisted,productUnderstandings:persisted.productUnderstandings??[]};
+  if(registered.status>=400)return normalized;
+  return reconcileRegisteredBrands(normalized,registered.body as RegisteredBrandRow[]);
 }
 
 function countries(): Array<{ code: string; name: string }> {
@@ -505,7 +497,7 @@ export default async function handler(request: ApiRequest, response: ApiResponse
           const brandResult=await persistBrandServer(supabase,executionWorkspaceId,brand);
           if (brandResult.status>=400) { response.status(brandResult.status).json(brandResult.body); return; }
         }
-        const stateResult=await persistOperatingStateServer(supabase,executionWorkspaceId,next);
+        const stateResult=await persistOperatingStateServer(supabase,executionWorkspaceId,next,base.version);
         if (stateResult.status>=400) { response.status(stateResult.status).json(stateResult.body); return; }
       }
       response.status(200).json(next);
@@ -526,7 +518,7 @@ export default async function handler(request: ApiRequest, response: ApiResponse
     if (ownerAccessConfigured && !validOwnerSession(bearerToken(header(request,"authorization")))) { response.status(401).json({error:"Owner authentication required"}); return; }
     try {
       const envelope=parseBody(request.body) as {brandId?:unknown;currentState?:unknown};
-      const base=isOperatingState(envelope.currentState)?envelope.currentState:initialOperatingState();
+      const base=await canonicalOperatingState(isOperatingState(envelope.currentState)?envelope.currentState:initialOperatingState());
       const brandId=typeof envelope.brandId==="string"?envelope.brandId:"";
       const intake=base.productUnderstandings.find((item)=>item.brandId===brandId);
       if (!intake?.website) throw new Error("A website is required to start website research");
@@ -535,7 +527,7 @@ export default async function handler(request: ApiRequest, response: ApiResponse
       const research={...rawResearch,analysis,unresolvedQuestions:analysis.criticalQuestions};
       const next=applyOperatingCommand(base,{kind:"RECORD_WEBSITE_RESEARCH",brandId,research},new Date().toISOString());
       if (supabase&&executionWorkspaceId) {
-        const result=await persistOperatingStateServer(supabase,executionWorkspaceId,next);
+        const result=await persistOperatingStateServer(supabase,executionWorkspaceId,next,base.version);
         if (result.status>=400) { response.status(result.status).json(result.body); return; }
       }
       response.status(200).json(next);
@@ -546,7 +538,7 @@ export default async function handler(request: ApiRequest, response: ApiResponse
     if (ownerAccessConfigured && !validOwnerSession(bearerToken(header(request,"authorization")))) { response.status(401).json({error:"Owner authentication required"}); return; }
     try {
       const envelope=parseBody(request.body) as {brandId?:unknown;currentState?:unknown;userMessage?:unknown;mode?:unknown};
-      const base=isOperatingState(envelope.currentState)?envelope.currentState:initialOperatingState();
+      const base=await canonicalOperatingState(isOperatingState(envelope.currentState)?envelope.currentState:initialOperatingState());
       const brandId=typeof envelope.brandId==="string"?envelope.brandId:"";
       const userMessage=typeof envelope.userMessage==="string"?envelope.userMessage.trim():"";
       const mode=envelope.mode==="HELP"?"HELP":"ANSWER";
@@ -556,7 +548,7 @@ export default async function handler(request: ApiRequest, response: ApiResponse
       const turn=await continueAnalystDialogue({brandId,understanding,userMessage,mode});
       const discussed=applyOperatingCommand(base,{kind:"RECORD_ANALYST_TURN",brandId,turn},new Date().toISOString());
       const next=turn.status==="SUFFICIENT"?applyOperatingCommand(discussed,{kind:"CONFIRM_PRODUCT_UNDERSTANDING",brandId},new Date().toISOString()):discussed;
-      if(supabase&&executionWorkspaceId){const stored=await persistOperatingStateServer(supabase,executionWorkspaceId,next);if(stored.status>=400){response.status(stored.status).json(stored.body);return;}}
+      if(supabase&&executionWorkspaceId){const stored=await persistOperatingStateServer(supabase,executionWorkspaceId,next,base.version);if(stored.status>=400){response.status(stored.status).json(stored.body);return;}}
       response.status(200).json(next);
     } catch(error) { const failure=websiteResearchError(error); response.status(failure.status).json({error:failure.message}); }
     return;

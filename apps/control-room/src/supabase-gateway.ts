@@ -216,13 +216,24 @@ export async function deleteBrandServer(config:SupabaseRuntimeConfig,workspaceId
   },config.secretKey);
 }
 
-export async function persistOperatingStateServer(config:SupabaseRuntimeConfig,workspaceId:string,state:OperatingState):Promise<SupabaseResponse> {
+export async function persistOperatingStateServer(config:SupabaseRuntimeConfig,workspaceId:string,state:OperatingState,expectedVersion?:number):Promise<SupabaseResponse> {
   if (!config.secretKey) return {status:503,body:{error:"Supabase secret key is not configured"}};
   if (!/^[0-9a-f-]{36}$/i.test(workspaceId) || state.mode!=="DRY_RUN") return {status:400,body:{error:"Invalid governed operating state"}};
+  const body=JSON.stringify({workspace_id:workspaceId,version:state.version,state,updated_at:new Date().toISOString()});
+  if(expectedVersion!==undefined){
+    if(!Number.isInteger(expectedVersion)||state.version<=expectedVersion)return {status:400,body:{error:"Invalid operating state version transition"}};
+    const result=await request(config,`/rest/v1/workspace_state?workspace_id=eq.${encodeURIComponent(workspaceId)}&version=eq.${expectedVersion}`,{
+      method:"PATCH",
+      headers:{Authorization:`Bearer ${config.secretKey}`,Prefer:"return=representation"},
+      body,
+    },config.secretKey);
+    if(result.status<400&&Array.isArray(result.body)&&result.body.length===0)return {status:409,body:{error:"Состояние изменилось в другой вкладке. Загружена актуальная версия; повторите действие."}};
+    return result;
+  }
   return request(config,"/rest/v1/workspace_state?on_conflict=workspace_id",{
     method:"POST",
     headers:{Authorization:`Bearer ${config.secretKey}`,Prefer:"resolution=merge-duplicates,return=representation"},
-    body:JSON.stringify({workspace_id:workspaceId,version:state.version,state,updated_at:new Date().toISOString()}),
+    body,
   },config.secretKey);
 }
 

@@ -58,6 +58,14 @@ function applyRuntime(runtime) {
   state.executionCycles = runtime.executionCycles ?? [];
   state.version = runtime.version;
 }
+async function rejectApiMutation(response,payload,fallback) {
+  if(response.status===409){
+    const latest=await fetch("/api/v1/runtime-state");
+    if(latest.ok) applyRuntime(await latest.json());
+    throw new Error(tr("Состояние обновлено из облака после изменения в другой вкладке. Повторите действие.","State refreshed after a change in another tab. Please retry the action."));
+  }
+  throw new Error(payload.error??fallback);
+}
 async function sendCommand(command) {
   const headers = { "Content-Type":"application/json" };
   if (state.session?.access_token) headers.Authorization = `Bearer ${state.session.access_token}`;
@@ -83,7 +91,7 @@ async function sendCommand(command) {
   };
   const response = await fetch("/api/v1/commands", { method:"POST", headers, body:JSON.stringify({command,currentState}) });
   const payload = await response.json();
-  if (!response.ok) throw new Error(payload.error ?? "Command rejected");
+  if (!response.ok) await rejectApiMutation(response,payload,"Command rejected");
   applyRuntime(payload);
 }
 async function runWebsiteResearch(brandId) {
@@ -92,7 +100,7 @@ async function runWebsiteResearch(brandId) {
   const currentState={version:state.version,mode:"DRY_RUN",executive:state.executive,locale:state.locale,selectedFilter:state.selectedFilter,openDecisions:state.decisions,discoveryMarkets:state.addedMarkets.map(({administrativeLevels,supportedActivityDimensions,...market})=>market),expansionAreas:state.expansionAreas,brandProfiles:state.brandProfiles,productUnderstandings:state.productUnderstandings,productSources:state.productSources,productEvidence:state.productEvidence,productDiagnoses:state.productDiagnoses,expansionTheses:state.expansionTheses,activationSprints:state.activationSprints,executionCycles:state.executionCycles,events:[]};
   const response=await fetch("/api/v1/research/website",{method:"POST",headers,body:JSON.stringify({brandId,currentState})});
   const payload=await response.json();
-  if (!response.ok) throw new Error(payload.error??"Website research failed");
+  if (!response.ok) await rejectApiMutation(response,payload,"Website research failed");
   applyRuntime(payload);
 }
 async function startWebsiteAnalysis(brandId) {
@@ -175,7 +183,7 @@ async function runAnalystDialogue(brandId,userMessage,mode="ANSWER") {
   const currentState={version:state.version,mode:"DRY_RUN",executive:state.executive,locale:state.locale,selectedFilter:state.selectedFilter,openDecisions:state.decisions,discoveryMarkets:state.addedMarkets.map(({administrativeLevels,supportedActivityDimensions,...market})=>market),expansionAreas:state.expansionAreas,brandProfiles:state.brandProfiles,productUnderstandings:state.productUnderstandings,productSources:state.productSources,productEvidence:state.productEvidence,productDiagnoses:state.productDiagnoses,expansionTheses:state.expansionTheses,activationSprints:state.activationSprints,executionCycles:state.executionCycles,events:[]};
   const response=await fetch("/api/v1/research/analyst",{method:"POST",headers,body:JSON.stringify({brandId,userMessage,mode,currentState})});
   const payload=await response.json();
-  if(!response.ok) throw new Error(payload.error??"Analyst dialogue failed");
+  if(!response.ok) await rejectApiMutation(response,payload,"Analyst dialogue failed");
   applyRuntime(payload);
 }
 const byKey = (key) => screens.find((screen) => screen.key === key);
