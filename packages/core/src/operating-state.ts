@@ -57,6 +57,7 @@ export interface ProductUnderstanding {
   readonly brandId: string;
   readonly website?: string;
   readonly ownerDescription: string;
+  readonly founderExpertise?: string;
   readonly materialNames: readonly string[];
   readonly productSummary: string;
   readonly customerSummary: string;
