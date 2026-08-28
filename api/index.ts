@@ -17,14 +17,17 @@ import {
 import {
   bearerToken,
   cloudExecutionConfigured,
+  completeAiGeneration,
   executeStepwiseDryRunCycle,
   deleteBrandServer,
   fetchOperatingStateServer,
   fetchBrandsServer,
   fetchCloudContext,
+  failAiGeneration,
   persistBrandServer,
   persistOperatingStateServer,
   requestEmailOtp,
+  reserveAiGeneration,
   supabaseRuntimeConfig,
   verifyEmailOtp,
 } from "../apps/control-room/src/supabase-gateway.js";
@@ -48,7 +51,26 @@ const sessionSecret = process.env.LAFWIRON_SESSION_SECRET;
 const ownerAccessConfigured = Boolean(ownerPassword && sessionSecret && sessionSecret.length >= 32);
 const ownerSessionSeconds = 12 * 60 * 60;
 const executionWorkspaceId = process.env.LAFWIRON_WORKSPACE_ID;
-const analysisModel = process.env.LAFWIRON_ANALYSIS_MODEL ?? "minimax/minimax-m3-free";
+const analysisModel = process.env.LAFWIRON_ANALYSIS_MODEL ?? "openai/gpt-5.4-mini";
+const analysisPromptVersion = "lafwiron-partner-v2";
+const analysisInputUsdPerToken = 0.75 / 1_000_000;
+const analysisOutputUsdPerToken = 4.5 / 1_000_000;
+
+function estimateAnalysisCost(input:string,maxOutputTokens:number):number {
+  return Number((Math.ceil(input.length/4)*analysisInputUsdPerToken+maxOutputTokens*analysisOutputUsdPerToken).toFixed(6));
+}
+
+function actualAnalysisCost(usage:{inputTokens?:number;outputTokens?:number}):number {
+  return Number(((usage.inputTokens??0)*analysisInputUsdPerToken+(usage.outputTokens??0)*analysisOutputUsdPerToken).toFixed(6));
+}
+
+async function reserveGeneration(input:{generationId:string;brandId:string;purpose:string;source:string;maxOutputTokens:number;maximumAttempts?:number}):Promise<void> {
+  const estimatedCostUsd=Number((estimateAnalysisCost(input.source,input.maxOutputTokens)*(input.maximumAttempts??1)).toFixed(6));
+  if(estimatedCostUsd>0.25) throw new Error("Запрос превышает разрешённый лимит $0.25 на аналитический цикл");
+  if(!supabase||!executionWorkspaceId) throw new Error("Облачный журнал AI-бюджета недоступен — платный вызов остановлен");
+  const reservation=await reserveAiGeneration(supabase,{workspaceId:executionWorkspaceId,generationId:input.generationId,brandId:input.brandId,purpose:input.purpose,promptVersion:analysisPromptVersion,model:analysisModel,inputRefs:[{type:"OPERATING_STATE",brandId:input.brandId}],estimatedCostUsd});
+  if(reservation.status>=400) throw new Error(JSON.stringify(reservation.body).includes("MONTHLY")?"Достигнут месячный лимит AI $20":"Не удалось зарезервировать AI-бюджет; вызов модели остановлен");
+}
 
 function digest(value: string): Buffer {
   return createHash("sha256").update(value, "utf8").digest();
@@ -257,19 +279,24 @@ function normalizeSemanticCandidate(value:unknown):unknown {
   };
 }
 
-async function analyzeProductSemantics(research:Awaited<ReturnType<typeof researchWebsite>>,ownerDescription:string,maturity:string) {
+async function analyzeProductSemantics(brandId:string,research:Awaited<ReturnType<typeof researchWebsite>>,ownerDescription:string,maturity:string) {
   const generationId=`product-analysis-${randomUUID()}`;
   const source=JSON.stringify({ownerDeclaredMaturity:maturity,ownerDescription,pages:research.pages,websiteObservations:research.observedClaims}).slice(0,24_000);
   console.log("[product-analysis] started",{generationId,model:analysisModel,pages:research.pages.length});
+  await reserveGeneration({generationId,brandId,purpose:"PRODUCT_UNDERSTANDING",source,maxOutputTokens:5_000,maximumAttempts:2});
+  let cumulativeInputTokens=0;
+  let cumulativeOutputTokens=0;
   for(let attempt=1;attempt<=2;attempt+=1) {
-    const result=await generateText({
+    try { const result=await generateText({
       model:analysisModel,
-      system:"Ты — партнёр владельца по продуктовой стратегии и маркетингу в LAFWIRON. Твоя задача — не продвигать всё подряд, а определить, способен ли продукт обрести конкурентоспособный контур. Анализируй только переданные материалы. Не выдумывай факты, метрики, клиентов, готовность функций или доказательства. Все заявления сайта и владельца считай гипотезами до независимой проверки. Конкурентов называй только гипотезами для следующего исследования и объясняй, почему каждый релевантен. Пиши естественным, ясным русским языком, коротко и конкретно. На этом этапе маркетинговый запуск всегда заблокирован.",
-      prompt:`Верни ТОЛЬКО корректный JSON-объект без markdown и комментариев. Все пользовательские строки внутри JSON должны быть на русском языке, кроме названий бренда, продукта и URL. Обязательный формат: {"productName":"","oneLineSummary":"","companyContext":"","customerSegments":[],"jobsToBeDone":[],"valuePropositions":[],"businessModelHypotheses":[],"productCapabilities":[],"claims":[{"statement":"","classification":"OWNER_CLAIM|OBSERVED|UNKNOWN","evidenceUrls":[]}],"risks":[],"criticalQuestions":[],"recommendedNextResearch":[],"strategicVerdict":"","recommendedDisposition":"HOLD|RESEARCH|IMPROVE|READY_FOR_MARKET_TEST","primaryAudienceChoice":"","primaryAudienceRationale":"","marketPain":[],"positioningThesis":"","competitorHypotheses":[{"name":"","whyRelevant":"","productStrongerWhere":"","productWeakerWhere":"","verificationNeeded":""}],"differentiators":[],"productWeaknesses":[],"distributionHypotheses":[],"improvementPhases":[{"phase":"","objective":"","exitCriteria":""}],"marketEducationNeed":""}. Создай одновременно паспорт и предварительный стратегический диагноз. Выбери одну первичную аудиторию, а не перечисляй всех как равных. Сформулируй боль рынка, предварительное позиционирование и причины, по которым идея может не сработать. Конкуренты — только кандидаты на проверку: включай прямые решения, заменители и существующее поведение пользователя, объясняя релевантность. Для каждой фазы улучшения задай проверяемый критерий выхода. Distribution hypotheses должны соответствовать выбранной аудитории и зрелости продукта. READY_FOR_MARKET_TEST допустим только как будущая рекомендация после независимых доказательств; при IDEA или PROTOTYPE выбирай HOLD, RESEARCH или IMPROVE. OWNER_CLAIM означает утверждение сайта/владельца, OBSERVED — непосредственно наблюдаемую структуру, UNKNOWN — пробел. В evidenceUrls используй только URL из входных страниц. Не более 6 пунктов в каждом массиве.${attempt===2?" Это повторная попытка после повреждённого ответа: особенно тщательно проверь запятые, кавычки и закрывающие скобки.":""}\n\nВходные данные:\n${source}`,
-      providerOptions:{gateway:{user:executionWorkspaceId??"lafwiron-owner",tags:["feature:product-intelligence","mode:dry-run","budget:free-only",`attempt:${attempt}`],cacheControl:"s-maxage=86400"}},
+      system:"Ты — сильный и деятельный партнёр владельца по продуктовой стратегии и маркетингу в LAFWIRON. Твоя задача — найти самый сильный реализуемый вариант идеи, приблизить его к рынку и предложить быстрый способ проверить ценность. Не превращай исследование в допуск, экзамен или бюрократию: сама закрывай доступные пробелы, а владельцу задавай только вопросы, которые действительно меняют продукт или решение. Анализируй переданные материалы, отделяй факты от видения и гипотез, не выдумывай метрики, клиентов, готовность функций или доказательства. Недоказанная гипотеза не запрещает исследование, проектирование, прототипы и pre-launch креативы в DRY RUN. Блокировать можно только необратимое действие: реальные расходы, публикацию, внешнюю коммуникацию либо юридически рискованное обещание. Конкурентов используй как ориентиры для создания преимущества и объясняй их релевантность. Пиши живым, ясным русским языком, с конструктивным энтузиазмом и конкретными следующими ходами.",
+      prompt:`Верни ТОЛЬКО корректный JSON-объект без markdown и комментариев. Все пользовательские строки внутри JSON должны быть на русском языке, кроме названий бренда, продукта и URL. Обязательный формат: {"productName":"","oneLineSummary":"","companyContext":"","customerSegments":[],"jobsToBeDone":[],"valuePropositions":[],"businessModelHypotheses":[],"productCapabilities":[],"claims":[{"statement":"","classification":"OWNER_CLAIM|OBSERVED|UNKNOWN","evidenceUrls":[]}],"risks":[],"criticalQuestions":[],"recommendedNextResearch":[],"strategicVerdict":"","recommendedDisposition":"HOLD|RESEARCH|IMPROVE|READY_FOR_MARKET_TEST","primaryAudienceChoice":"","primaryAudienceRationale":"","marketPain":[],"positioningThesis":"","competitorHypotheses":[{"name":"","whyRelevant":"","productStrongerWhere":"","productWeakerWhere":"","verificationNeeded":""}],"differentiators":[],"productWeaknesses":[],"distributionHypotheses":[],"improvementPhases":[{"phase":"","objective":"","exitCriteria":""}],"marketEducationNeed":""}. Создай паспорт и предварительный стратегический диагноз, но начни с усиленной версии замысла: что в нём действительно ценно и каким он может стать. Выбери одну первичную аудиторию и один лучший первый сценарий. Сформулируй боль рынка, позиционирование, продуктовые улучшения и самый дешёвый информативный тест. Риски описывай вместе со способом проверки или смягчения, а не как запреты. CriticalQuestions — максимум три вопроса, только если ответ владельца существенно изменит решение; всё остальное помести в recommendedNextResearch как самостоятельную работу фабрики. Конкуренты — кандидаты на проверку: включай прямые решения, заменители и привычное поведение пользователя, объясняя релевантность и возможность превзойти их. Для каждой фазы задай критерий выхода. Distribution hypotheses должны соответствовать аудитории и зрелости. При IDEA или PROTOTYPE обычно выбирай RESEARCH или IMPROVE; HOLD допустим лишь при фундаментальном противоречии, которое нельзя проверить дешёвым тестом. OWNER_CLAIM означает утверждение сайта/владельца, OBSERVED — наблюдаемую структуру, UNKNOWN — пробел. В evidenceUrls используй только URL из входных страниц. Не более 6 пунктов в каждом массиве.${attempt===2?" Это повторная попытка после повреждённого ответа: особенно тщательно проверь запятые, кавычки и закрывающие скобки.":""}\n\nВходные данные:\n${source}`,
+      providerOptions:{gateway:{user:executionWorkspaceId??"lafwiron-owner",tags:["feature:product-intelligence","mode:dry-run","budget:owner-approved-20-usd",`attempt:${attempt}`],cacheControl:"s-maxage=86400"}},
       maxOutputTokens:5_000,
       abortSignal:AbortSignal.timeout(80_000),
     });
+    cumulativeInputTokens+=result.usage.inputTokens??0;
+    cumulativeOutputTokens+=result.usage.outputTokens??0;
     const json=result.text.trim().replace(/^```(?:json)?\s*/i,"").replace(/\s*```$/i,"");
     const start=json.indexOf("{");
     const end=json.lastIndexOf("}");
@@ -281,7 +308,10 @@ async function analyzeProductSemantics(research:Awaited<ReturnType<typeof resear
     const russianText=JSON.stringify(validated.data).match(/[А-Яа-яЁё]/g)?.length??0;
     if(russianText<40){console.warn("[product-analysis] language check failed",{generationId,attempt,russianText});if(attempt<2)continue;throw new Error("Аналитический отчёт не прошёл проверку языка. Исходные материалы сохранены — запустите анализ ещё раз.");}
     console.log("[product-analysis] completed",{generationId,model:analysisModel,attempt,totalTokens:result.usage.totalTokens});
+    const cumulativeUsage={inputTokens:cumulativeInputTokens,outputTokens:cumulativeOutputTokens,totalTokens:cumulativeInputTokens+cumulativeOutputTokens};
+    await completeAiGeneration(supabase!,{generationId,output:validated.data,usage:cumulativeUsage,actualCostUsd:actualAnalysisCost(cumulativeUsage)});
     return {...validated.data,marketingGate:"BLOCKED" as const,generationId,status:"COMPLETED" as const,model:analysisModel,createdAt:new Date().toISOString(),usage:{inputTokens:result.usage.inputTokens,outputTokens:result.usage.outputTokens,totalTokens:result.usage.totalTokens}};
+    } catch(error) { if(attempt>=2){await failAiGeneration(supabase!,generationId,error);throw error;} }
   }
   throw new Error("Анализ продукта не завершён. Исходные материалы сохранены — запустите анализ ещё раз.");
 }
@@ -296,24 +326,32 @@ const analystDialogueSchema=z.object({
   if(value.status==="ASKING"&&!value.nextQuestion?.trim()) context.addIssue({code:"custom",message:"The next question is required",path:["nextQuestion"]});
 });
 
-async function continueAnalystDialogue(input:{understanding:NonNullable<OperatingState["productUnderstandings"][number]>;userMessage:string;mode:"ANSWER"|"HELP"}) {
+async function continueAnalystDialogue(input:{brandId:string;understanding:NonNullable<OperatingState["productUnderstandings"][number]>;userMessage:string;mode:"ANSWER"|"HELP"}) {
   const analysis=input.understanding.websiteResearch?.analysis;
   if(!analysis) throw new Error("Сначала изучите сайт или исходные материалы продукта");
   const transcript=(input.understanding.analystDialogue??[]).slice(-8).map((turn)=>({owner:turn.ownerMessage,analyst:turn.analystResponse,question:turn.nextQuestion,status:turn.status}));
   const maximumQuestions=5;
   const context=JSON.stringify({maturity:input.understanding.maturity??"MVP",ownerDescription:input.understanding.ownerDescription,analysis,transcript,userMessage:input.userMessage,mode:input.mode,discussion:{answeredQuestions:transcript.length,maximumQuestions,agenda:["целостное видение продукта и стадия реализации","главный пользователь и выполняемая работа","конкурентное отличие","модель оплаты и ценностное событие","следующий минимальный внутренний тест"]}}).slice(0,28_000);
-  const system="Ты — председатель партнёрского совета директоров продукта LAFWIRON. Сначала пойми продукт целиком, а не экзаменуй одно маркетинговое заявление. Используй конечную повестку из пяти областей: целостное видение и стадия продукта; главный пользователь и его работа; конкурентное отличие; модель оплаты и ценностное событие; следующий минимальный внутренний тест. Пропускай то, что уже ясно из сайта, описания или предыдущих ответов. Не трать отдельный вопрос на доказательство конкретной цифры, если ещё не понятен общий продуктовый контур. Совет дополняет компетенции владельца и строит актив, способный зарабатывать. Не превращай разговор в экзамен. Незрелость блокирует публикацию и расходы, но не подготовку pre-launch материалов. Задавай не более одного нового вопроса и никогда не повторяй закрытый. Всего допускается максимум пять ответов владельца; после пятого сформируй сводное партнёрское заключение и status SUFFICIENT без nextQuestion. Если владелец не знает, предложи рабочую гипотезу и альтернативы. Пиши естественным русским языком.";
-  const prompt=`Верни только один валидный JSON-объект без markdown: {"analystResponse":"партнёрское решение совета","nextQuestion":"один новый вопрос","alternatives":["вариант"],"councilViews":[{"role":"PRODUCT","opinion":"конкретное дополнение"}],"status":"ASKING"}. Сначала отрази ценность нового ответа владельца, затем предложи продуктовый и коммерческий ход, потом обозначь риск. Не повторяй предыдущий вопрос. При достаточности убери nextQuestion и поставь SUFFICIENT.\n\nКонтекст:\n${context}`;
+  const system="Ты — председатель партнёрского совета директоров продукта LAFWIRON. Владелец не проситель, не претендент и не проходит отбор: это его совет, собранный для усиления его замысла. Совет обязан сначала понять продукт целиком и обнаружить его лучший реализуемый вариант. Каждый ответ должен содержать четыре элемента: что в идее сильного; как совет усиливает её прямо сейчас; какой самый быстрый и дешёвый опыт даст новое знание; чего пока не следует делать и почему. Голый отрицательный вердикт запрещён. Если идея не готова к рынку, предложи конкретный путь: сузить аудиторию, изменить первый сценарий, собрать прототип, подготовить рынок, отложить до появления нужной технологии или снять с линии с ясным обоснованием. Используй конечную повестку из пяти областей: целостное видение и стадия продукта; главный пользователь и его работа; конкурентное отличие; модель оплаты и ценностное событие; следующий минимальный внутренний тест. Пропускай то, что уже ясно из сайта, описания или предыдущих ответов. Не требуй от владельца данные, которые фабрика может найти или проверить сама. Не трать отдельный вопрос на доказательство цифры, пока не понятен общий продуктовый контур. Незрелость запрещает только реальные расходы, публикацию, внешние коммуникации и рискованные обещания; она не запрещает исследование, продуктовую работу, прототипы и pre-launch креативы. Задавай не более одного действительно решающего нового вопроса и никогда не повторяй закрытый. Всего допускается максимум пять ответов владельца; после пятого сформируй партнёрский план и status SUFFICIENT без nextQuestion. Если владелец не знает, предложи рабочую гипотезу и 2–3 альтернативы. Пиши живым, уважительным русским языком с конструктивным энтузиазмом, без канцелярита и снисходительности.";
+  const prompt=`Верни только один валидный JSON-объект без markdown: {"analystResponse":"партнёрское дополнение к стратегии владельца","nextQuestion":"один новый вопрос","alternatives":["вариант"],"councilViews":[{"role":"PRODUCT","opinion":"конкретное дополнение"}],"status":"ASKING"}. analystResponse должен звучать как выступление сильного союзника: сначала назови силу замысла, затем внеси своё улучшение, предложи дешёвый следующий тест и только после этого очерти границу риска. councilViews — не хор проверяющих: каждая роль должна внести гипотезу, канал, продуктовый ход или способ снизить стоимость обучения. Совет не решает судьбу продукта вместо владельца. Если совет пока не рекомендует внешний запуск, обязательно покажи, что фабрика продолжит делать автономно уже сейчас. Не повторяй предыдущий вопрос. При достаточности убери nextQuestion и поставь SUFFICIENT.\n\nКонтекст:\n${context}`;
+  const generationId=`analyst-${randomUUID()}`;
+  await reserveGeneration({generationId,brandId:input.brandId,purpose:"PRODUCT_BOARD",source:context,maxOutputTokens:1_600,maximumAttempts:2});
+  let cumulativeInputTokens=0;
+  let cumulativeOutputTokens=0;
   for(let attempt=1;attempt<=2;attempt+=1){
     try {
-      const result=await generateText({model:analysisModel,system,prompt,providerOptions:{gateway:{user:executionWorkspaceId??"lafwiron-owner",tags:["feature:brand-analyst","mode:dry-run","budget:free-only"],cacheControl:"s-maxage=3600"}},maxOutputTokens:1_600,abortSignal:AbortSignal.timeout(55_000)});
+      const result=await generateText({model:analysisModel,system,prompt,providerOptions:{gateway:{user:executionWorkspaceId??"lafwiron-owner",tags:["feature:brand-analyst","mode:dry-run","budget:owner-approved-20-usd"],cacheControl:"s-maxage=3600"}},maxOutputTokens:1_600,abortSignal:AbortSignal.timeout(55_000)});
+      cumulativeInputTokens+=result.usage.inputTokens??0;
+      cumulativeOutputTokens+=result.usage.outputTokens??0;
       const raw=result.text.trim().replace(/^```(?:json)?\s*/i,"").replace(/\s*```$/i,"");
       const start=raw.indexOf("{"); const end=raw.lastIndexOf("}");
       const parsed=analystDialogueSchema.safeParse(JSON.parse(start>=0&&end>start?raw.slice(start,end+1):raw));
       if(parsed.success&&(JSON.stringify(parsed.data).match(/[А-Яа-яЁё]/g)?.length??0)>=20) {
         const finalTurn=transcript.length+1>=maximumQuestions;
         const data=finalTurn?{...parsed.data,status:"SUFFICIENT" as const,nextQuestion:undefined}:parsed.data;
-        return {id:`analyst-${randomUUID()}`,createdAt:new Date().toISOString(),ownerMessage:input.userMessage,...data};
+        const cumulativeUsage={inputTokens:cumulativeInputTokens,outputTokens:cumulativeOutputTokens,totalTokens:cumulativeInputTokens+cumulativeOutputTokens};
+        await completeAiGeneration(supabase!,{generationId,output:data,usage:cumulativeUsage,actualCostUsd:actualAnalysisCost(cumulativeUsage)});
+        return {id:generationId,createdAt:new Date().toISOString(),ownerMessage:input.userMessage,...data};
       }
       console.warn("[analyst-dialogue] invalid structure",{attempt,issues:parsed.success?[]:parsed.error.issues.map((issue)=>issue.path.join("."))});
     } catch(error) {
@@ -321,6 +359,7 @@ async function continueAnalystDialogue(input:{understanding:NonNullable<Operatin
       if(APICallError.isInstance(error)&&[402,403,429,503].includes(error.statusCode??0))break;
     }
   }
+  await failAiGeneration(supabase!,generationId,"Внешняя модель недоступна; использован локальный партнёрский сценарий");
   const finalTurn=transcript.length+1>=maximumQuestions;
   const agendaQuestions=["Опишите продукт целиком своими словами: что он делает сегодня, а что пока остаётся замыслом?","Кто должен стать главным первым пользователем продукта и какую наиболее болезненную задачу он решает?","Почему этот пользователь выберет продукт вместо привычного решения или ближайшего конкурента?","За какое ценностное событие пользователь будет готов платить и как лучше проверить модель оплаты?","Какой минимальный внутренний тест подтвердит, что главный сценарий продукта работает?"];
   const nextQuestion=agendaQuestions[Math.min(transcript.length+1,agendaQuestions.length-1)];
@@ -482,7 +521,7 @@ export default async function handler(request: ApiRequest, response: ApiResponse
       const intake=base.productUnderstandings.find((item)=>item.brandId===brandId);
       if (!intake?.website) throw new Error("A website is required to start website research");
       const rawResearch=await researchWebsite(intake.website);
-      const analysis=await analyzeProductSemantics(rawResearch,intake.ownerDescription,intake.maturity??"MVP");
+      const analysis=await analyzeProductSemantics(brandId,rawResearch,intake.ownerDescription,intake.maturity??"MVP");
       const research={...rawResearch,analysis,unresolvedQuestions:analysis.criticalQuestions};
       const next=applyOperatingCommand(base,{kind:"RECORD_WEBSITE_RESEARCH",brandId,research},new Date().toISOString());
       if (supabase&&executionWorkspaceId) {
@@ -504,7 +543,7 @@ export default async function handler(request: ApiRequest, response: ApiResponse
       if(!userMessage) throw new Error("Напишите ответ или попросите аналитика предложить варианты");
       const understanding=base.productUnderstandings.find((item)=>item.brandId===brandId);
       if(!understanding) throw new Error("Карточка продукта не найдена");
-      const turn=await continueAnalystDialogue({understanding,userMessage,mode});
+      const turn=await continueAnalystDialogue({brandId,understanding,userMessage,mode});
       const next=applyOperatingCommand(base,{kind:"RECORD_ANALYST_TURN",brandId,turn},new Date().toISOString());
       if(supabase&&executionWorkspaceId){const stored=await persistOperatingStateServer(supabase,executionWorkspaceId,next);if(stored.status>=400){response.status(stored.status).json(stored.body);return;}}
       response.status(200).json(next);
@@ -530,4 +569,3 @@ export default async function handler(request: ApiRequest, response: ApiResponse
   }
   response.status(404).json({ error:"Not found" });
 }
-

@@ -52,6 +52,21 @@ export function cloudExecutionConfigured(config:SupabaseRuntimeConfig|null):bool
   return Boolean(config?.secretKey);
 }
 
+export async function reserveAiGeneration(config:SupabaseRuntimeConfig,input:{workspaceId:string;generationId:string;brandId?:string;purpose:string;promptVersion:string;model:string;inputRefs:unknown[];estimatedCostUsd:number}):Promise<SupabaseResponse> {
+  if (!config.secretKey) return {status:503,body:{error:"Supabase secret key is not configured"}};
+  return request(config,"/rest/v1/rpc/reserve_ai_generation",{method:"POST",headers:{Authorization:`Bearer ${config.secretKey}`},body:JSON.stringify({p_generation_id:input.generationId,p_workspace_id:input.workspaceId,p_brand_id:input.brandId??null,p_purpose:input.purpose,p_prompt_version:input.promptVersion,p_model:input.model,p_input_refs:input.inputRefs,p_estimated_cost_usd:input.estimatedCostUsd,p_cycle_limit_usd:0.25,p_monthly_limit_usd:20})},config.secretKey);
+}
+
+export async function completeAiGeneration(config:SupabaseRuntimeConfig,input:{generationId:string;output:unknown;usage:unknown;actualCostUsd:number}):Promise<SupabaseResponse> {
+  if (!config.secretKey) return {status:503,body:{error:"Supabase secret key is not configured"}};
+  return request(config,`/rest/v1/ai_generation?generation_id=eq.${encodeURIComponent(input.generationId)}`,{method:"PATCH",headers:{Authorization:`Bearer ${config.secretKey}`,Prefer:"return=minimal"},body:JSON.stringify({status:"COMPLETED",output:input.output,usage:input.usage,estimated_cost_usd:input.actualCostUsd,completed_at:new Date().toISOString()})},config.secretKey);
+}
+
+export async function failAiGeneration(config:SupabaseRuntimeConfig,generationId:string,error:unknown):Promise<SupabaseResponse> {
+  if (!config.secretKey) return {status:503,body:{error:"Supabase secret key is not configured"}};
+  return request(config,`/rest/v1/ai_generation?generation_id=eq.${encodeURIComponent(generationId)}`,{method:"PATCH",headers:{Authorization:`Bearer ${config.secretKey}`,Prefer:"return=minimal"},body:JSON.stringify({status:"FAILED",error:{message:error instanceof Error?error.message:String(error)},estimated_cost_usd:0,completed_at:new Date().toISOString()})},config.secretKey);
+}
+
 const executionStageOrder = [
   "PRODUCT_INTELLIGENCE","PRODUCT_DIAGNOSIS","EXPANSION_THESIS","EXPERIMENT_PLAN",
   "CREATIVE_PROMPT","LEGAL_REVIEW","PROVIDER_EXECUTION","QA_REVIEW","LIBRARY_INGEST",
@@ -229,4 +244,3 @@ export function bearerToken(header: string | undefined): string | null {
   const match = header?.match(/^Bearer\s+([^\s]+)$/i);
   return match?.[1] ?? null;
 }
-
