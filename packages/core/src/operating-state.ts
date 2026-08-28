@@ -76,6 +76,7 @@ export interface BrandAnalystTurn {
   readonly ownerMessage: string;
   readonly analystResponse: string;
   readonly nextQuestion?: string;
+  readonly questionRole?: "PRODUCT"|"MARKET"|"GROWTH"|"CREATIVE"|"FINANCE"|"LEGAL";
   readonly alternatives: readonly string[];
   readonly councilViews?: readonly { readonly role: "PRODUCT"|"MARKET"|"GROWTH"|"CREATIVE"|"FINANCE"|"LEGAL"; readonly opinion: string }[];
   readonly status: "ASKING" | "SUFFICIENT";
@@ -354,4 +355,3 @@ export function applyOperatingCommand(state: OperatingState, command: OperatingC
     default: throw new Error("Operating command kind is invalid");
   }
 }
-
