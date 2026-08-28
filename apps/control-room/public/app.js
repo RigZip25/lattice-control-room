@@ -1,7 +1,7 @@
 import { blueprints } from "/screen-blueprints.js";
 import { renderChoropleths } from "/map.js";
 
-const state = { executive:false, locale:"RU", notice:"", noticeTone:"success", noticeModal:false, analysisRun:null, decisions:3, selectedFilter:"ВСЕ", selectedRegion:"WORLD", mobileNav:false, welcome:location.pathname==="/", factoryStatus:null, backendStatus:null, authOpen:false, session:null, cloudContext:null, addCountry:false, addBrand:false, duplicateBrand:null, editBrandId:null, analystBrandId:null, analystPending:false, addSource:false, addDiagnosis:false, addThesis:false, pendingCountry:null, pendingArea:null, addedMarkets:[], expansionAreas:[], brandProfiles:[], productUnderstandings:[], productSources:[], productEvidence:[], productDiagnoses:[], expansionTheses:[], executionCycles:[], dryRunPending:false, version:0 };
+const state = { executive:false, locale:"RU", notice:"", noticeTone:"success", noticeModal:false, analysisRun:null, decisions:3, selectedFilter:"ВСЕ", selectedRegion:"WORLD", mobileNav:false, welcome:location.pathname==="/", factoryStatus:null, backendStatus:null, authOpen:false, session:null, cloudContext:null, addCountry:false, addBrand:false, duplicateBrand:null, editBrandId:null, analystBrandId:null, analystPending:false, pendingAnalystMessage:null, addSource:false, addDiagnosis:false, addThesis:false, pendingCountry:null, pendingArea:null, addedMarkets:[], expansionAreas:[], brandProfiles:[], productUnderstandings:[], productSources:[], productEvidence:[], productDiagnoses:[], expansionTheses:[], executionCycles:[], dryRunPending:false, version:0 };
 let noticeTimer;
 let analysisClock;
 const isLocalRuntime = ["localhost", "127.0.0.1", "::1"].includes(location.hostname);
@@ -135,6 +135,9 @@ function beginAnalysisClock() {
     document.querySelectorAll(".analysis-live-steps li").forEach((item,index)=>item.classList.toggle("current",index===active));
   };
   tick(); analysisClock=setInterval(tick,1000);
+}
+function scrollAnalystThread() {
+  requestAnimationFrame(()=>{const thread=document.querySelector(".analyst-thread");if(thread)thread.scrollTop=thread.scrollHeight;});
 }
 async function runAnalystDialogue(brandId,userMessage,mode="ANSWER") {
   const headers={"Content-Type":"application/json"};
@@ -548,8 +551,9 @@ function analystModal() {
   const intake=state.productUnderstandings.find((item)=>item.brandId===state.analystBrandId);
   const analysis=intake?.websiteResearch?.analysis;
   if(!brand||!analysis)return "";
-  const turns=intake.analystDialogue??[];
-  const last=turns.at(-1);
+  const storedTurns=intake.analystDialogue??[];
+  const last=storedTurns.at(-1);
+  const turns=state.analystPending&&state.pendingAnalystMessage?[...storedTurns,{ownerMessage:state.pendingAnalystMessage,analystResponse:tr("Совет получил ваш ответ и сопоставляет позиции продуктового, рыночного, финансового и правового контуров…","The council received your answer and is comparing the product, market, finance, and legal views…"),councilViews:[],alternatives:[],status:"ASKING",nextQuestion:last?.nextQuestion}]:storedTurns;
   const question=last?.status==="ASKING"?last.nextQuestion:(turns.length?tr("Контур достаточно ясен для следующего внутреннего исследования.","The contour is clear enough for the next internal research stage."):(analysis.criticalQuestions?.[0]??tr("Что из описанных функций уже реально работает, а что пока существует только как идея?","Which described capabilities work today, and which remain ideas?")));
   const roles=[["ANALYST",tr("Стратегия и боль рынка","Strategy and market pain")],["PRODUCT",tr("Ценность и готовность","Value and readiness")],["GROWTH",tr("Каналы и спрос","Channels and demand")],["CREATIVE",tr("Нарратив и контент","Narrative and content")],["FINANCE",tr("Экономика теста","Test economics")],["LEGAL",tr("Риски и ограничения","Risks and constraints")]];
   return `<div class="modal-backdrop analyst-backdrop"><section class="modal analyst-modal" role="dialog" aria-modal="true" aria-labelledby="analyst-title"><header><div><small>${tr("СОВЕТ ФАБРИКИ · DRY RUN","FACTORY COUNCIL · DRY RUN")}</small><h2 id="analyst-title">${tr("Брейншторм по бренду","Brand brainstorm")}: ${esc(brand.name)}</h2></div><button data-action="close-analyst" aria-label="${tr("Закрыть","Close")}">×</button></header><div class="council-roles">${roles.map(([role,label])=>`<span><b>${role}</b><small>${label}</small></span>`).join("")}</div><section class="analyst-opinion"><small>${tr("ИСХОДНОЕ МНЕНИЕ СТАРШЕГО АНАЛИТИКА","SENIOR ANALYST OPENING VIEW")}</small><p>${esc(analysis.strategicVerdict??analysis.oneLineSummary)}</p></section><div class="analyst-thread">${turns.map((turn)=>`<article class="owner-turn"><small>${tr("ВЫ","YOU")}</small><p>${esc(turn.ownerMessage)}</p></article><article class="factory-turn"><small>${tr("ВЕДУЩИЙ АНАЛИТИК","LEAD ANALYST")}</small><p>${esc(turn.analystResponse)}</p>${turn.councilViews?.length?`<div class="council-views">${turn.councilViews.map((view)=>`<div><b>${esc(view.role)}</b><span>${esc(view.opinion)}</span></div>`).join("")}</div>`:""}${turn.alternatives?.length?`<div class="analyst-alternatives">${turn.alternatives.map((item)=>`<button data-action="choose-analyst-option" data-value="${esc(item)}">${esc(item)}</button>`).join("")}</div>`:""}</article>`).join("")}</div><section class="analyst-question"><small>${last?.status==="SUFFICIENT"?tr("ПРЕДВАРИТЕЛЬНО ДОСТАТОЧНО","PRELIMINARILY SUFFICIENT"):tr("ОДИН ВОПРОС СЕЙЧАС","ONE QUESTION NOW")}</small><h3>${esc(question)}</h3></section>${last?.status==="SUFFICIENT"?`<div class="modal-actions"><button class="primary" data-action="close-analyst">${tr("ЗАКРЫТЬ БРЕЙНШТОРМ","CLOSE BRAINSTORM")}</button></div>`:`<form id="analyst-form"><input type="hidden" name="brandId" value="${esc(brand.id)}"><textarea name="message" required placeholder="${tr("Ответьте своими словами…","Answer in your own words…")}" ${state.analystPending?"disabled":""}></textarea><div class="analyst-controls"><button type="button" data-action="analyst-read">▶ ${tr("СЛУШАТЬ","LISTEN")}</button><button type="button" data-action="analyst-voice">◉ ${tr("ГОВОРИТЬ","SPEAK")}</button><button type="button" data-action="analyst-help" data-brand-id="${esc(brand.id)}">${tr("НЕ ЗНАЮ — ПРЕДЛОЖИТЬ ВАРИАНТЫ","I DON'T KNOW — SUGGEST OPTIONS")}</button><button class="primary" type="submit" ${state.analystPending?"disabled":""}>${state.analystPending?tr("СОВЕТ ОБСУЖДАЕТ…","COUNCIL IS DISCUSSING…"):tr("ОТПРАВИТЬ ОТВЕТ","SEND ANSWER")}</button></div></form>`}</section></div>`;
@@ -606,7 +610,7 @@ document.addEventListener("click", async (event) => {
       return;
     }
     if(target.dataset.action==="open-analyst") { state.analystBrandId=String(target.dataset.brandId); render(); return; }
-    if(target.dataset.action==="close-analyst") { state.analystBrandId=null; render(); return; }
+    if(target.dataset.action==="close-analyst") { state.analystBrandId=null; state.pendingAnalystMessage=null; render(); return; }
     if(target.dataset.action==="choose-analyst-option") { const field=document.querySelector('#analyst-form textarea[name="message"]'); if(field){field.value=String(target.dataset.value??"");field.focus();} return; }
     if(target.dataset.action==="analyst-voice") {
       const Recognition=window.SpeechRecognition||window.webkitSpeechRecognition;
@@ -621,9 +625,9 @@ document.addEventListener("click", async (event) => {
       window.speechSynthesis.cancel(); const speech=new SpeechSynthesisUtterance(last?.analystResponse??analysis?.strategicVerdict??analysis?.oneLineSummary??""); speech.lang=state.locale==="RU"?"ru-RU":"en-US"; window.speechSynthesis.speak(speech); return;
     }
     if(target.dataset.action==="analyst-help") {
-      const brandId=String(target.dataset.brandId); state.analystPending=true; render();
+      const brandId=String(target.dataset.brandId); state.analystPending=true; state.pendingAnalystMessage=tr("Я пока не знаю ответа — предложите реалистичные варианты.","I do not know yet — suggest realistic options."); render(); scrollAnalystThread();
       try{await runAnalystDialogue(brandId,tr("Я пока не знаю ответа. Предложите несколько наиболее реалистичных вариантов и объясните компромиссы.","I do not know yet. Suggest realistic alternatives and explain the trade-offs."),"HELP");}
-      finally{state.analystPending=false;} render(); return;
+      finally{state.analystPending=false;state.pendingAnalystMessage=null;} render(); scrollAnalystThread(); return;
     }
     if (target.dataset.action === "delete-brand") {
       const brandId=String(target.dataset.brandId);
@@ -708,10 +712,10 @@ document.addEventListener("submit", async (event) => {
     event.preventDefault();
     const form=new FormData(event.target); const brandId=String(form.get("brandId")??""); const message=String(form.get("message")??"").trim();
     if(!message)return;
-    state.analystPending=true; render();
+    state.analystPending=true; state.pendingAnalystMessage=message; render(); scrollAnalystThread();
     try{await runAnalystDialogue(brandId,message,"ANSWER");}
     catch(error){state.noticeTone="error";state.notice=error.message;}
-    finally{state.analystPending=false;} render(); return;
+    finally{state.analystPending=false;state.pendingAnalystMessage=null;} render(); scrollAnalystThread(); return;
   }
   if (event.target.id === "owner-auth-form") {
     event.preventDefault();
