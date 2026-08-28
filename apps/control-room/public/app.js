@@ -147,6 +147,15 @@ function installAnalystResetControl() {
   button.type="button";button.dataset.action="reset-analyst-dialogue";button.dataset.brandId=String(state.analystBrandId??"");button.className="analyst-reset";button.textContent=tr("↻ НАЧАТЬ ОБСУЖДЕНИЕ ЗАНОВО","↻ RESTART DISCUSSION");
   header.insertBefore(button,close);
 }
+function restoreFailedAnalystAnswer() {
+  if(state.analystPending||!state.pendingAnalystMessage)return;
+  const form=document.querySelector("#analyst-form");
+  const field=form?.querySelector('textarea[name="message"]');
+  if(field&&!field.value)field.value=state.pendingAnalystMessage;
+  if(form&&state.noticeTone==="error"&&state.notice&&!form.querySelector(".analyst-inline-error")){
+    const error=document.createElement("div");error.className="analyst-inline-error";error.textContent=state.notice;form.prepend(error);
+  }
+}
 async function runAnalystDialogue(brandId,userMessage,mode="ANSWER") {
   const headers={"Content-Type":"application/json"};
   if(state.session?.access_token) headers.Authorization=`Bearer ${state.session.access_token}`;
@@ -490,7 +499,7 @@ function render() {
     ${state.welcome?welcomeMarkup():""}
     ${state.analysisRun?analysisProcessModal():state.notice&&state.noticeModal?`<div class="cycle-status-backdrop"><section class="cycle-status ${state.noticeTone}" role="dialog" aria-modal="true" aria-live="assertive"><i>${state.noticeTone==="error"?"!":state.noticeTone==="progress"?"◌":"✓"}</i><p>${state.noticeTone==="error"?tr("ОШИБКА ЦИКЛА","CYCLE ERROR"):state.noticeTone==="progress"?tr("ВЫПОЛНЯЕТСЯ УПРАВЛЯЕМЫЙ ЦИКЛ","GOVERNED CYCLE RUNNING"):tr("DRY RUN УСПЕШНО ЗАВЕРШЁН","DRY RUN COMPLETED")}</p><h2>${state.noticeTone==="progress"?tr("Фабрика выполняет 13 стадий","The factory is running 13 stages"):state.noticeTone==="success"?tr("13 из 13 стадий завершены","13 of 13 stages completed"):tr("Цикл остановлен","Cycle stopped")}</h2><span>${esc(state.notice)}</span><div class="cycle-safety"><b>$0</b><small>${tr("ВНЕШНИХ РАСХОДОВ","EXTERNAL SPEND")}</small><b>${state.noticeTone==="success"?"COMPLETED":"DRY RUN"}</b><small>${tr("УПРАВЛЯЕМЫЙ РЕЖИМ","GOVERNED MODE")}</small></div>${state.dryRunPending?`<div class="cycle-progress"><i></i></div>`:`<button class="primary" data-action="close-cycle-status">${tr("ЗАКРЫТЬ И ВЕРНУТЬСЯ В КОМАНДНЫЙ ЦЕНТР","CLOSE AND RETURN TO CONTROL ROOM")}</button>`}</section></div>`:state.notice?`<div class="toast ${state.noticeTone}"><i>${state.noticeTone==="error"?"!":"✓"}</i><span><b>${tr("ДЕЙСТВИЕ ЗАПИСАНО","ACTION RECORDED")}</b><small>${esc(state.notice)}</small></span></div>`:""}`;
   renderChoropleths().catch((error) => { state.notice = error.message; console.error("Map rendering failed", error); });
-  if(state.analystBrandId)installAnalystResetControl();
+  if(state.analystBrandId){installAnalystResetControl();restoreFailedAnalystAnswer();}
 }
 
 function analysisProcessModal() {
@@ -731,9 +740,9 @@ document.addEventListener("submit", async (event) => {
     const form=new FormData(event.target); const brandId=String(form.get("brandId")??""); const message=String(form.get("message")??"").trim();
     if(!message)return;
     state.analystPending=true; state.pendingAnalystMessage=message; render(); scrollAnalystThread();
-    try{await runAnalystDialogue(brandId,message,"ANSWER");}
-    catch(error){state.noticeTone="error";state.notice=error.message;}
-    finally{state.analystPending=false;state.pendingAnalystMessage=null;} render(); scrollAnalystThread(); return;
+    try{await runAnalystDialogue(brandId,message,"ANSWER");state.pendingAnalystMessage=null;}
+    catch(error){state.noticeTone="error";state.notice=error.message;state.pendingAnalystMessage=message;}
+    finally{state.analystPending=false;} render(); scrollAnalystThread(); return;
   }
   if (event.target.id === "owner-auth-form") {
     event.preventDefault();
