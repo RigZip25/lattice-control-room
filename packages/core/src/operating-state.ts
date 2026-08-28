@@ -246,7 +246,6 @@ export function applyOperatingCommand(state: OperatingState, command: OperatingC
     const item=command.understanding;
     if (!state.brandProfiles.some((brand)=>brand.id===item.brandId)) throw new Error("Product intake brand is not registered");
     if (item.status!=="DRAFT" || item.ownerDescription.trim().length<8 || item.productSummary.trim().length<8) throw new Error("Product intake is incomplete");
-    if (state.productUnderstandings.some((entry)=>entry.brandId===item.brandId)) throw new Error("Product intake already exists");
   }
   if (command.kind === "UPDATE_PRODUCT_INTAKE") {
     if (!state.productUnderstandings.some((item)=>item.brandId===command.understanding.brandId)) throw new Error("Product intake is not registered");
@@ -316,7 +315,7 @@ export function applyOperatingCommand(state: OperatingState, command: OperatingC
     case "ADD_BRAND_PROFILE": return { ...next, brandProfiles: [...state.brandProfiles, command.brand] };
     case "UPDATE_BRAND_PROFILE": return { ...next, brandProfiles:state.brandProfiles.map((item)=>item.id===command.brand.id?command.brand:item) };
     case "DELETE_BRAND_PROFILE": return { ...next, brandProfiles:state.brandProfiles.filter((item)=>item.id!==command.brandId),productUnderstandings:state.productUnderstandings.filter((item)=>item.brandId!==command.brandId),productSources:state.productSources.filter((item)=>item.brandId!==command.brandId),productEvidence:state.productEvidence.filter((item)=>item.brandId!==command.brandId),productDiagnoses:state.productDiagnoses.filter((item)=>item.brandId!==command.brandId),expansionTheses:state.expansionTheses.filter((item)=>item.brandId!==command.brandId) };
-    case "CAPTURE_PRODUCT_INTAKE": return { ...next, productUnderstandings:[...state.productUnderstandings,command.understanding] };
+    case "CAPTURE_PRODUCT_INTAKE": return { ...next, productUnderstandings:state.productUnderstandings.some((item)=>item.brandId===command.understanding.brandId)?state.productUnderstandings.map((item)=>item.brandId===command.understanding.brandId?command.understanding:item):[...state.productUnderstandings,command.understanding] };
     case "UPDATE_PRODUCT_INTAKE": return { ...next, productUnderstandings:state.productUnderstandings.map((item)=>item.brandId===command.understanding.brandId?command.understanding:item) };
     case "RECORD_WEBSITE_RESEARCH": return { ...next, productUnderstandings:state.productUnderstandings.map((item)=>{ if(item.brandId!==command.brandId)return item; const {confirmedAt:_,...unconfirmed}=item; return {...unconfirmed,websiteResearch:command.research,productSummary:command.research.analysis?.oneLineSummary??command.research.observedClaims[0]??item.productSummary,customerSummary:command.research.analysis?.customerSegments.join(" · ")??item.customerSummary,valueSummary:command.research.analysis?.valuePropositions.join(" · ")??item.valueSummary,criticalQuestions:command.research.analysis?.criticalQuestions??command.research.unresolvedQuestions,status:"DRAFT"}; }) };
     case "RECORD_ANALYST_TURN": return { ...next, productUnderstandings:state.productUnderstandings.map((item)=>{if(item.brandId!==command.brandId)return item;const {confirmedAt:_,...unconfirmed}=item;return {...unconfirmed,analystDialogue:[...(item.analystDialogue??[]),command.turn],status:"DRAFT"};}) };
