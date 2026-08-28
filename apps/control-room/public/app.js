@@ -1,7 +1,7 @@
 import { blueprints } from "/screen-blueprints.js";
 import { renderChoropleths } from "/map.js";
 
-const state = { executive:false, locale:"RU", notice:"", noticeTone:"success", noticeModal:false, analysisRun:null, decisions:3, selectedFilter:"ВСЕ", selectedRegion:"WORLD", mobileNav:false, welcome:location.pathname==="/", factoryStatus:null, backendStatus:null, authOpen:false, session:null, cloudContext:null, addCountry:false, addBrand:false, duplicateBrand:null, editBrandId:null, analystBrandId:null, analystPending:false, pendingAnalystMessage:null, pendingAnalystQuestion:null, analystSeconds:30, addSource:false, addDiagnosis:false, addThesis:false, pendingCountry:null, pendingArea:null, addedMarkets:[], expansionAreas:[], brandProfiles:[], productUnderstandings:[], productSources:[], productEvidence:[], productDiagnoses:[], expansionTheses:[], executionCycles:[], dryRunPending:false, version:0 };
+const state = { executive:false, locale:"RU", notice:"", noticeTone:"success", noticeModal:false, analysisRun:null, decisions:0, selectedFilter:"ВСЕ", selectedRegion:"WORLD", mobileNav:false, welcome:location.pathname==="/", factoryStatus:null, backendStatus:null, authOpen:false, session:null, cloudContext:null, addCountry:false, addBrand:false, duplicateBrand:null, editBrandId:null, analystBrandId:null, analystPending:false, pendingAnalystMessage:null, pendingAnalystQuestion:null, analystSeconds:30, addSource:false, addDiagnosis:false, addThesis:false, pendingCountry:null, pendingArea:null, addedMarkets:[], expansionAreas:[], brandProfiles:[], productUnderstandings:[], productSources:[], productEvidence:[], productDiagnoses:[], expansionTheses:[], activationSprints:[], executionCycles:[], dryRunPending:false, version:0 };
 let noticeTimer;
 let analysisClock;
 let analystClock;
@@ -35,18 +35,11 @@ const mapPanelConfig = {
   italy: { title:"ТОПОЛОГИЯ ПРОНИКНОВЕНИЯ ПО РЕГИОНАМ", segment:"Delivery / Logistics", pills:["Delivery","Логистика","Ритейл","Ф&Б","HoReCa"] },
   colombia: { title:"ТОПОЛОГИЯ ПРОНИКНОВЕНИЯ ПО ДЕПАРТАМЕНТАМ", segment:"Продукты питания / Фреш-доставка", pills:["Продукты питания","Фреш-доставка","Ритейл","Фарма","Агро"] },
 };
-const demoExpansionMarkets = [
-  { country:"USA", brand:"RIGZIP", penetration:8.7 },
-  { country:"CZE", brand:"EVORIOS", penetration:6.4 },
-  { country:"ITA", brand:"TRAVEL", penetration:4.9 },
-  { country:"COL", brand:"NAVIGATOR", penetration:5.4 },
-];
-const activeCountrySpec = () => [...demoExpansionMarkets,...state.addedMarkets.filter((market)=>market.worldCode).map((market)=>({country:market.worldCode,brand:market.brand.toUpperCase(),penetration:0.2}))].filter((market)=>state.selectedFilter === "ВСЕ" || market.brand === state.selectedFilter).map((market)=>`${market.country}:${market.penetration}`).join(",");
+const activeCountrySpec = () => state.addedMarkets.filter((market)=>market.worldCode).map((market)=>({country:market.worldCode,brand:market.brand.toUpperCase(),penetration:Number(market.penetration??0)})).filter((market)=>state.selectedFilter === "ВСЕ" || market.brand === state.selectedFilter).map((market)=>`${market.country}:${market.penetration}`).join(",");
 
 const esc = (value) => String(value).replace(/[&<>'"]/g, (char) => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"})[char]);
 const tr = (ru, en) => state.locale === "RU" ? ru : en;
-const coreBrands = ["RigZip","Evorios","Books","Travel","Smart Navigator"];
-const brandOptions = () => [...new Set([...coreBrands,...state.brandProfiles.map((brand)=>brand.name)])].map((brand)=>`<option>${esc(brand)}</option>`).join("");
+const brandOptions = () => state.brandProfiles.map((brand)=>`<option value="${esc(brand.id)}">${esc(brand.name)}</option>`).join("");
 const pendingDecisionLabel = (count) => state.locale === "EN" ? `${count} ${count === 1 ? "decision" : "decisions"} pending` : `${count} ${count === 1 ? "решение ожидает" : count < 5 ? "решения ожидают" : "решений ожидают"}`;
 function applyRuntime(runtime) {
   state.executive = runtime.executive;
@@ -61,6 +54,7 @@ function applyRuntime(runtime) {
   state.productEvidence = runtime.productEvidence ?? [];
   state.productDiagnoses = runtime.productDiagnoses ?? [];
   state.expansionTheses = runtime.expansionTheses ?? [];
+  state.activationSprints = runtime.activationSprints ?? [];
   state.executionCycles = runtime.executionCycles ?? [];
   state.version = runtime.version;
 }
@@ -83,6 +77,7 @@ async function sendCommand(command) {
     productEvidence:state.productEvidence,
     productDiagnoses:state.productDiagnoses,
     expansionTheses:state.expansionTheses,
+    activationSprints:state.activationSprints,
     executionCycles:state.executionCycles,
     events:[],
   };
@@ -94,7 +89,7 @@ async function sendCommand(command) {
 async function runWebsiteResearch(brandId) {
   const headers={"Content-Type":"application/json"};
   if (state.session?.access_token) headers.Authorization=`Bearer ${state.session.access_token}`;
-  const currentState={version:state.version,mode:"DRY_RUN",executive:state.executive,locale:state.locale,selectedFilter:state.selectedFilter,openDecisions:state.decisions,discoveryMarkets:state.addedMarkets.map(({administrativeLevels,supportedActivityDimensions,...market})=>market),expansionAreas:state.expansionAreas,brandProfiles:state.brandProfiles,productUnderstandings:state.productUnderstandings,productSources:state.productSources,productEvidence:state.productEvidence,productDiagnoses:state.productDiagnoses,expansionTheses:state.expansionTheses,executionCycles:state.executionCycles,events:[]};
+  const currentState={version:state.version,mode:"DRY_RUN",executive:state.executive,locale:state.locale,selectedFilter:state.selectedFilter,openDecisions:state.decisions,discoveryMarkets:state.addedMarkets.map(({administrativeLevels,supportedActivityDimensions,...market})=>market),expansionAreas:state.expansionAreas,brandProfiles:state.brandProfiles,productUnderstandings:state.productUnderstandings,productSources:state.productSources,productEvidence:state.productEvidence,productDiagnoses:state.productDiagnoses,expansionTheses:state.expansionTheses,activationSprints:state.activationSprints,executionCycles:state.executionCycles,events:[]};
   const response=await fetch("/api/v1/research/website",{method:"POST",headers,body:JSON.stringify({brandId,currentState})});
   const payload=await response.json();
   if (!response.ok) throw new Error(payload.error??"Website research failed");
@@ -177,7 +172,7 @@ function restoreFailedAnalystAnswer() {
 async function runAnalystDialogue(brandId,userMessage,mode="ANSWER") {
   const headers={"Content-Type":"application/json"};
   if(state.session?.access_token) headers.Authorization=`Bearer ${state.session.access_token}`;
-  const currentState={version:state.version,mode:"DRY_RUN",executive:state.executive,locale:state.locale,selectedFilter:state.selectedFilter,openDecisions:state.decisions,discoveryMarkets:state.addedMarkets.map(({administrativeLevels,supportedActivityDimensions,...market})=>market),expansionAreas:state.expansionAreas,brandProfiles:state.brandProfiles,productUnderstandings:state.productUnderstandings,productSources:state.productSources,productEvidence:state.productEvidence,productDiagnoses:state.productDiagnoses,expansionTheses:state.expansionTheses,executionCycles:state.executionCycles,events:[]};
+  const currentState={version:state.version,mode:"DRY_RUN",executive:state.executive,locale:state.locale,selectedFilter:state.selectedFilter,openDecisions:state.decisions,discoveryMarkets:state.addedMarkets.map(({administrativeLevels,supportedActivityDimensions,...market})=>market),expansionAreas:state.expansionAreas,brandProfiles:state.brandProfiles,productUnderstandings:state.productUnderstandings,productSources:state.productSources,productEvidence:state.productEvidence,productDiagnoses:state.productDiagnoses,expansionTheses:state.expansionTheses,activationSprints:state.activationSprints,executionCycles:state.executionCycles,events:[]};
   const response=await fetch("/api/v1/research/analyst",{method:"POST",headers,body:JSON.stringify({brandId,userMessage,mode,currentState})});
   const payload=await response.json();
   if(!response.ok) throw new Error(payload.error??"Analyst dialogue failed");
@@ -204,7 +199,7 @@ function current() {
     };
   }
   if (location.pathname.startsWith("/brands/") && location.pathname.endsWith("/onboarding")) {
-    const brandId = location.pathname.split("/")[2];
+    const brandId = decodeURIComponent(location.pathname.split("/")[2] ?? "");
     const brand = state.brandProfiles.find((item)=>item.id===brandId);
     return { order:11, key:"brand-onboarding", route:location.pathname, title:brand?.name ?? "Brand onboarding", figmaNodeId:"PARAMETERIZED_BRAND_ONBOARDING", domain:"CONFIGURATION", linksTo:["brands","markets","experiments","content-factory","distribution","learning-engine"] };
   }
@@ -251,17 +246,16 @@ function panelMarkup(panel, screen) {
 }
 
 function commandCenterMarkup(screen, blueprint) {
-  const wallet = control?.wallet ?? { settledUsd:1000000, availableUsd:316000, reservedUsd:684000 };
-  const authority = control?.authority ?? { maximumDecisionUsd:2500, maximumDailyUsd:5000, killSwitch:false };
-  const active = control?.activeDecision ?? { brandId:"rigzip", marketCell:"nebraska", requestedUsd:100, decision:"APPROVE", distributionState:"BLOCKED", evidenceCount:3 };
-  const money = (value) => new Intl.NumberFormat("en-US", { style:"currency", currency:"USD", maximumFractionDigits:0 }).format(value);
-  const stages = [["01","MARKET INTELLIGENCE","18 signals","markets"],["02","EXPERIMENTS","7 running","experiments"],["03","CONTENT","48 jobs","content-factory"],["04","DISTRIBUTION","24 live","distribution"],["05","LEARNING","1,806 findings","learning-engine"],["06","CAPITAL","3 proposals","capital-allocator"]];
-  return `<section class="command-overview" aria-label="Factory operating overview">
-    <article class="command-map">${panelMarkup(blueprint.panels[0],screen)}</article>
-    <article class="command-spine module"><div class="module-title">АВТОНОМНЫЙ ОПЕРАЦИОННЫЙ ЦИКЛ <span>LIVE / GOVERNED</span></div><div class="spine-list">${stages.map(([number,label,status,key])=>`<button data-route="${esc(byKey(key)?.route ?? "/command")}"><i>${number}</i><span><b>${label}</b><small>${status}</small></span><em>→</em></button>`).join("")}</div></article>
-    <article class="module command-decision"><div class="module-title">СЛЕДУЮЩЕЕ РЕШЕНИЕ <span>${esc(active.distributionState)}</span></div><div class="decision-summary"><span class="decision-amount">${money(active.requestedUsd)}</span><div><p class="eyebrow">${esc(active.brandId)} / ${esc(active.marketCell)}</p><h2>Экспериментальный транш</h2></div></div><p>Модель рекомендует <b>${esc(active.decision)}</b> на основе ${esc(active.evidenceCount)} доказательств. Внешнее размещение останется заблокировано до production-authority.</p><div class="decision-facts"><span>ЛИМИТ РЕШЕНИЯ <b>${money(authority.maximumDecisionUsd)}</b></span><span>ДНЕВНОЙ ЛИМИТ <b>${money(authority.maximumDailyUsd)}</b></span></div><div class="decision-actions"><button data-action="approve" data-index="0">ЗАПИСАТЬ РЕШЕНИЕ</button><button data-route="/experiments">ПРОВЕРИТЬ ДОКАЗАТЕЛЬСТВА</button></div></article>
-    <article class="module capital-position"><div class="module-title">ПОЗИЦИЯ КАПИТАЛА <span>${authority.killSwitch?"KILL SWITCH":"POLICY ACTIVE"}</span></div><div class="capital-total"><small>SETTLED WALLET</small><b>${money(wallet.settledUsd)}</b></div><div class="capital-track"><i style="width:${Math.min(100, wallet.reservedUsd / Math.max(1,wallet.settledUsd) * 100)}%"></i></div><div class="capital-split"><span>ДОСТУПНО <b>${money(wallet.availableUsd)}</b></span><span>ЗАРЕЗЕРВИРОВАНО <b>${money(wallet.reservedUsd)}</b></span></div><button class="text-link" data-route="/treasury">ОТКРЫТЬ TREASURY →</button></article>
-  </section>`;
+  const brandCards=state.brandProfiles.map((brand)=>{
+    const understanding=state.productUnderstandings.find((item)=>item.brandId===brand.id);
+    const analysis=understanding?.websiteResearch?.analysis;
+    const turns=understanding?.analystDialogue?.length??0;
+    const sprint=state.activationSprints.find((item)=>item.brandId===brand.id&&item.status==="ACTIVE");
+    const stage=sprint?tr("АКТИВАЦИОННЫЙ СПРИНТ","ACTIVATION SPRINT"):analysis?tr("СОВЕТ И СТРАТЕГИЯ","COUNCIL AND STRATEGY"):understanding?tr("ИЗУЧЕНИЕ ПРОДУКТА","PRODUCT INTELLIGENCE"):tr("ПЕРВИЧНЫЕ ДАННЫЕ","INITIAL INTAKE");
+    const next=sprint?sprint.firstArtifact:analysis?(turns?tr("Продолжить обсуждение и выбрать следующий ход","Continue the discussion and choose the next move"):tr("Открыть выводы и начать совет","Open findings and begin the council")):understanding?.website?tr("Запустить изучение сайта","Start website research"):tr("Добавить сайт, описание или материалы","Add a website, description or materials");
+    return `<article class="owner-brand-card"><header><div><small>${esc(stage)}</small><h2>${esc(brand.name)}</h2></div><span>${sprint?tr("В РАБОТЕ","ACTIVE"):analysis?tr("ИЗУЧЕН","REVIEWED"):tr("ПОДГОТОВКА","PREPARING")}</span></header><p>${esc(analysis?.oneLineSummary??understanding?.ownerDescription??brand.offering)}</p><footer><div><small>${tr("СЛЕДУЮЩИЙ ШАГ","NEXT STEP")}</small><b>${esc(next)}</b></div><button data-action="open-brand" data-brand-id="${esc(brand.id)}">${tr("ПРОДОЛЖИТЬ","CONTINUE")} →</button></footer></article>`;
+  }).join("");
+  return `<section class="owner-workbench" aria-label="${tr("Рабочий стол владельца","Owner workbench")}"><header class="owner-workbench-head"><div><small>${tr("ФАКТИЧЕСКОЕ СОСТОЯНИЕ · БЕЗ ДЕМО-ДАННЫХ","ACTUAL STATE · NO DEMO DATA")}</small><h2>${tr("Продолжите работу с продуктом","Continue building a product")}</h2><p>${tr("Выберите бренд — фабрика откроет его материалы, выводы совета и следующий управляемый шаг.","Choose a brand to open its materials, council findings and next governed action.")}</p></div><button class="primary" data-action="add-brand">＋ ${tr("ДОБАВИТЬ БРЕНД","ADD BRAND")}</button></header><div class="owner-brand-grid">${brandCards||`<article class="owner-empty"><b>${tr("Начните с первого бренда","Start with your first brand")}</b><p>${tr("Достаточно сайта или короткого описания. Фабрика сама соберёт первичное понимание и предложит обсуждение.","A website or short description is enough. The factory will form an initial understanding and propose a discussion.")}</p><button class="primary" data-action="add-brand">${tr("ДОБАВИТЬ БРЕНД","ADD BRAND")}</button></article>`}</div><aside class="owner-contours"><div><small>01</small><b>${tr("ПРОДУКТ И СОВЕТ","PRODUCT AND COUNCIL")}</b><span>${tr("Работает сейчас","Available now")}</span></div><div><small>02</small><b>${tr("РЫНОЧНАЯ РАЗВЕДКА","MARKET INTELLIGENCE")}</b><span>${tr("После продуктовой гипотезы","After product thesis")}</span></div><div><small>03</small><b>${tr("ПРОТОТИПЫ И КРЕАТИВЫ","PROTOTYPES AND CREATIVES")}</b><span>${tr("Следующий рабочий контур","Next production contour")}</span></div><div><small>04</small><b>${tr("ДИСТРИБУЦИЯ И ОБУЧЕНИЕ","DISTRIBUTION AND LEARNING")}</b><span>${tr("Заблокировано в DRY RUN","Blocked in DRY RUN")}</span></div></aside></section>`;
 }
 
 const productionScreens = {
@@ -390,11 +384,11 @@ const strategyScreens = {
 
 function strategySurfaceMarkup(screen) {
   const spec = strategyScreens[screen.key];
-  const realBrandRows=state.brandProfiles.map((brand)=>({cells:[brand.name,brand.primaryValueEvent,tr("Исследование","Discovery"),tr("Открыть профиль","Open profile")],route:`/brands/${encodeURIComponent(brand.id)}/onboarding`}));
+  const realBrandRows=state.brandProfiles.map((brand)=>({brandId:brand.id,cells:[brand.name,brand.primaryValueEvent,tr("Исследование продукта","Product intelligence"),tr("Открыть рабочее пространство","Open workspace")]}));
   const brandRegistryEmpty=screen.key==="brands"&&realBrandRows.length===0;
   const rows = screen.key === "brands" ? realBrandRows : spec.rows.map((cells,index)=>({cells,route:byKey(screen.linksTo[index % screen.linksTo.length])?.route ?? screen.route}));
   const registryStatus=screen.key==="brands"?tr(`${realBrandRows.length} БРЕНДОВ В СИСТЕМЕ`,`${realBrandRows.length} BRANDS IN SYSTEM`):spec.status;
-  const tableBody=brandRegistryEmpty?`<div class="brand-registry-empty"><i>＋</i><div><b>${tr("В рабочем реестре пока нет брендов","There are no brands in the active registry")}</b><span>${tr("Удалённые проекты не показываются как рабочие. Создайте новый профиль, добавьте сайт или описание — после сохранения карточка откроет маршрут изучения.","Deleted projects are not shown as active. Create a new profile and add a website or description; the saved card will open the research journey.")}</span></div><button class="primary" data-action="add-brand">＋ ${tr("ДОБАВИТЬ БРЕНД","ADD BRAND")}</button></div>`:rows.map((row)=>`<button class="strategy-row" data-route="${esc(row.route)}">${row.cells.map(cell=>`<span>${esc(cell)}</span>`).join("")}</button>`).join("");
+  const tableBody=brandRegistryEmpty?`<div class="brand-registry-empty"><i>＋</i><div><b>${tr("В рабочем реестре пока нет брендов","There are no brands in the active registry")}</b><span>${tr("Удалённые проекты не показываются как рабочие. Создайте новый профиль, добавьте сайт или описание — после сохранения карточка откроет маршрут изучения.","Deleted projects are not shown as active. Create a new profile and add a website or description; the saved card will open the research journey.")}</span></div><button class="primary" data-action="add-brand">＋ ${tr("ДОБАВИТЬ БРЕНД","ADD BRAND")}</button></div>`:rows.map((row)=>screen.key==="brands"?`<button class="strategy-row" data-action="open-brand" data-brand-id="${esc(row.brandId)}">${row.cells.map(cell=>`<span>${esc(cell)}</span>`).join("")}</button>`:`<button class="strategy-row" data-route="${esc(row.route)}">${row.cells.map(cell=>`<span>${esc(cell)}</span>`).join("")}</button>`).join("");
   return `<section class="strategy-surface"><header class="strategy-bar"><div><small>${esc(spec.eyebrow)}</small><b>${esc(registryStatus)}</b></div><button data-route="${esc(byKey(spec.next)?.route ?? "/command")}">${esc(spec.action)} →</button></header><div class="strategy-stages">${spec.stages.map(([label,value,note],index)=>`<button data-route="${screen.route}"><i>${String(index+1).padStart(2,"0")}</i><span><small>${esc(label)}</small><b>${screen.key==="brands"&&index===0?realBrandRows.length:esc(value)}</b><em>${esc(note)}</em></span></button>`).join("")}</div><article class="module strategy-table"><div class="module-title">${esc(spec.title)} <span>${tr("ПОД УПРАВЛЕНИЕМ","GOVERNED")}</span></div><div class="strategy-head">${spec.columns.map(column=>`<b>${esc(column)}</b>`).join("")}</div>${tableBody}</article><aside class="module strategy-side"><div class="module-title">${esc(spec.sideTitle)} <span>${tr("ПОЛИТИКА","POLICY")}</span></div><dl>${spec.side.map(([label,value])=>`<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join("")}</dl><div class="policy-seal"><i></i><span><b>ЛОКАЛЬНЫЙ УПРАВЛЯЕМЫЙ РЕЖИМ</b><small>Без внешнего исполнения и движения средств</small></span></div></aside></section>`;
 }
 
@@ -436,7 +430,7 @@ function researchedProductMarkup(brand,understanding) {
 }
 
 function brandOnboardingMarkup() {
-  const brandId = location.pathname.split("/")[2];
+  const brandId = decodeURIComponent(location.pathname.split("/")[2] ?? "");
   const brand = state.brandProfiles.find((item)=>item.id===brandId);
   if (!brand) return `<section class="module onboarding-empty"><h2>${tr("Профиль бренда не найден","Brand profile not found")}</h2><button data-route="/brands">${tr("ВЕРНУТЬСЯ К БРЕНДАМ","BACK TO BRANDS")}</button></section>`;
   const understanding=state.productUnderstandings.find((item)=>item.brandId===brand.id);
@@ -478,13 +472,13 @@ function render() {
   const onboardingBrand=screen.key==="brand-onboarding"?state.brandProfiles.find((item)=>item.id===location.pathname.split("/")[2]):null;
   const onboardingUnderstanding=onboardingBrand?state.productUnderstandings.find((item)=>item.brandId===onboardingBrand.id):null;
   const onboardingSourceCount=onboardingBrand?state.productSources.filter((item)=>item.brandId===onboardingBrand.id).length+(onboardingUnderstanding?.websiteResearch?1:0):0;
-  const metrics = screen.key === "brand-onboarding" ? [[tr("ЭТАП","STAGE"),"2 / 8"],[tr("ИЗУЧЕННЫЕ ИСТОЧНИКИ","REVIEWED SOURCES"),String(onboardingSourceCount)],[tr("РЫНКИ-КАНДИДАТЫ","MARKET CANDIDATES"),tr("ПОСЛЕ ПОДТВЕРЖДЕНИЯ","AFTER CONFIRMATION")],[tr("ТЕСТОВЫЙ БЮДЖЕТ","TEST BUDGET"),tr("ЕЩЁ НЕ РАССЧИТАН","NOT CALCULATED YET")]] : blueprint.metrics;
+  const metrics = screen.key === "brand-onboarding" ? [[tr("ЭТАП","STAGE"),"2 / 8"],[tr("ИЗУЧЕННЫЕ ИСТОЧНИКИ","REVIEWED SOURCES"),String(onboardingSourceCount)],[tr("РЫНКИ-КАНДИДАТЫ","MARKET CANDIDATES"),tr("ПОСЛЕ ПОДТВЕРЖДЕНИЯ","AFTER CONFIRMATION")],[tr("ТЕСТОВЫЙ БЮДЖЕТ","TEST BUDGET"),tr("ЕЩЁ НЕ РАССЧИТАН","NOT CALCULATED YET")]] : screen.key === "command" ? [[tr("БРЕНДЫ","BRANDS"),String(state.brandProfiles.length)],[tr("ПРОДУКТЫ ИЗУЧЕНЫ","PRODUCTS REVIEWED"),String(state.productUnderstandings.filter((item)=>item.websiteResearch?.analysis).length)],[tr("АКТИВНЫЕ СПРИНТЫ","ACTIVE SPRINTS"),String(state.activationSprints.filter((item)=>item.status==="ACTIVE").length)],[tr("РЫНКИ В ИССЛЕДОВАНИИ","MARKETS IN DISCOVERY"),String(state.addedMarkets.length)]] : blueprint.metrics;
   const groups = navGroups();
   document.title = `${screen.title} — LAFWIRON`;
   document.getElementById("app").innerHTML = `
     <header class="command-bar">
       <button class="brand" data-route="/command"><strong>LAFWIRON</strong><small>MARKET FACTORY OS</small></button><button class="mobile-menu" data-action="mobile-menu" aria-label="${tr("Открыть навигацию","Open navigation")}" aria-expanded="${state.mobileNav}"><i></i><i></i><i></i></button>
-      <div class="factory-state"><i></i> ${tr("ФАБРИКА РАБОТАЕТ","FACTORY ONLINE")}</div>
+      <div class="factory-state"><i></i> ${tr("ФАБРИКА РАБОТАЕТ","FACTORY ONLINE")}</div><nav class="primary-nav"><button data-route="/command">${tr("ГЛАВНАЯ","HOME")}</button><button data-route="/brands">${tr("БРЕНДЫ","BRANDS")}</button><button data-route="/content-factory">${tr("ЦЕХ","FACTORY")}</button><button data-route="/markets">${tr("РЫНКИ","MARKETS")}</button></nav>
       <button class="attention" data-route="/owner"><i></i><span>${pendingDecisionLabel(state.decisions)}</span><em>→</em></button>
       <div class="signal"><small>${tr("ЛУЧШЕЕ ВЛОЖЕНИЕ $100","BEST NEXT $100")}</small><b>RigZip / Nebraska → +87 ${tr("рег.","sign-ups")}</b><span>83% · ${tr("прогноз","forecast")}</span></div>
       <div class="signal"><small>${tr("ЛУЧШЕЕ ВЛОЖЕНИЕ $1,000","BEST NEXT $1,000")}</small><b>Evorios / Czechia → +312 ${tr("рег.","sign-ups")}</b><span>79% · ${tr("прогноз","forecast")}</span></div>
@@ -493,7 +487,7 @@ function render() {
       <button class="locale" data-action="locale" aria-label="${tr("Переключить интерфейс на английский","Switch interface to Russian")}"><span class="${state.locale==="RU"?"active":""}">RU</span><i></i><span class="${state.locale==="EN"?"active":""}">EN</span></button>
       <button class="avatar" data-action="auth" title="${tr("Облачный профиль","Cloud profile")}">${state.session?"ON":"OP"}</button>
     </header>
-    <div class="stats-ribbon"><span>5 БРЕНДОВ • 87 ЯЧЕЕК • 29 КАНАЛОВ • $684K КАПИТАЛ</span><b>DRY RUN / LOCAL GOVERNED STATE</b></div>
+    <div class="stats-ribbon"><span>${state.brandProfiles.length} ${tr("БРЕНДОВ","BRANDS")} • ${state.productUnderstandings.filter((item)=>item.websiteResearch?.analysis).length} ${tr("ИЗУЧЕНО","REVIEWED")} • ${state.activationSprints.filter((item)=>item.status==="ACTIVE").length} ${tr("СПРИНТОВ","SPRINTS")} • ${state.addedMarkets.length} ${tr("РЫНКОВ","MARKETS")}</span><b>DRY RUN / ${tr("ФАКТИЧЕСКОЕ СОСТОЯНИЕ","ACTUAL STATE")}</b></div>
     <div class="workspace">
       <aside class="side-nav ${state.mobileNav?"mobile-open":""}"><button class="mobile-nav-close" data-action="mobile-menu" aria-label="${tr("Закрыть навигацию","Close navigation")}">×</button><small>НАВИГАЦИЯ</small>${groups.map(([label,keys])=>`<details ${state.mobileNav||keys.includes(screen.key)?"open":""}><summary>${label}<i>⌄</i></summary><section>${keys.map(key=>{const item=byKey(key);return item?`<button class="${item.key===screen.key?"active":""}" data-route="${item.route}">${esc(item.title)}<span>${String(item.order).padStart(2,"0")}</span></button>`:""}).join("")}</section></details>`).join("")}<div class="health"><span>ЗДОРОВЬЕ <b>99.97%</b></span><span>ПОЛИТИКИ <b>GATED</b></span><span>РЕЖИМ <b>DRY RUN</b></span></div></aside>${state.mobileNav?'<button class="mobile-nav-scrim" data-action="mobile-menu" aria-label="Закрыть навигацию"></button>':""}
       <main>
@@ -622,6 +616,7 @@ document.addEventListener("click", async (event) => {
   if (target.dataset.route) { navigate(target.dataset.route); return; }
   if (target.matches('button[type="submit"]')) return;
   try {
+    if (target.dataset.action === "open-brand") { navigate(`/brands/${encodeURIComponent(String(target.dataset.brandId))}/onboarding`); return; }
     if (target.dataset.action === "welcome-command") { state.welcome=false; navigate("/command"); return; }
     if (target.dataset.action === "welcome-factory") { state.welcome=false; navigate("/factory"); return; }
     if (target.dataset.action === "mobile-menu") { state.mobileNav=!state.mobileNav; render(); return; }
@@ -733,7 +728,7 @@ document.addEventListener("click", async (event) => {
   if (target.dataset.action === "close-country") { state.addCountry=false; state.pendingCountry=null; }
     if (target.dataset.action === "close-brand") state.addBrand=false;
     if (target.dataset.action === "close-duplicate") state.duplicateBrand=null;
-    if (target.dataset.action === "continue-brand-onboarding") { state.duplicateBrand=null; location.assign(`/brands/${encodeURIComponent(String(target.dataset.brandId))}/onboarding`); return; }
+    if (target.dataset.action === "continue-brand-onboarding") { state.duplicateBrand=null; navigate(`/brands/${encodeURIComponent(String(target.dataset.brandId))}/onboarding`); return; }
     if (target.dataset.action === "close-edit-brand") state.editBrandId=null;
     if (target.dataset.action === "edit-brand") { state.duplicateBrand=null; state.editBrandId=String(target.dataset.brandId); }
     if (target.dataset.action === "replace-brand") {
@@ -807,7 +802,7 @@ document.addEventListener("submit", async (event) => {
       await sendCommand({kind:"ADD_BRAND_PROFILE",brand});
       await sendCommand({kind:"CAPTURE_PRODUCT_INTAKE",understanding});
       state.addBrand=false;
-      location.assign(`/brands/${id}/onboarding`);
+      navigate(`/brands/${encodeURIComponent(id)}/onboarding`);
     } catch (error) { state.notice=`COMMAND REJECTED: ${error.message}`; render(); }
     return;
   }
@@ -829,7 +824,7 @@ document.addEventListener("submit", async (event) => {
       await sendCommand({kind:"UPDATE_BRAND_PROFILE",brand:updatedBrand});
       await sendCommand({kind:"UPDATE_PRODUCT_INTAKE",understanding});
       state.editBrandId=null;
-      location.assign(`/brands/${brandId}/onboarding`);
+      navigate(`/brands/${encodeURIComponent(brandId)}/onboarding`);
     } catch(error) { state.notice=`COMMAND REJECTED: ${error.message}`; render(); }
     return;
   }
