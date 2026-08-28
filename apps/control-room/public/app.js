@@ -487,7 +487,7 @@ function render() {
       <button class="locale" data-action="locale" aria-label="${tr("Переключить интерфейс на английский","Switch interface to Russian")}"><span class="${state.locale==="RU"?"active":""}">RU</span><i></i><span class="${state.locale==="EN"?"active":""}">EN</span></button>
       <button class="avatar" data-action="auth" title="${tr("Облачный профиль","Cloud profile")}">${state.session?"ON":"OP"}</button>
     </header>
-    <div class="stats-ribbon"><span>${state.brandProfiles.length} ${tr("БРЕНДОВ","BRANDS")} • ${state.productUnderstandings.filter((item)=>item.websiteResearch?.analysis).length} ${tr("ИЗУЧЕНО","REVIEWED")} • ${state.activationSprints.filter((item)=>item.status==="ACTIVE").length} ${tr("СПРИНТОВ","SPRINTS")} • ${state.addedMarkets.length} ${tr("РЫНКОВ","MARKETS")}</span><b>BUILD 2026.08.28.5 · DRY RUN / ${tr("ФАКТИЧЕСКОЕ СОСТОЯНИЕ","ACTUAL STATE")}</b></div>
+    <div class="stats-ribbon"><span>${state.brandProfiles.length} ${tr("БРЕНДОВ","BRANDS")} • ${state.productUnderstandings.filter((item)=>item.websiteResearch?.analysis).length} ${tr("ИЗУЧЕНО","REVIEWED")} • ${state.activationSprints.filter((item)=>item.status==="ACTIVE").length} ${tr("СПРИНТОВ","SPRINTS")} • ${state.addedMarkets.length} ${tr("РЫНКОВ","MARKETS")}</span><b>BUILD 2026.08.28.6 · DRY RUN / ${tr("ФАКТИЧЕСКОЕ СОСТОЯНИЕ","ACTUAL STATE")}</b></div>
     <div class="workspace">
       <aside class="side-nav ${state.mobileNav?"mobile-open":""}"><button class="mobile-nav-close" data-action="mobile-menu" aria-label="${tr("Закрыть навигацию","Close navigation")}">×</button><small>НАВИГАЦИЯ</small>${groups.map(([label,keys])=>`<details ${state.mobileNav||keys.includes(screen.key)?"open":""}><summary>${label}<i>⌄</i></summary><section>${keys.map(key=>{const item=byKey(key);return item?`<button class="${item.key===screen.key?"active":""}" data-route="${item.route}">${esc(item.title)}<span>${String(item.order).padStart(2,"0")}</span></button>`:""}).join("")}</section></details>`).join("")}<div class="health"><span>ЗДОРОВЬЕ <b>99.97%</b></span><span>ПОЛИТИКИ <b>GATED</b></span><span>РЕЖИМ <b>DRY RUN</b></span></div></aside>${state.mobileNav?'<button class="mobile-nav-scrim" data-action="mobile-menu" aria-label="Закрыть навигацию"></button>':""}
       <main>
@@ -512,7 +512,35 @@ function render() {
     ${state.analysisRun?analysisProcessModal():state.notice&&state.noticeModal?`<div class="cycle-status-backdrop"><section class="cycle-status ${state.noticeTone}" role="dialog" aria-modal="true" aria-live="assertive"><i>${state.noticeTone==="error"?"!":state.noticeTone==="progress"?"◌":"✓"}</i><p>${state.noticeTone==="error"?tr("ОШИБКА ЦИКЛА","CYCLE ERROR"):state.noticeTone==="progress"?tr("ВЫПОЛНЯЕТСЯ УПРАВЛЯЕМЫЙ ЦИКЛ","GOVERNED CYCLE RUNNING"):tr("DRY RUN УСПЕШНО ЗАВЕРШЁН","DRY RUN COMPLETED")}</p><h2>${state.noticeTone==="progress"?tr("Фабрика выполняет 13 стадий","The factory is running 13 stages"):state.noticeTone==="success"?tr("13 из 13 стадий завершены","13 of 13 stages completed"):tr("Цикл остановлен","Cycle stopped")}</h2><span>${esc(state.notice)}</span><div class="cycle-safety"><b>$0</b><small>${tr("ВНЕШНИХ РАСХОДОВ","EXTERNAL SPEND")}</small><b>${state.noticeTone==="success"?"COMPLETED":"DRY RUN"}</b><small>${tr("УПРАВЛЯЕМЫЙ РЕЖИМ","GOVERNED MODE")}</small></div>${state.dryRunPending?`<div class="cycle-progress"><i></i></div>`:`<button class="primary" data-action="close-cycle-status">${tr("ЗАКРЫТЬ И ВЕРНУТЬСЯ В КОМАНДНЫЙ ЦЕНТР","CLOSE AND RETURN TO CONTROL ROOM")}</button>`}</section></div>`:state.notice?`<div class="toast ${state.noticeTone}"><i>${state.noticeTone==="error"?"!":"✓"}</i><span><b>${tr("ДЕЙСТВИЕ ЗАПИСАНО","ACTION RECORDED")}</b><small>${esc(state.notice)}</small></span></div>`:""}`;
   renderChoropleths().catch((error) => { state.notice = error.message; console.error("Map rendering failed", error); });
   installFounderExpertiseFields();
-  if(state.analystBrandId){installAnalystResetControl();restoreFailedAnalystAnswer();installAnalystDiscussionState();}
+  if(state.analystBrandId){installAnalystResetControl();restoreFailedAnalystAnswer();installAnalystDiscussionState();installQuickCouncilChoices();}
+}
+
+function installQuickCouncilChoices(){
+  const choices=document.querySelector(".latest-outcome .analyst-alternatives");
+  const question=document.querySelector(".analyst-question");
+  const form=document.querySelector("#analyst-form");
+  if(!choices||!question||!form||choices.dataset.quickReady)return;
+  choices.dataset.quickReady="true";
+  choices.classList.add("quick-council-choices");
+  const buttons=[...choices.querySelectorAll('button[data-action="choose-analyst-option"]')];
+  buttons.forEach((button,index)=>{
+    if(index>=3){button.hidden=true;return;}
+    const value=button.dataset.value??button.textContent??"";
+    button.innerHTML=`<i>${index+1}</i><span><b>${esc(briefChoice(value))}</b><small>${tr("ВЫБРАТЬ И ПРОДОЛЖИТЬ","CHOOSE AND CONTINUE")} →</small></span>`;
+  });
+  const custom=document.createElement("button");
+  custom.type="button";
+  custom.className="custom-council-choice";
+  custom.dataset.action="custom-analyst-answer";
+  custom.innerHTML=`<i>✎</i><span><b>${tr("Ни один вариант не подходит","None of these fit")}</b><small>${tr("СФОРМУЛИРОВАТЬ СВОЮ ВЕРСИЮ","WRITE MY OWN VIEW")}</small></span>`;
+  choices.append(custom);
+  question.insertAdjacentElement("afterend",choices);
+  form.classList.add("quick-choice-mode");
+}
+
+function briefChoice(value){
+  const text=String(value??"").replace(/^ВАРИАНТ\s*[·:—-]?\s*/i,"").trim();
+  return text.length>180?`${text.slice(0,177).trim()}…`:text;
 }
 
 function installFounderExpertiseFields(){
@@ -683,7 +711,8 @@ document.addEventListener("click", async (event) => {
       if(!window.confirm(tr("Начать обсуждение заново? Исследование продукта сохранится, история текущего совета будет очищена.","Restart the discussion? Product research will be preserved and the current council history will be cleared.")))return;
       await sendCommand({kind:"RESET_ANALYST_DIALOGUE",brandId}); state.pendingAnalystMessage=null; state.notice=tr("Обсуждение начато заново. Исследование продукта сохранено.","Discussion restarted. Product research was preserved."); render(); return;
     }
-    if(target.dataset.action==="choose-analyst-option") { const field=document.querySelector('#analyst-form textarea[name="message"]'); if(field){field.value=String(target.dataset.value??"");field.focus();} return; }
+    if(target.dataset.action==="choose-analyst-option") { const form=document.querySelector("#analyst-form");const field=form?.querySelector('textarea[name="message"]');if(form&&field){field.value=String(target.dataset.value??"");form.classList.add("choice-submitting");form.requestSubmit();} return; }
+    if(target.dataset.action==="custom-analyst-answer") { const form=document.querySelector("#analyst-form");const field=form?.querySelector('textarea[name="message"]');if(form&&field){form.classList.remove("quick-choice-mode");field.focus();field.scrollIntoView({behavior:"smooth",block:"center"});} return; }
     if(target.dataset.action==="start-activation-sprint") {
       const brandId=String(target.dataset.brandId??"");
       const selectedRoute=String(target.dataset.value??"");
