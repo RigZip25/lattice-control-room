@@ -139,6 +139,14 @@ function beginAnalysisClock() {
 function scrollAnalystThread() {
   requestAnimationFrame(()=>{const thread=document.querySelector(".analyst-thread");if(thread)thread.scrollTop=thread.scrollHeight;});
 }
+function installAnalystResetControl() {
+  const header=document.querySelector(".analyst-modal>header");
+  const close=header?.querySelector('[data-action="close-analyst"]');
+  if(!header||!close||header.querySelector('[data-action="reset-analyst-dialogue"]'))return;
+  const button=document.createElement("button");
+  button.type="button";button.dataset.action="reset-analyst-dialogue";button.dataset.brandId=String(state.analystBrandId??"");button.className="analyst-reset";button.textContent=tr("↻ НАЧАТЬ ОБСУЖДЕНИЕ ЗАНОВО","↻ RESTART DISCUSSION");
+  header.insertBefore(button,close);
+}
 async function runAnalystDialogue(brandId,userMessage,mode="ANSWER") {
   const headers={"Content-Type":"application/json"};
   if(state.session?.access_token) headers.Authorization=`Bearer ${state.session.access_token}`;
@@ -482,6 +490,7 @@ function render() {
     ${state.welcome?welcomeMarkup():""}
     ${state.analysisRun?analysisProcessModal():state.notice&&state.noticeModal?`<div class="cycle-status-backdrop"><section class="cycle-status ${state.noticeTone}" role="dialog" aria-modal="true" aria-live="assertive"><i>${state.noticeTone==="error"?"!":state.noticeTone==="progress"?"◌":"✓"}</i><p>${state.noticeTone==="error"?tr("ОШИБКА ЦИКЛА","CYCLE ERROR"):state.noticeTone==="progress"?tr("ВЫПОЛНЯЕТСЯ УПРАВЛЯЕМЫЙ ЦИКЛ","GOVERNED CYCLE RUNNING"):tr("DRY RUN УСПЕШНО ЗАВЕРШЁН","DRY RUN COMPLETED")}</p><h2>${state.noticeTone==="progress"?tr("Фабрика выполняет 13 стадий","The factory is running 13 stages"):state.noticeTone==="success"?tr("13 из 13 стадий завершены","13 of 13 stages completed"):tr("Цикл остановлен","Cycle stopped")}</h2><span>${esc(state.notice)}</span><div class="cycle-safety"><b>$0</b><small>${tr("ВНЕШНИХ РАСХОДОВ","EXTERNAL SPEND")}</small><b>${state.noticeTone==="success"?"COMPLETED":"DRY RUN"}</b><small>${tr("УПРАВЛЯЕМЫЙ РЕЖИМ","GOVERNED MODE")}</small></div>${state.dryRunPending?`<div class="cycle-progress"><i></i></div>`:`<button class="primary" data-action="close-cycle-status">${tr("ЗАКРЫТЬ И ВЕРНУТЬСЯ В КОМАНДНЫЙ ЦЕНТР","CLOSE AND RETURN TO CONTROL ROOM")}</button>`}</section></div>`:state.notice?`<div class="toast ${state.noticeTone}"><i>${state.noticeTone==="error"?"!":"✓"}</i><span><b>${tr("ДЕЙСТВИЕ ЗАПИСАНО","ACTION RECORDED")}</b><small>${esc(state.notice)}</small></span></div>`:""}`;
   renderChoropleths().catch((error) => { state.notice = error.message; console.error("Map rendering failed", error); });
+  if(state.analystBrandId)installAnalystResetControl();
 }
 
 function analysisProcessModal() {
@@ -614,6 +623,11 @@ document.addEventListener("click", async (event) => {
     }
     if(target.dataset.action==="open-analyst") { state.analystBrandId=String(target.dataset.brandId); render(); return; }
     if(target.dataset.action==="close-analyst") { state.analystBrandId=null; state.pendingAnalystMessage=null; render(); return; }
+    if(target.dataset.action==="reset-analyst-dialogue") {
+      const brandId=String(target.dataset.brandId);
+      if(!window.confirm(tr("Начать обсуждение заново? Исследование продукта сохранится, история текущего совета будет очищена.","Restart the discussion? Product research will be preserved and the current council history will be cleared.")))return;
+      await sendCommand({kind:"RESET_ANALYST_DIALOGUE",brandId}); state.pendingAnalystMessage=null; state.notice=tr("Обсуждение начато заново. Исследование продукта сохранено.","Discussion restarted. Product research was preserved."); render(); return;
+    }
     if(target.dataset.action==="choose-analyst-option") { const field=document.querySelector('#analyst-form textarea[name="message"]'); if(field){field.value=String(target.dataset.value??"");field.focus();} return; }
     if(target.dataset.action==="analyst-voice") {
       const Recognition=window.SpeechRecognition||window.webkitSpeechRecognition;

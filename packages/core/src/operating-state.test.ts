@@ -80,6 +80,9 @@ describe("governed local operating state", () => {
     const discussed=applyOperatingCommand(captured,{kind:"RECORD_ANALYST_TURN",brandId:brand.id,turn},turn.createdAt);
     expect(discussed.productUnderstandings[0]?.analystDialogue).toEqual([turn]);
     expect(discussed.productUnderstandings[0]?.status).toBe("DRAFT");
+    const reset=applyOperatingCommand(discussed,{kind:"RESET_ANALYST_DIALOGUE",brandId:brand.id},"2026-08-27T16:03:00.000Z");
+    expect(reset.productUnderstandings[0]?.analystDialogue).toBeUndefined();
+    expect(reset.productUnderstandings[0]?.productSummary).toBe(captured.productUnderstandings[0]?.productSummary);
   });
 
   it("blocks a generic brand cycle until the evidence and strategy gates are complete",()=>{
