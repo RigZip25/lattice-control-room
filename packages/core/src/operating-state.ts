@@ -230,6 +230,7 @@ export type OperatingCommand =
   | { readonly kind: "REGISTER_PRODUCT_SOURCE"; readonly source: Omit<ProductSource,"id"|"status"> }
   | { readonly kind: "RECORD_PRODUCT_EVIDENCE"; readonly evidence: Omit<ProductEvidence,"id"> }
   | { readonly kind: "CREATE_PRODUCT_DIAGNOSIS"; readonly diagnosis: Omit<ProductDiagnosis,"id"|"status"> }
+  | { readonly kind: "CONFIRM_PRODUCT_DIAGNOSIS"; readonly brandId: string }
   | { readonly kind: "CREATE_EXPANSION_THESIS"; readonly thesis: Omit<ExpansionThesis,"id"|"status"> }
   | { readonly kind: "START_RIGZIP_DRY_RUN"; readonly cycleId: string }
   | { readonly kind: "START_BRAND_DRY_RUN"; readonly cycleId: string; readonly brandId:string };
@@ -240,7 +241,7 @@ export function initialOperatingState(): OperatingState {
 
 export function applyOperatingCommand(state: OperatingState, command: OperatingCommand, occurredAt: string): OperatingState {
   if (!Number.isFinite(Date.parse(occurredAt))) throw new Error("Operating event timestamp is invalid");
-  if (command === null || typeof command !== "object" || !["SET_EXECUTIVE_VIEW","SET_LOCALE","SET_FILTER","REFRESH_READ_MODELS","RESOLVE_DECISION","ADD_DISCOVERY_MARKET","UPDATE_BRAND_PROFILE","DELETE_BRAND_PROFILE","ADD_EXPANSION_AREA","ADD_BRAND_PROFILE","CAPTURE_PRODUCT_INTAKE","UPDATE_PRODUCT_INTAKE","RECORD_WEBSITE_RESEARCH","RECORD_ANALYST_TURN","RESET_ANALYST_DIALOGUE","START_ACTIVATION_SPRINT","CONFIRM_PRODUCT_UNDERSTANDING","REGISTER_PRODUCT_SOURCE","RECORD_PRODUCT_EVIDENCE","CREATE_PRODUCT_DIAGNOSIS","CREATE_EXPANSION_THESIS","START_RIGZIP_DRY_RUN","START_BRAND_DRY_RUN"].includes(command.kind)) {
+  if (command === null || typeof command !== "object" || !["SET_EXECUTIVE_VIEW","SET_LOCALE","SET_FILTER","REFRESH_READ_MODELS","RESOLVE_DECISION","ADD_DISCOVERY_MARKET","UPDATE_BRAND_PROFILE","DELETE_BRAND_PROFILE","ADD_EXPANSION_AREA","ADD_BRAND_PROFILE","CAPTURE_PRODUCT_INTAKE","UPDATE_PRODUCT_INTAKE","RECORD_WEBSITE_RESEARCH","RECORD_ANALYST_TURN","RESET_ANALYST_DIALOGUE","START_ACTIVATION_SPRINT","CONFIRM_PRODUCT_UNDERSTANDING","REGISTER_PRODUCT_SOURCE","RECORD_PRODUCT_EVIDENCE","CREATE_PRODUCT_DIAGNOSIS","CONFIRM_PRODUCT_DIAGNOSIS","CREATE_EXPANSION_THESIS","START_RIGZIP_DRY_RUN","START_BRAND_DRY_RUN"].includes(command.kind)) {
     throw new Error("Operating command kind is invalid");
   }
   if (command.kind === "SET_EXECUTIVE_VIEW" && typeof command.enabled !== "boolean") throw new Error("Executive view command is invalid");
@@ -321,6 +322,9 @@ export function applyOperatingCommand(state: OperatingState, command: OperatingC
     createProductDiagnosis(command.diagnosis,state.productSources,state.productEvidence);
     if (state.productDiagnoses.some((item)=>item.brandId===command.diagnosis.brandId)) throw new Error("Product diagnosis already exists");
   }
+  if (command.kind === "CONFIRM_PRODUCT_DIAGNOSIS") {
+    if (!state.productDiagnoses.some((item)=>item.brandId===command.brandId)) throw new Error("Product diagnosis is not registered");
+  }
   if (command.kind === "CREATE_EXPANSION_THESIS") {
     const diagnosis=state.productDiagnoses.find((item)=>item.id===command.thesis.diagnosisId);
     if (!diagnosis) throw new Error("Expansion thesis product diagnosis is not registered");
@@ -373,6 +377,7 @@ export function applyOperatingCommand(state: OperatingState, command: OperatingC
       return { ...next, productEvidence:[...state.productEvidence,recordProductEvidence(command.evidence,source)] };
     }
     case "CREATE_PRODUCT_DIAGNOSIS": return { ...next, productDiagnoses:[...state.productDiagnoses,createProductDiagnosis(command.diagnosis,state.productSources,state.productEvidence)] };
+    case "CONFIRM_PRODUCT_DIAGNOSIS": return { ...next, productDiagnoses:state.productDiagnoses.map((item)=>item.brandId===command.brandId?{...item,confirmedAt:occurredAt}:item) };
     case "CREATE_EXPANSION_THESIS": {
       const diagnosis=state.productDiagnoses.find((item)=>item.id===command.thesis.diagnosisId);
       if (!diagnosis) throw new Error("Expansion thesis product diagnosis is not registered");
@@ -399,3 +404,4 @@ export function applyOperatingCommand(state: OperatingState, command: OperatingC
     default: throw new Error("Operating command kind is invalid");
   }
 }
+

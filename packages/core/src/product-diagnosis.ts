@@ -14,6 +14,7 @@ export interface ProductDiagnosis {
   readonly evidenceIds: readonly string[];
   readonly createdAt: string;
   readonly status: "DRAFT";
+  readonly confirmedAt?: string;
 }
 
 function nonEmpty(values: readonly string[], label: string): readonly string[] {
@@ -35,3 +36,4 @@ export function createProductDiagnosis(input: Omit<ProductDiagnosis,"id"|"status
   const payload={...input,valueThesis:input.valueThesis.trim(),priorityAudiences:nonEmpty(input.priorityAudiences,"Priority audiences"),customerProblems:nonEmpty(input.customerProblems,"Customer problems"),adoptionBarriers:nonEmpty(input.adoptionBarriers,"Adoption barriers"),competitiveAlternatives:nonEmpty(input.competitiveAlternatives,"Competitive alternatives"),materialRisks:nonEmpty(input.materialRisks,"Material risks"),unresolvedQuestions:nonEmpty(input.unresolvedQuestions,"Unresolved questions"),evidenceIds,status:"DRAFT" as const};
   return {...payload,id:deterministicId("product_diagnosis",payload)};
 }
+

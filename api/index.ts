@@ -10,6 +10,7 @@ import {
   initialOperatingState,
   productScreens,
   referenceGeographies,
+  registerProductSource,
   runRigZipDryRun,
   type OperatingCommand,
   type OperatingState,
@@ -111,6 +112,33 @@ function header(request: ApiRequest, name: string): string | undefined {
 function parseBody(body: unknown): unknown {
   if (typeof body === "string") return JSON.parse(body);
   return body ?? {};
+}
+
+function completeCouncilDiagnosis(state:OperatingState,brandId:string,occurredAt:string):OperatingState {
+  if(state.productDiagnoses.some((item)=>item.brandId===brandId)) return state;
+  const understanding=state.productUnderstandings.find((item)=>item.brandId===brandId);
+  const analysis=understanding?.websiteResearch?.analysis;
+  const finalTurn=understanding?.analystDialogue?.at(-1);
+  const readiness=finalTurn?.readiness;
+  if(!understanding||!analysis||finalTurn?.status!=="SUFFICIENT"||!readiness||Object.values(readiness).some((item)=>item.status!=="CLEAR")) return state;
+  let next=state;
+  const sourceInputs=[
+    {brandId,kind:"WEBSITE" as const,title:`${analysis.productName} · website research`,locator:understanding.website??`research://${brandId}/website`,capturedAt:occurredAt},
+    {brandId,kind:"OWNER_NOTE" as const,title:`${analysis.productName} · owner expertise and council`,locator:`owner://${brandId}/council`,capturedAt:occurredAt},
+  ];
+  for(const source of sourceInputs) if(!next.productSources.some((item)=>item.brandId===brandId&&item.locator===source.locator)) next=applyOperatingCommand(next,{kind:"REGISTER_PRODUCT_SOURCE",source},occurredAt);
+  const websiteSource=next.productSources.find((item)=>item.brandId===brandId&&item.locator===sourceInputs[0].locator)??registerProductSource(sourceInputs[0]);
+  const ownerSource=next.productSources.find((item)=>item.brandId===brandId&&item.locator===sourceInputs[1].locator)??registerProductSource(sourceInputs[1]);
+  const evidenceInputs=[
+    {brandId,sourceId:websiteSource.id,statement:`Публичный сайт описывает продукт как: ${analysis.oneLineSummary}`,classification:"FACT" as const,confidence:.82,recordedAt:occurredAt},
+    {brandId,sourceId:ownerSource.id,statement:`Владелец зафиксировал исходный замысел: ${understanding.ownerDescription}`,classification:"FACT" as const,confidence:.9,recordedAt:occurredAt},
+    {brandId,sourceId:ownerSource.id,statement:"Совет фабрики завершил контракт понимания 9/9 и зафиксировал достаточный контекст для рабочего диагноза.",classification:"FACT" as const,confidence:.95,recordedAt:occurredAt},
+    {brandId,sourceId:websiteSource.id,statement:analysis.risks[0]??"Рыночная доказательность ключевого обещания продукта пока не установлена.",classification:"UNKNOWN" as const,confidence:.5,recordedAt:occurredAt},
+  ];
+  for(const evidence of evidenceInputs) if(!next.productEvidence.some((item)=>item.brandId===brandId&&item.statement===evidence.statement)) next=applyOperatingCommand(next,{kind:"RECORD_PRODUCT_EVIDENCE",evidence},occurredAt);
+  const evidenceIds=next.productEvidence.filter((item)=>item.brandId===brandId).map((item)=>item.id);
+  const competitors=analysis.competitorHypotheses?.map((item)=>`${item.name}: ${item.whyRelevant}`)??[];
+  return applyOperatingCommand(next,{kind:"CREATE_PRODUCT_DIAGNOSIS",diagnosis:{brandId,valueThesis:analysis.positioningThesis??analysis.oneLineSummary,priorityAudiences:analysis.customerSegments.length?analysis.customerSegments:[understanding.customerSummary],customerProblems:analysis.marketPain?.length?analysis.marketPain:analysis.jobsToBeDone,adoptionBarriers:analysis.productWeaknesses?.length?analysis.productWeaknesses:analysis.risks,competitiveAlternatives:competitors.length?competitors:["Текущие ручные процессы и разрозненные специализированные решения"],materialRisks:analysis.risks.length?analysis.risks:["Ключевые продуктовые обещания требуют проверки"],unresolvedQuestions:analysis.criticalQuestions.length?analysis.criticalQuestions:[finalTurn.reversibleTest??"Какой обратимый тест лучше всего подтвердит первый сценарий ценности?"],evidenceIds,createdAt:occurredAt}},occurredAt);
 }
 
 function privateAddress(address:string):boolean {
@@ -559,10 +587,25 @@ export default async function handler(request: ApiRequest, response: ApiResponse
       if(!understanding) throw new Error("Карточка продукта не найдена");
       const turn=await continueAnalystDialogue({brandId,understanding,userMessage:councilMessage,mode});
       const discussed=applyOperatingCommand(base,{kind:"RECORD_ANALYST_TURN",brandId,turn},new Date().toISOString());
-      const next=turn.status==="SUFFICIENT"?applyOperatingCommand(discussed,{kind:"CONFIRM_PRODUCT_UNDERSTANDING",brandId},new Date().toISOString()):discussed;
+      const now=new Date().toISOString();
+      const confirmed=turn.status==="SUFFICIENT"?applyOperatingCommand(discussed,{kind:"CONFIRM_PRODUCT_UNDERSTANDING",brandId},now):discussed;
+      const next=turn.status==="SUFFICIENT"?completeCouncilDiagnosis(confirmed,brandId,now):confirmed;
       if(supabase&&executionWorkspaceId){const stored=await persistOperatingStateServer(supabase,executionWorkspaceId,next,base.version);if(stored.status>=400){response.status(stored.status).json(stored.body);return;}}
       response.status(200).json(next);
     } catch(error) { const failure=websiteResearchError(error); response.status(failure.status).json({error:failure.message}); }
+    return;
+  }
+  if(method==="POST"&&pathname==="/api/v1/research/diagnosis"){
+    if(ownerAccessConfigured&&!validOwnerSession(bearerToken(header(request,"authorization")))){response.status(401).json({error:"Owner authentication required"});return;}
+    try{
+      const envelope=parseBody(request.body) as {brandId?:unknown;currentState?:unknown};
+      const base=isOperatingState(envelope.currentState)?envelope.currentState:initialOperatingState();
+      const brandId=typeof envelope.brandId==="string"?envelope.brandId:"";
+      const next=completeCouncilDiagnosis(base,brandId,new Date().toISOString());
+      if(!next.productDiagnoses.some((item)=>item.brandId===brandId))throw new Error("Завершите контракт понимания продукта 9/9 перед формированием диагноза");
+      if(supabase&&executionWorkspaceId){const stored=await persistOperatingStateServer(supabase,executionWorkspaceId,next);if(stored.status>=400){response.status(stored.status).json(stored.body);return;}}
+      response.status(200).json(next);
+    }catch(error){const failure=websiteResearchError(error);response.status(failure.status).json({error:failure.message});}
     return;
   }
   if (method === "GET" && pathname === "/api/v1/execution-status") {
@@ -584,3 +627,4 @@ export default async function handler(request: ApiRequest, response: ApiResponse
   }
   response.status(404).json({ error:"Not found" });
 }
+
