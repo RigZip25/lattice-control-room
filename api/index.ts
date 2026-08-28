@@ -231,24 +231,29 @@ async function analyzeProductSemantics(research:Awaited<ReturnType<typeof resear
   const generationId=`product-analysis-${randomUUID()}`;
   const source=JSON.stringify({ownerDeclaredMaturity:maturity,ownerDescription,pages:research.pages,websiteObservations:research.observedClaims}).slice(0,24_000);
   console.log("[product-analysis] started",{generationId,model:analysisModel,pages:research.pages.length});
-  const result=await generateText({
-    model:analysisModel,
-    system:"Ты — партнёр владельца по продуктовой стратегии и маркетингу в LAFWIRON. Твоя задача — не продвигать всё подряд, а определить, способен ли продукт обрести конкурентоспособный контур. Анализируй только переданные материалы. Не выдумывай факты, метрики, клиентов, готовность функций или доказательства. Все заявления сайта и владельца считай гипотезами до независимой проверки. Конкурентов называй только гипотезами для следующего исследования и объясняй, почему каждый релевантен. Пиши естественным, ясным русским языком, коротко и конкретно. На этом этапе маркетинговый запуск всегда заблокирован.",
-    prompt:`Верни ТОЛЬКО корректный JSON-объект без markdown и комментариев. Все пользовательские строки внутри JSON должны быть на русском языке, кроме названий бренда, продукта и URL. Обязательный формат: {"productName":"","oneLineSummary":"","companyContext":"","customerSegments":[],"jobsToBeDone":[],"valuePropositions":[],"businessModelHypotheses":[],"productCapabilities":[],"claims":[{"statement":"","classification":"OWNER_CLAIM|OBSERVED|UNKNOWN","evidenceUrls":[]}],"risks":[],"criticalQuestions":[],"recommendedNextResearch":[],"strategicVerdict":"","recommendedDisposition":"HOLD|RESEARCH|IMPROVE|READY_FOR_MARKET_TEST","primaryAudienceChoice":"","primaryAudienceRationale":"","marketPain":[],"positioningThesis":"","competitorHypotheses":[{"name":"","whyRelevant":"","productStrongerWhere":"","productWeakerWhere":"","verificationNeeded":""}],"differentiators":[],"productWeaknesses":[],"distributionHypotheses":[],"improvementPhases":[{"phase":"","objective":"","exitCriteria":""}],"marketEducationNeed":""}. Создай одновременно паспорт и предварительный стратегический диагноз. Выбери одну первичную аудиторию, а не перечисляй всех как равных. Сформулируй боль рынка, предварительное позиционирование и причины, по которым идея может не сработать. Конкуренты — только кандидаты на проверку: включай прямые решения, заменители и существующее поведение пользователя, объясняя релевантность. Для каждой фазы улучшения задай проверяемый критерий выхода. Distribution hypotheses должны соответствовать выбранной аудитории и зрелости продукта. READY_FOR_MARKET_TEST допустим только как будущая рекомендация после независимых доказательств; при IDEA или PROTOTYPE выбирай HOLD, RESEARCH или IMPROVE. OWNER_CLAIM означает утверждение сайта/владельца, OBSERVED — непосредственно наблюдаемую структуру, UNKNOWN — пробел. В evidenceUrls используй только URL из входных страниц. Не более 6 пунктов в каждом массиве.\n\nВходные данные:\n${source}`,
-    providerOptions:{gateway:{user:executionWorkspaceId??"lafwiron-owner",tags:["feature:product-intelligence","mode:dry-run","budget:free-only"],cacheControl:"s-maxage=86400"}},
-    maxOutputTokens:2_500,
-    abortSignal:AbortSignal.timeout(55_000),
-  });
-  const json=result.text.trim().replace(/^```(?:json)?\s*/i,"").replace(/\s*```$/i,"");
-  let parsed:unknown;
-  try { parsed=JSON.parse(json); }
-  catch { const start=json.indexOf("{"); const end=json.lastIndexOf("}"); if(start<0||end<=start)throw new Error("AI-анализ не вернул структурированный результат. Повторите попытку."); parsed=JSON.parse(json.slice(start,end+1)); }
-  const validated=semanticProductSchema.safeParse(parsed);
-  if(!validated.success){console.error("[product-analysis] validation failed",{generationId,issues:validated.error.issues.map((issue)=>({path:issue.path.join("."),code:issue.code}))});throw new Error("AI-анализ получен, но не прошёл проверку структуры. Повторите попытку.");}
-  const russianText=JSON.stringify(validated.data).match(/[А-Яа-яЁё]/g)?.length??0;
-  if(russianText<40)throw new Error("AI-анализ не прошёл проверку русского языка. Повторите попытку.");
-  console.log("[product-analysis] completed",{generationId,model:analysisModel,totalTokens:result.usage.totalTokens});
-  return {...validated.data,marketingGate:"BLOCKED" as const,generationId,status:"COMPLETED" as const,model:analysisModel,createdAt:new Date().toISOString(),usage:{inputTokens:result.usage.inputTokens,outputTokens:result.usage.outputTokens,totalTokens:result.usage.totalTokens}};
+  for(let attempt=1;attempt<=2;attempt+=1) {
+    const result=await generateText({
+      model:analysisModel,
+      system:"Ты — партнёр владельца по продуктовой стратегии и маркетингу в LAFWIRON. Твоя задача — не продвигать всё подряд, а определить, способен ли продукт обрести конкурентоспособный контур. Анализируй только переданные материалы. Не выдумывай факты, метрики, клиентов, готовность функций или доказательства. Все заявления сайта и владельца считай гипотезами до независимой проверки. Конкурентов называй только гипотезами для следующего исследования и объясняй, почему каждый релевантен. Пиши естественным, ясным русским языком, коротко и конкретно. На этом этапе маркетинговый запуск всегда заблокирован.",
+      prompt:`Верни ТОЛЬКО корректный JSON-объект без markdown и комментариев. Все пользовательские строки внутри JSON должны быть на русском языке, кроме названий бренда, продукта и URL. Обязательный формат: {"productName":"","oneLineSummary":"","companyContext":"","customerSegments":[],"jobsToBeDone":[],"valuePropositions":[],"businessModelHypotheses":[],"productCapabilities":[],"claims":[{"statement":"","classification":"OWNER_CLAIM|OBSERVED|UNKNOWN","evidenceUrls":[]}],"risks":[],"criticalQuestions":[],"recommendedNextResearch":[],"strategicVerdict":"","recommendedDisposition":"HOLD|RESEARCH|IMPROVE|READY_FOR_MARKET_TEST","primaryAudienceChoice":"","primaryAudienceRationale":"","marketPain":[],"positioningThesis":"","competitorHypotheses":[{"name":"","whyRelevant":"","productStrongerWhere":"","productWeakerWhere":"","verificationNeeded":""}],"differentiators":[],"productWeaknesses":[],"distributionHypotheses":[],"improvementPhases":[{"phase":"","objective":"","exitCriteria":""}],"marketEducationNeed":""}. Создай одновременно паспорт и предварительный стратегический диагноз. Выбери одну первичную аудиторию, а не перечисляй всех как равных. Сформулируй боль рынка, предварительное позиционирование и причины, по которым идея может не сработать. Конкуренты — только кандидаты на проверку: включай прямые решения, заменители и существующее поведение пользователя, объясняя релевантность. Для каждой фазы улучшения задай проверяемый критерий выхода. Distribution hypotheses должны соответствовать выбранной аудитории и зрелости продукта. READY_FOR_MARKET_TEST допустим только как будущая рекомендация после независимых доказательств; при IDEA или PROTOTYPE выбирай HOLD, RESEARCH или IMPROVE. OWNER_CLAIM означает утверждение сайта/владельца, OBSERVED — непосредственно наблюдаемую структуру, UNKNOWN — пробел. В evidenceUrls используй только URL из входных страниц. Не более 6 пунктов в каждом массиве.${attempt===2?" Это повторная попытка после повреждённого ответа: особенно тщательно проверь запятые, кавычки и закрывающие скобки.":""}\n\nВходные данные:\n${source}`,
+      providerOptions:{gateway:{user:executionWorkspaceId??"lafwiron-owner",tags:["feature:product-intelligence","mode:dry-run","budget:free-only",`attempt:${attempt}`],cacheControl:"s-maxage=86400"}},
+      maxOutputTokens:2_500,
+      abortSignal:AbortSignal.timeout(55_000),
+    });
+    const json=result.text.trim().replace(/^```(?:json)?\s*/i,"").replace(/\s*```$/i,"");
+    const start=json.indexOf("{");
+    const end=json.lastIndexOf("}");
+    let parsed:unknown;
+    try { parsed=JSON.parse(start>=0&&end>start?json.slice(start,end+1):json); }
+    catch(error) { console.warn("[product-analysis] malformed JSON",{generationId,attempt,message:error instanceof Error?error.message:String(error)}); if(attempt<2)continue; throw new Error("Модель дважды вернула повреждённую структуру ответа. Исходные материалы сохранены — запустите анализ ещё раз."); }
+    const validated=semanticProductSchema.safeParse(parsed);
+    if(!validated.success){console.warn("[product-analysis] validation failed",{generationId,attempt,issues:validated.error.issues.map((issue)=>({path:issue.path.join("."),code:issue.code}))});if(attempt<2)continue;throw new Error("Модель дважды вернула неполный аналитический отчёт. Исходные материалы сохранены — запустите анализ ещё раз.");}
+    const russianText=JSON.stringify(validated.data).match(/[А-Яа-яЁё]/g)?.length??0;
+    if(russianText<40){console.warn("[product-analysis] language check failed",{generationId,attempt,russianText});if(attempt<2)continue;throw new Error("Аналитический отчёт не прошёл проверку языка. Исходные материалы сохранены — запустите анализ ещё раз.");}
+    console.log("[product-analysis] completed",{generationId,model:analysisModel,attempt,totalTokens:result.usage.totalTokens});
+    return {...validated.data,marketingGate:"BLOCKED" as const,generationId,status:"COMPLETED" as const,model:analysisModel,createdAt:new Date().toISOString(),usage:{inputTokens:result.usage.inputTokens,outputTokens:result.usage.outputTokens,totalTokens:result.usage.totalTokens}};
+  }
+  throw new Error("Анализ продукта не завершён. Исходные материалы сохранены — запустите анализ ещё раз.");
 }
 
 const analystDialogueSchema=z.object({
@@ -275,7 +280,10 @@ async function continueAnalystDialogue(input:{understanding:NonNullable<Operatin
     abortSignal:AbortSignal.timeout(55_000),
   });
   const raw=result.text.trim().replace(/^```(?:json)?\s*/i,"").replace(/\s*```$/i,"");
-  const parsed=analystDialogueSchema.safeParse(JSON.parse(raw.slice(raw.indexOf("{"),raw.lastIndexOf("}")+1)));
+  let candidate:unknown;
+  try { const start=raw.indexOf("{"); const end=raw.lastIndexOf("}"); candidate=JSON.parse(start>=0&&end>start?raw.slice(start,end+1):raw); }
+  catch { throw new Error("Аналитик вернул повреждённый ответ. Повторите последнее сообщение."); }
+  const parsed=analystDialogueSchema.safeParse(candidate);
   if(!parsed.success) throw new Error("Ответ аналитика не прошёл структурную проверку. Повторите попытку.");
   if((JSON.stringify(parsed.data).match(/[А-Яа-яЁё]/g)?.length??0)<20) throw new Error("Ответ аналитика не прошёл проверку русского языка. Повторите попытку.");
   return {id:`analyst-${randomUUID()}`,createdAt:new Date().toISOString(),ownerMessage:input.userMessage,...parsed.data};

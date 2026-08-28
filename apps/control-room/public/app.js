@@ -1,7 +1,7 @@
 import { blueprints } from "/screen-blueprints.js";
 import { renderChoropleths } from "/map.js";
 
-const state = { executive:false, locale:"RU", notice:"", noticeTone:"success", noticeModal:false, decisions:3, selectedFilter:"ВСЕ", selectedRegion:"WORLD", mobileNav:false, welcome:location.pathname==="/", factoryStatus:null, backendStatus:null, authOpen:false, session:null, cloudContext:null, addCountry:false, addBrand:false, duplicateBrand:null, editBrandId:null, analystBrandId:null, analystPending:false, addSource:false, addDiagnosis:false, addThesis:false, pendingCountry:null, pendingArea:null, addedMarkets:[], expansionAreas:[], brandProfiles:[], productUnderstandings:[], productSources:[], productEvidence:[], productDiagnoses:[], expansionTheses:[], executionCycles:[], dryRunPending:false, version:0 };
+const state = { executive:false, locale:"RU", notice:"", noticeTone:"success", noticeModal:false, analysisRun:null, decisions:3, selectedFilter:"ВСЕ", selectedRegion:"WORLD", mobileNav:false, welcome:location.pathname==="/", factoryStatus:null, backendStatus:null, authOpen:false, session:null, cloudContext:null, addCountry:false, addBrand:false, duplicateBrand:null, editBrandId:null, analystBrandId:null, analystPending:false, addSource:false, addDiagnosis:false, addThesis:false, pendingCountry:null, pendingArea:null, addedMarkets:[], expansionAreas:[], brandProfiles:[], productUnderstandings:[], productSources:[], productEvidence:[], productDiagnoses:[], expansionTheses:[], executionCycles:[], dryRunPending:false, version:0 };
 let noticeTimer;
 const isLocalRuntime = ["localhost", "127.0.0.1", "::1"].includes(location.hostname);
 let screens = [];
@@ -97,6 +97,23 @@ async function runWebsiteResearch(brandId) {
   const payload=await response.json();
   if (!response.ok) throw new Error(payload.error??"Website research failed");
   applyRuntime(payload);
+}
+async function startWebsiteAnalysis(brandId) {
+  state.notice="";
+  state.noticeModal=false;
+  state.analysisRun={brandId,status:"RUNNING",error:""};
+  clearTimeout(noticeTimer);
+  render();
+  try {
+    await runWebsiteResearch(brandId);
+    state.analysisRun=null;
+    state.analystBrandId=brandId;
+    state.noticeTone="success";
+    state.notice=tr("Изучение завершено. Совет фабрики подготовил выводы.","Research completed. The factory council prepared its findings.");
+  } catch(error) {
+    state.analysisRun={brandId,status:"ERROR",error:error instanceof Error?error.message:tr("Анализ не завершён","Analysis did not complete")};
+  }
+  render();
 }
 async function runAnalystDialogue(brandId,userMessage,mode="ANSWER") {
   const headers={"Content-Type":"application/json"};
@@ -436,8 +453,14 @@ function render() {
     ${state.addThesis?thesisModal():""}
     ${state.authOpen?authModal():""}
     ${state.welcome?welcomeMarkup():""}
-    ${state.notice&&state.noticeModal?`<div class="cycle-status-backdrop"><section class="cycle-status ${state.noticeTone}" role="dialog" aria-modal="true" aria-live="assertive"><i>${state.noticeTone==="error"?"!":state.noticeTone==="progress"?"◌":"✓"}</i><p>${state.noticeTone==="error"?tr("ОШИБКА ЦИКЛА","CYCLE ERROR"):state.noticeTone==="progress"?tr("ВЫПОЛНЯЕТСЯ УПРАВЛЯЕМЫЙ ЦИКЛ","GOVERNED CYCLE RUNNING"):tr("DRY RUN УСПЕШНО ЗАВЕРШЁН","DRY RUN COMPLETED")}</p><h2>${state.noticeTone==="progress"?tr("Фабрика выполняет 13 стадий","The factory is running 13 stages"):state.noticeTone==="success"?tr("13 из 13 стадий завершены","13 of 13 stages completed"):tr("Цикл остановлен","Cycle stopped")}</h2><span>${esc(state.notice)}</span><div class="cycle-safety"><b>$0</b><small>${tr("ВНЕШНИХ РАСХОДОВ","EXTERNAL SPEND")}</small><b>${state.noticeTone==="success"?"COMPLETED":"DRY RUN"}</b><small>${tr("УПРАВЛЯЕМЫЙ РЕЖИМ","GOVERNED MODE")}</small></div>${state.dryRunPending?`<div class="cycle-progress"><i></i></div>`:`<button class="primary" data-action="close-cycle-status">${tr("ЗАКРЫТЬ И ВЕРНУТЬСЯ В КОМАНДНЫЙ ЦЕНТР","CLOSE AND RETURN TO CONTROL ROOM")}</button>`}</section></div>`:state.notice?`<div class="toast ${state.noticeTone}"><i>${state.noticeTone==="error"?"!":"✓"}</i><span><b>${tr("ДЕЙСТВИЕ ЗАПИСАНО","ACTION RECORDED")}</b><small>${esc(state.notice)}</small></span></div>`:""}`;
+    ${state.analysisRun?analysisProcessModal():state.notice&&state.noticeModal?`<div class="cycle-status-backdrop"><section class="cycle-status ${state.noticeTone}" role="dialog" aria-modal="true" aria-live="assertive"><i>${state.noticeTone==="error"?"!":state.noticeTone==="progress"?"◌":"✓"}</i><p>${state.noticeTone==="error"?tr("ОШИБКА ЦИКЛА","CYCLE ERROR"):state.noticeTone==="progress"?tr("ВЫПОЛНЯЕТСЯ УПРАВЛЯЕМЫЙ ЦИКЛ","GOVERNED CYCLE RUNNING"):tr("DRY RUN УСПЕШНО ЗАВЕРШЁН","DRY RUN COMPLETED")}</p><h2>${state.noticeTone==="progress"?tr("Фабрика выполняет 13 стадий","The factory is running 13 stages"):state.noticeTone==="success"?tr("13 из 13 стадий завершены","13 of 13 stages completed"):tr("Цикл остановлен","Cycle stopped")}</h2><span>${esc(state.notice)}</span><div class="cycle-safety"><b>$0</b><small>${tr("ВНЕШНИХ РАСХОДОВ","EXTERNAL SPEND")}</small><b>${state.noticeTone==="success"?"COMPLETED":"DRY RUN"}</b><small>${tr("УПРАВЛЯЕМЫЙ РЕЖИМ","GOVERNED MODE")}</small></div>${state.dryRunPending?`<div class="cycle-progress"><i></i></div>`:`<button class="primary" data-action="close-cycle-status">${tr("ЗАКРЫТЬ И ВЕРНУТЬСЯ В КОМАНДНЫЙ ЦЕНТР","CLOSE AND RETURN TO CONTROL ROOM")}</button>`}</section></div>`:state.notice?`<div class="toast ${state.noticeTone}"><i>${state.noticeTone==="error"?"!":"✓"}</i><span><b>${tr("ДЕЙСТВИЕ ЗАПИСАНО","ACTION RECORDED")}</b><small>${esc(state.notice)}</small></span></div>`:""}`;
   renderChoropleths().catch((error) => { state.notice = error.message; console.error("Map rendering failed", error); });
+}
+
+function analysisProcessModal() {
+  const failed=state.analysisRun.status==="ERROR";
+  if(failed) return `<div class="analysis-process-backdrop"><section class="analysis-process error" role="alertdialog" aria-modal="true"><div class="analysis-error-icon">!</div><p>${tr("ИЗУЧЕНИЕ ПРИОСТАНОВЛЕНО","RESEARCH PAUSED")}</p><h2>${tr("Анализ не завершён","Analysis did not complete")}</h2><span>${esc(state.analysisRun.error)}</span><small>${tr("Сайт и исходные материалы сохранены. Можно безопасно повторить процесс.","The website and source materials are saved. You can safely restart the process.")}</small><div class="analysis-error-actions"><button class="primary" data-action="retry-website-analysis" data-brand-id="${esc(state.analysisRun.brandId)}">↻ ${tr("ПОВТОРИТЬ АНАЛИЗ","RESTART ANALYSIS")}</button><button data-action="dismiss-analysis-error">${tr("ВЕРНУТЬСЯ К БРЕНДУ","RETURN TO BRAND")}</button></div></section></div>`;
+  return `<div class="analysis-process-backdrop"><section class="analysis-process running" role="dialog" aria-modal="true" aria-live="polite" aria-busy="true"><div class="analysis-engine" aria-hidden="true"><i></i><b>L</b><span></span></div><p>${tr("LAFWIRON ИЗУЧАЕТ ПРОДУКТ","LAFWIRON IS STUDYING THE PRODUCT")}</p><h2>${tr("Формируем конкурентоспособный контур","Building a competitive product contour")}</h2><span>${tr("Не закрывайте страницу. После проверки система сама откроет выводы и обсуждение с аналитиком.","Keep this page open. When verification is complete, the system will open the findings and analyst discussion automatically.")}</span><ol class="analysis-live-steps"><li>${tr("Проверяем сайт и доступные материалы","Checking the website and available materials")}</li><li>${tr("Читаем ключевые страницы и фиксируем источники","Reading key pages and recording sources")}</li><li>${tr("Собираем паспорт продукта и конкурентные гипотезы","Building the product passport and competitive hypotheses")}</li><li>${tr("Готовим мнение совета фабрики","Preparing the factory council's view")}</li></ol><small>${tr("Обычно это занимает до одной минуты · внешние расходы $0 · DRY RUN","Usually takes up to one minute · $0 external spend · DRY RUN")}</small></section></div>`;
 }
 
 function renderAuthGate() {
@@ -541,6 +564,8 @@ document.addEventListener("click", async (event) => {
     if (target.dataset.action === "auth") state.authOpen=true;
     if (target.dataset.action === "close-auth") state.authOpen=false;
     if (target.dataset.action === "close-cycle-status") { state.notice=""; state.noticeModal=false; render(); return; }
+    if (target.dataset.action === "dismiss-analysis-error") { state.analysisRun=null; render(); return; }
+    if (target.dataset.action === "retry-website-analysis") { await startWebsiteAnalysis(String(target.dataset.brandId)); return; }
 
     if (target.dataset.action === "sign-out") { localStorage.removeItem("lafwiron-owner-session"); state.session=null; state.cloudContext=null; state.authOpen=false; state.notice=tr("Сессия владельца завершена","Owner session ended"); }
     if (target.dataset.action === "executive") { await sendCommand({kind:"SET_EXECUTIVE_VIEW",enabled:!state.executive}); state.notice=tr(state.executive?"Включён обзор для владельца":"Включён рабочий обзор",state.executive?"Executive view enabled":"Operator view enabled"); }
@@ -556,10 +581,8 @@ document.addEventListener("click", async (event) => {
       state.notice=tr("Понимание продукта подтверждено. Внутреннее исследование поставлено в очередь DRY RUN.","Product understanding confirmed. Internal research has been queued in DRY RUN.");
     }
     if (target.dataset.action === "research-website") {
-      const brandId=String(target.dataset.brandId);
-      state.noticeModal=true; state.noticeTone="progress"; state.notice=tr("Система читает публичные страницы сайта и фиксирует источники…","Reading public website pages and recording sources…"); render();
-      await runWebsiteResearch(brandId);
-      state.noticeModal=false; state.noticeTone="success"; state.notice=tr("Изучение сайта завершено. Совет фабрики готов к обсуждению.","Website research completed. The factory council is ready."); state.analystBrandId=brandId;
+      await startWebsiteAnalysis(String(target.dataset.brandId));
+      return;
     }
     if(target.dataset.action==="open-analyst") { state.analystBrandId=String(target.dataset.brandId); render(); return; }
     if(target.dataset.action==="close-analyst") { state.analystBrandId=null; render(); return; }
