@@ -3,6 +3,7 @@ import { renderChoropleths } from "/map.js";
 
 const state = { executive:false, locale:"RU", notice:"", noticeTone:"success", noticeModal:false, analysisRun:null, decisions:3, selectedFilter:"ВСЕ", selectedRegion:"WORLD", mobileNav:false, welcome:location.pathname==="/", factoryStatus:null, backendStatus:null, authOpen:false, session:null, cloudContext:null, addCountry:false, addBrand:false, duplicateBrand:null, editBrandId:null, analystBrandId:null, analystPending:false, addSource:false, addDiagnosis:false, addThesis:false, pendingCountry:null, pendingArea:null, addedMarkets:[], expansionAreas:[], brandProfiles:[], productUnderstandings:[], productSources:[], productEvidence:[], productDiagnoses:[], expansionTheses:[], executionCycles:[], dryRunPending:false, version:0 };
 let noticeTimer;
+let analysisClock;
 const isLocalRuntime = ["localhost", "127.0.0.1", "::1"].includes(location.hostname);
 let screens = [];
 let control = null;
@@ -101,19 +102,39 @@ async function runWebsiteResearch(brandId) {
 async function startWebsiteAnalysis(brandId) {
   state.notice="";
   state.noticeModal=false;
-  state.analysisRun={brandId,status:"RUNNING",error:""};
+  state.analysisRun={brandId,status:"RUNNING",error:"",startedAt:Date.now()};
   clearTimeout(noticeTimer);
   render();
+  beginAnalysisClock();
   try {
     await runWebsiteResearch(brandId);
+    clearInterval(analysisClock);
     state.analysisRun=null;
     state.analystBrandId=brandId;
     state.noticeTone="success";
     state.notice=tr("Изучение завершено. Совет фабрики подготовил выводы.","Research completed. The factory council prepared its findings.");
   } catch(error) {
+    clearInterval(analysisClock);
     state.analysisRun={brandId,status:"ERROR",error:error instanceof Error?error.message:tr("Анализ не завершён","Analysis did not complete")};
   }
   render();
+}
+function beginAnalysisClock() {
+  clearInterval(analysisClock);
+  const tick=()=>{
+    if(state.analysisRun?.status!=="RUNNING"){clearInterval(analysisClock);return;}
+    const elapsed=Math.max(0,Math.floor((Date.now()-state.analysisRun.startedAt)/1000));
+    const remaining=Math.max(0,60-elapsed);
+    const countdown=document.getElementById("analysis-countdown");
+    const caption=document.getElementById("analysis-countdown-caption");
+    const fill=document.getElementById("analysis-progress-fill");
+    if(countdown)countdown.textContent=remaining>0?`${remaining}`:"…";
+    if(caption)caption.textContent=remaining>0?tr("СЕКУНД · ОРИЕНТИР","SECONDS · ESTIMATE"):tr("ЗАВЕРШАЕМ ПРОВЕРКУ","FINALIZING VERIFICATION");
+    if(fill)fill.style.width=`${Math.min(94,Math.max(4,(elapsed/60)*92))}%`;
+    const active=Math.min(3,elapsed<12?0:elapsed<28?1:elapsed<45?2:3);
+    document.querySelectorAll(".analysis-live-steps li").forEach((item,index)=>item.classList.toggle("current",index===active));
+  };
+  tick(); analysisClock=setInterval(tick,1000);
 }
 async function runAnalystDialogue(brandId,userMessage,mode="ANSWER") {
   const headers={"Content-Type":"application/json"};
@@ -460,7 +481,7 @@ function render() {
 function analysisProcessModal() {
   const failed=state.analysisRun.status==="ERROR";
   if(failed) return `<div class="analysis-process-backdrop"><section class="analysis-process error" role="alertdialog" aria-modal="true"><div class="analysis-error-icon">!</div><p>${tr("ИЗУЧЕНИЕ ПРИОСТАНОВЛЕНО","RESEARCH PAUSED")}</p><h2>${tr("Анализ не завершён","Analysis did not complete")}</h2><span>${esc(state.analysisRun.error)}</span><small>${tr("Сайт и исходные материалы сохранены. Можно безопасно повторить процесс.","The website and source materials are saved. You can safely restart the process.")}</small><div class="analysis-error-actions"><button class="primary" data-action="retry-website-analysis" data-brand-id="${esc(state.analysisRun.brandId)}">↻ ${tr("ПОВТОРИТЬ АНАЛИЗ","RESTART ANALYSIS")}</button><button data-action="dismiss-analysis-error">${tr("ВЕРНУТЬСЯ К БРЕНДУ","RETURN TO BRAND")}</button></div></section></div>`;
-  return `<div class="analysis-process-backdrop"><section class="analysis-process running" role="dialog" aria-modal="true" aria-live="polite" aria-busy="true"><div class="analysis-engine" aria-hidden="true"><i></i><b>L</b><span></span></div><p>${tr("LAFWIRON ИЗУЧАЕТ ПРОДУКТ","LAFWIRON IS STUDYING THE PRODUCT")}</p><h2>${tr("Формируем конкурентоспособный контур","Building a competitive product contour")}</h2><span>${tr("Не закрывайте страницу. После проверки система сама откроет выводы и обсуждение с аналитиком.","Keep this page open. When verification is complete, the system will open the findings and analyst discussion automatically.")}</span><ol class="analysis-live-steps"><li>${tr("Проверяем сайт и доступные материалы","Checking the website and available materials")}</li><li>${tr("Читаем ключевые страницы и фиксируем источники","Reading key pages and recording sources")}</li><li>${tr("Собираем паспорт продукта и конкурентные гипотезы","Building the product passport and competitive hypotheses")}</li><li>${tr("Готовим мнение совета фабрики","Preparing the factory council's view")}</li></ol><small>${tr("Обычно это занимает до одной минуты · внешние расходы $0 · DRY RUN","Usually takes up to one minute · $0 external spend · DRY RUN")}</small></section></div>`;
+  return `<div class="analysis-process-backdrop"><section class="analysis-process running" role="dialog" aria-modal="true" aria-live="polite" aria-busy="true"><div class="analysis-engine" aria-hidden="true"><i></i><b>L</b><span></span></div><p>${tr("LAFWIRON ИЗУЧАЕТ ПРОДУКТ","LAFWIRON IS STUDYING THE PRODUCT")}</p><h2>${tr("Формируем конкурентоспособный контур","Building a competitive product contour")}</h2><span>${tr("Не закрывайте страницу. После проверки система сама откроет выводы и обсуждение с аналитиком.","Keep this page open. When verification is complete, the system will open the findings and analyst discussion automatically.")}</span><div class="analysis-timing"><b id="analysis-countdown">60</b><small id="analysis-countdown-caption">${tr("СЕКУНД · ОРИЕНТИР","SECONDS · ESTIMATE")}</small><div><i id="analysis-progress-fill"></i></div></div><ol class="analysis-live-steps"><li class="current">${tr("Проверяем сайт и доступные материалы","Checking the website and available materials")}</li><li>${tr("Читаем ключевые страницы и фиксируем источники","Reading key pages and recording sources")}</li><li>${tr("Собираем паспорт продукта и конкурентные гипотезы","Building the product passport and competitive hypotheses")}</li><li>${tr("Готовим мнение совета фабрики","Preparing the factory council's view")}</li></ol><small>${tr("60 секунд — ориентир, а не принудительное прерывание · внешние расходы $0 · DRY RUN","60 seconds is an estimate, not a forced cutoff · $0 external spend · DRY RUN")}</small></section></div>`;
 }
 
 function renderAuthGate() {

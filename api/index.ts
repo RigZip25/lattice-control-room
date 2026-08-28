@@ -227,6 +227,36 @@ const semanticProductSchema=z.object({
   marketEducationNeed:z.string().max(500),
 });
 
+function normalizeSemanticCandidate(value:unknown):unknown {
+  if(!value||typeof value!=="object"||Array.isArray(value))return value;
+  const source=value as Record<string,unknown>;
+  const text=(input:unknown,max:number)=>typeof input==="string"?input.trim().slice(0,max):"";
+  const list=(input:unknown,maxItems:number,maxLength:number)=>Array.isArray(input)?input.map((item)=>text(item,maxLength)).filter(Boolean).slice(0,maxItems):[];
+  const claims=Array.isArray(source.claims)?source.claims.flatMap((item)=>{
+    if(!item||typeof item!=="object")return [];
+    const claim=item as Record<string,unknown>;
+    const classification=["OWNER_CLAIM","OBSERVED","UNKNOWN"].includes(String(claim.classification))?String(claim.classification):"UNKNOWN";
+    const evidenceUrls=Array.isArray(claim.evidenceUrls)?claim.evidenceUrls.filter((url):url is string=>typeof url==="string"&&/^https?:\/\//i.test(url)).slice(0,5):[];
+    return [{statement:text(claim.statement,360),classification,evidenceUrls}];
+  }).filter((claim)=>claim.statement).slice(0,10):[];
+  const competitorHypotheses=Array.isArray(source.competitorHypotheses)?source.competitorHypotheses.flatMap((item)=>{
+    if(!item||typeof item!=="object")return [];
+    const competitor=item as Record<string,unknown>;
+    return [{name:text(competitor.name,120),whyRelevant:text(competitor.whyRelevant,320),productStrongerWhere:text(competitor.productStrongerWhere,320),productWeakerWhere:text(competitor.productWeakerWhere,320),verificationNeeded:text(competitor.verificationNeeded,320)||"Требуется независимая проверка релевантности и сравнения"}];
+  }).filter((item)=>item.name).slice(0,5):[];
+  const improvementPhases=Array.isArray(source.improvementPhases)?source.improvementPhases.flatMap((item)=>{
+    if(!item||typeof item!=="object")return [];
+    const phase=item as Record<string,unknown>;
+    return [{phase:text(phase.phase,100),objective:text(phase.objective,320),exitCriteria:text(phase.exitCriteria,320)}];
+  }).filter((item)=>item.phase&&item.objective&&item.exitCriteria).slice(0,5):[];
+  return {
+    ...source,
+    productName:text(source.productName,160),oneLineSummary:text(source.oneLineSummary,360),companyContext:text(source.companyContext,500),
+    customerSegments:list(source.customerSegments,6,240),jobsToBeDone:list(source.jobsToBeDone,6,280),valuePropositions:list(source.valuePropositions,6,280),businessModelHypotheses:list(source.businessModelHypotheses,5,280),productCapabilities:list(source.productCapabilities,8,240),claims,
+    risks:list(source.risks,6,280),criticalQuestions:list(source.criticalQuestions,6,280),recommendedNextResearch:list(source.recommendedNextResearch,6,280),strategicVerdict:text(source.strategicVerdict,600),primaryAudienceChoice:text(source.primaryAudienceChoice,240),primaryAudienceRationale:text(source.primaryAudienceRationale,400),marketPain:list(source.marketPain,6,280),positioningThesis:text(source.positioningThesis,400),competitorHypotheses,differentiators:list(source.differentiators,6,280),productWeaknesses:list(source.productWeaknesses,6,280),distributionHypotheses:list(source.distributionHypotheses,6,280),improvementPhases,marketEducationNeed:text(source.marketEducationNeed,500),
+  };
+}
+
 async function analyzeProductSemantics(research:Awaited<ReturnType<typeof researchWebsite>>,ownerDescription:string,maturity:string) {
   const generationId=`product-analysis-${randomUUID()}`;
   const source=JSON.stringify({ownerDeclaredMaturity:maturity,ownerDescription,pages:research.pages,websiteObservations:research.observedClaims}).slice(0,24_000);
@@ -238,7 +268,7 @@ async function analyzeProductSemantics(research:Awaited<ReturnType<typeof resear
       prompt:`Верни ТОЛЬКО корректный JSON-объект без markdown и комментариев. Все пользовательские строки внутри JSON должны быть на русском языке, кроме названий бренда, продукта и URL. Обязательный формат: {"productName":"","oneLineSummary":"","companyContext":"","customerSegments":[],"jobsToBeDone":[],"valuePropositions":[],"businessModelHypotheses":[],"productCapabilities":[],"claims":[{"statement":"","classification":"OWNER_CLAIM|OBSERVED|UNKNOWN","evidenceUrls":[]}],"risks":[],"criticalQuestions":[],"recommendedNextResearch":[],"strategicVerdict":"","recommendedDisposition":"HOLD|RESEARCH|IMPROVE|READY_FOR_MARKET_TEST","primaryAudienceChoice":"","primaryAudienceRationale":"","marketPain":[],"positioningThesis":"","competitorHypotheses":[{"name":"","whyRelevant":"","productStrongerWhere":"","productWeakerWhere":"","verificationNeeded":""}],"differentiators":[],"productWeaknesses":[],"distributionHypotheses":[],"improvementPhases":[{"phase":"","objective":"","exitCriteria":""}],"marketEducationNeed":""}. Создай одновременно паспорт и предварительный стратегический диагноз. Выбери одну первичную аудиторию, а не перечисляй всех как равных. Сформулируй боль рынка, предварительное позиционирование и причины, по которым идея может не сработать. Конкуренты — только кандидаты на проверку: включай прямые решения, заменители и существующее поведение пользователя, объясняя релевантность. Для каждой фазы улучшения задай проверяемый критерий выхода. Distribution hypotheses должны соответствовать выбранной аудитории и зрелости продукта. READY_FOR_MARKET_TEST допустим только как будущая рекомендация после независимых доказательств; при IDEA или PROTOTYPE выбирай HOLD, RESEARCH или IMPROVE. OWNER_CLAIM означает утверждение сайта/владельца, OBSERVED — непосредственно наблюдаемую структуру, UNKNOWN — пробел. В evidenceUrls используй только URL из входных страниц. Не более 6 пунктов в каждом массиве.${attempt===2?" Это повторная попытка после повреждённого ответа: особенно тщательно проверь запятые, кавычки и закрывающие скобки.":""}\n\nВходные данные:\n${source}`,
       providerOptions:{gateway:{user:executionWorkspaceId??"lafwiron-owner",tags:["feature:product-intelligence","mode:dry-run","budget:free-only",`attempt:${attempt}`],cacheControl:"s-maxage=86400"}},
       maxOutputTokens:5_000,
-      abortSignal:AbortSignal.timeout(55_000),
+      abortSignal:AbortSignal.timeout(80_000),
     });
     const json=result.text.trim().replace(/^```(?:json)?\s*/i,"").replace(/\s*```$/i,"");
     const start=json.indexOf("{");
@@ -246,7 +276,7 @@ async function analyzeProductSemantics(research:Awaited<ReturnType<typeof resear
     let parsed:unknown;
     try { parsed=JSON.parse(start>=0&&end>start?json.slice(start,end+1):json); }
     catch(error) { console.warn("[product-analysis] malformed JSON",{generationId,attempt,finishReason:result.finishReason,outputCharacters:result.text.length,usage:result.usage,message:error instanceof Error?error.message:String(error)}); if(attempt<2)continue; throw new Error("Модель дважды вернула повреждённую структуру ответа. Исходные материалы сохранены — запустите анализ ещё раз."); }
-    const validated=semanticProductSchema.safeParse(parsed);
+    const validated=semanticProductSchema.safeParse(normalizeSemanticCandidate(parsed));
     if(!validated.success){console.warn("[product-analysis] validation failed",{generationId,attempt,issues:validated.error.issues.map((issue)=>({path:issue.path.join("."),code:issue.code}))});if(attempt<2)continue;throw new Error("Модель дважды вернула неполный аналитический отчёт. Исходные материалы сохранены — запустите анализ ещё раз.");}
     const russianText=JSON.stringify(validated.data).match(/[А-Яа-яЁё]/g)?.length??0;
     if(russianText<40){console.warn("[product-analysis] language check failed",{generationId,attempt,russianText});if(attempt<2)continue;throw new Error("Аналитический отчёт не прошёл проверку языка. Исходные материалы сохранены — запустите анализ ещё раз.");}
