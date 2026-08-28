@@ -95,7 +95,18 @@ export interface BrandAnalystTurn {
   readonly counterArguments?: readonly string[];
   readonly reversibleTest?: string;
   readonly councilViews?: readonly { readonly role: "PRODUCT"|"MARKET"|"GROWTH"|"CREATIVE"|"FINANCE"|"LEGAL"; readonly opinion: string }[];
+  readonly readiness?: BrandMarketReadiness;
   readonly status: "ASKING" | "SUFFICIENT";
+}
+
+export type BrandMarketReadinessKey = "productStage"|"workingFunctions"|"primaryPayingCustomer"|"customerPain"|"valueEvent"|"businessModel"|"competitiveContour"|"evidence"|"constraints";
+export type BrandMarketReadiness = Readonly<Record<BrandMarketReadinessKey,{readonly status:"CLEAR"|"MISSING";readonly summary:string}>>;
+export const marketReadinessKeys:readonly BrandMarketReadinessKey[]=["productStage","workingFunctions","primaryPayingCustomer","customerPain","valueEvent","businessModel","competitiveContour","evidence","constraints"];
+
+export function assessBrandMarketReadiness(understanding:ProductUnderstanding|undefined):{readonly ready:boolean;readonly blockers:readonly BrandMarketReadinessKey[]} {
+  const latest=understanding?.analystDialogue?.at(-1);
+  const blockers=marketReadinessKeys.filter((key)=>latest?.readiness?.[key]?.status!=="CLEAR");
+  return {ready:Boolean(understanding?.status==="CONFIRMED"&&latest?.status==="SUFFICIENT"&&blockers.length===0),blockers};
 }
 
 export interface WebsiteResearchPage {
@@ -282,15 +293,21 @@ export function applyOperatingCommand(state: OperatingState, command: OperatingC
   }
   if (command.kind === "RESET_ANALYST_DIALOGUE" && !state.productUnderstandings.some((item)=>item.brandId===command.brandId)) throw new Error("Product intake is not registered");
   if(command.kind==="START_ACTIVATION_SPRINT") {
-    const understanding=state.productUnderstandings.find((item)=>item.brandId===command.brandId);
-    if(!understanding?.analystDialogue?.some((turn)=>turn.status==="SUFFICIENT")) throw new Error("Council discussion must be completed before the activation sprint");
+    const marketReadiness=assessBrandMarketReadiness(state.productUnderstandings.find((item)=>item.brandId===command.brandId));
+    if(!marketReadiness.ready) throw new Error(`Activation sprint is blocked by market readiness: ${marketReadiness.blockers.join(",")||"owner confirmation required"}`);
     if(!/^[a-z0-9][a-z0-9-]{2,80}$/.test(command.sprintId)||command.selectedRoute.trim().length<8||command.firstArtifact.trim().length<5) throw new Error("Activation sprint is incomplete");
     if((state.activationSprints??[]).some((item)=>item.sprintId===command.sprintId)) throw new Error("Activation sprint already exists");
   }
   if (command.kind === "DELETE_BRAND_PROFILE") {
     if (!state.brandProfiles.some((brand)=>brand.id===command.brandId)) throw new Error("Brand profile is not registered");
   }
-  if (command.kind === "CONFIRM_PRODUCT_UNDERSTANDING" && !state.productUnderstandings.some((item)=>item.brandId===command.brandId)) throw new Error("Product understanding is not registered");
+  if (command.kind === "CONFIRM_PRODUCT_UNDERSTANDING") {
+    const understanding=state.productUnderstandings.find((item)=>item.brandId===command.brandId);
+    if(!understanding) throw new Error("Product understanding is not registered");
+    const latest=understanding.analystDialogue?.at(-1);
+    const blockers=marketReadinessKeys.filter((key)=>latest?.readiness?.[key]?.status!=="CLEAR");
+    if(latest?.status!=="SUFFICIENT"||blockers.length>0) throw new Error(`Product understanding cannot be confirmed before council readiness: ${blockers.join(",")||"council interview incomplete"}`);
+  }
   if (command.kind === "REGISTER_PRODUCT_SOURCE") {
     const source = registerProductSource(command.source);
     if (state.productSources.some((item) => item.id === source.id)) throw new Error("Product source already exists");
@@ -319,6 +336,8 @@ export function applyOperatingCommand(state: OperatingState, command: OperatingC
     if (state.executionCycles.some((item)=>item.cycleId===command.cycleId)) throw new Error("Dry-run cycle already exists");
     const profile=state.brandProfiles.find((item)=>item.id===command.brandId);
     if (!profile) throw new Error("Brand profile is not registered");
+    const marketReadiness=assessBrandMarketReadiness(state.productUnderstandings.find((item)=>item.brandId===profile.id));
+    if(!marketReadiness.ready) throw new Error(`Brand market-readiness gate is blocked: ${marketReadiness.blockers.join(",")||"owner confirmation required"}`);
     const sources=state.productSources.filter((item)=>item.brandId===profile.id);
     const evidence=state.productEvidence.filter((item)=>item.brandId===profile.id);
     const readiness=assessProductIntelligence(sources,evidence);

@@ -4,6 +4,19 @@ import { registerProductSource, recordProductEvidence } from "./product-evidence
 import { createProductDiagnosis } from "./product-diagnosis.js";
 import { createExpansionThesis } from "./expansion-thesis.js";
 
+
+const clearMarketReadiness={
+  productStage:{status:"CLEAR",summary:"MVP"},
+  workingFunctions:{status:"CLEAR",summary:"Core flow works"},
+  primaryPayingCustomer:{status:"CLEAR",summary:"First paying customer"},
+  customerPain:{status:"CLEAR",summary:"Confirmed pain"},
+  valueEvent:{status:"CLEAR",summary:"Completed value event"},
+  businessModel:{status:"CLEAR",summary:"Transaction fee"},
+  competitiveContour:{status:"CLEAR",summary:"Direct and substitute alternatives mapped"},
+  evidence:{status:"CLEAR",summary:"Traceable evidence exists"},
+  constraints:{status:"CLEAR",summary:"DRY RUN constraints known"},
+} as const;
+
 describe("governed local operating state", () => {
   it("records deterministic dry-run commands with monotonic versions", () => {
     const first = applyOperatingCommand(initialOperatingState(), { kind:"SET_FILTER", filter:"RIGZIP" }, "2026-08-26T12:00:00.000Z");
@@ -68,8 +81,11 @@ describe("governed local operating state", () => {
     const resumed=applyOperatingCommand(captured,{kind:"CAPTURE_PRODUCT_INTAKE",understanding:{...captured.productUnderstandings[0]!,ownerDescription:"A corrected owner description for the resumed intake.",productSummary:"A corrected owner description for the resumed intake."}},"2026-08-27T15:01:30.000Z");
     expect(resumed.productUnderstandings).toHaveLength(1);
     expect(resumed.productUnderstandings[0]?.ownerDescription).toBe("A corrected owner description for the resumed intake.");
-    const confirmed=applyOperatingCommand(resumed,{kind:"CONFIRM_PRODUCT_UNDERSTANDING",brandId:brand.id},"2026-08-27T15:02:00.000Z");
-    expect(confirmed.productUnderstandings[0]).toMatchObject({status:"CONFIRMED",confirmedAt:"2026-08-27T15:02:00.000Z"});
+    expect(()=>applyOperatingCommand(resumed,{kind:"CONFIRM_PRODUCT_UNDERSTANDING",brandId:brand.id},"2026-08-27T15:02:00.000Z")).toThrow(/council readiness/);
+    const sufficient={id:"turn-ready",createdAt:"2026-08-27T15:02:00.000Z",ownerMessage:"Контур подтверждён.",analystResponse:"Все девять полей допуска ясны.",alternatives:[],readiness:clearMarketReadiness,status:"SUFFICIENT" as const};
+    const discussed=applyOperatingCommand(resumed,{kind:"RECORD_ANALYST_TURN",brandId:brand.id,turn:sufficient},sufficient.createdAt);
+    const confirmed=applyOperatingCommand(discussed,{kind:"CONFIRM_PRODUCT_UNDERSTANDING",brandId:brand.id},"2026-08-27T15:02:01.000Z");
+    expect(confirmed.productUnderstandings[0]).toMatchObject({status:"CONFIRMED",confirmedAt:"2026-08-27T15:02:01.000Z"});
     const deleted=applyOperatingCommand(confirmed,{kind:"DELETE_BRAND_PROFILE",brandId:brand.id},"2026-08-27T15:03:00.000Z");
     expect(deleted.brandProfiles).toHaveLength(0);
     expect(deleted.productUnderstandings).toHaveLength(0);
@@ -91,14 +107,16 @@ describe("governed local operating state", () => {
   it("blocks a generic brand cycle until the evidence and strategy gates are complete",()=>{
     const brand={id:"neighborhood-tools",name:"Neighborhood Tools",archetype:"INTERNATIONAL_NEIGHBORHOOD_MARKETPLACE",offering:"Rental of household tools",audience:"Neighbors and local owners",businessModel:"Transaction commission",objectives:["Validate local liquidity"],primaryValueEvent:"completed_rental",targetGeographies:["US"],languages:["en"],constraints:["No regulated equipment"],status:"DISCOVERY"} as const;
     const state={...initialOperatingState(),brandProfiles:[brand]};
-    expect(()=>applyOperatingCommand(state,{kind:"START_BRAND_DRY_RUN",brandId:brand.id,cycleId:"tools-cycle-001"},"2026-08-27T14:00:00.000Z")).toThrow(/evidence gate is blocked/);
+    expect(()=>applyOperatingCommand(state,{kind:"START_BRAND_DRY_RUN",brandId:brand.id,cycleId:"tools-cycle-001"},"2026-08-27T14:00:00.000Z")).toThrow(/market-readiness gate is blocked/);
   });
 
   it("turns a completed council into an active zero-effect sprint",()=>{
     const base=initialOperatingState();
-    const sufficient={id:"turn-final",createdAt:"2026-08-28T13:00:00.000Z",ownerMessage:"Выбираю управляемый прототип.",analystResponse:"Совместный план готов.",alternatives:["Внутренний прототип LAFWIRON"],status:"SUFFICIENT"} as const;
+    const sufficient={id:"turn-final",createdAt:"2026-08-28T13:00:00.000Z",ownerMessage:"Выбираю управляемый прототип.",analystResponse:"Совместный план готов.",alternatives:["Внутренний прототип LAFWIRON"],readiness:clearMarketReadiness,status:"SUFFICIENT"} as const;
     const state={...base,productUnderstandings:[{brandId:"new-product",ownerDescription:"A sufficiently described product concept.",materialNames:[],productSummary:"A sufficiently described product concept.",customerSummary:"First customer",valueSummary:"Testable value",assumptions:[],criticalQuestions:[],analystDialogue:[sufficient],status:"DRAFT" as const}]};
-    const result=applyOperatingCommand(state,{kind:"START_ACTIVATION_SPRINT",brandId:"new-product",sprintId:"new-product-activation-1",selectedRoute:"Внутренний прототип LAFWIRON",firstArtifact:"Карта ценности и прототип"},"2026-08-28T13:01:00.000Z");
+    expect(()=>applyOperatingCommand(state,{kind:"START_ACTIVATION_SPRINT",brandId:"new-product",sprintId:"new-product-activation-0",selectedRoute:"Внутренний прототип LAFWIRON",firstArtifact:"Карта ценности и прототип"},"2026-08-28T13:00:30.000Z")).toThrow(/market readiness/);
+    const confirmedState={...state,productUnderstandings:state.productUnderstandings.map((item)=>({...item,status:"CONFIRMED" as const,confirmedAt:"2026-08-28T13:00:45.000Z"}))};
+    const result=applyOperatingCommand(confirmedState,{kind:"START_ACTIVATION_SPRINT",brandId:"new-product",sprintId:"new-product-activation-1",selectedRoute:"Внутренний прототип LAFWIRON",firstArtifact:"Карта ценности и прототип"},"2026-08-28T13:01:00.000Z");
     expect(result.activationSprints?.[0]).toMatchObject({status:"ACTIVE",mode:"DRY_RUN",externalEffects:0,brandId:"new-product"});
   });
 
@@ -118,7 +136,9 @@ describe("governed local operating state", () => {
       {countryCode:"US",geographyName:"Illinois",administrativeLevel:"STATE",demandScore:50,supplyScore:50,accessibilityScore:50,regulatoryScore:50,rationale:"Initial bounded validation geography for the marketplace concept.",assumptions:["Demand can be measured"],validationQuestions:["Does local liquidity emerge"]},
       {countryCode:"US",geographyName:"Wisconsin",administrativeLevel:"STATE",demandScore:45,supplyScore:45,accessibilityScore:50,regulatoryScore:50,rationale:"Comparable validation geography for transfer and control analysis.",assumptions:["Market structure is comparable"],validationQuestions:["Does the result transfer"]},
     ]},diagnosis);
-    const state={...initialOperatingState(),brandProfiles:[brand],productSources:[website,interview],productEvidence:evidence,productDiagnoses:[diagnosis],expansionTheses:[thesis]};
+    const sufficient={id:"turn-ready",createdAt:now,ownerMessage:"Ready",analystResponse:"All admission fields are clear",alternatives:[],readiness:clearMarketReadiness,status:"SUFFICIENT" as const};
+    const understanding={brandId:brand.id,ownerDescription:brand.offering,materialNames:[],productSummary:brand.offering,customerSummary:brand.audience,valueSummary:brand.primaryValueEvent,assumptions:[],criticalQuestions:[],analystDialogue:[sufficient],status:"CONFIRMED" as const,confirmedAt:now};
+    const state={...initialOperatingState(),brandProfiles:[brand],productUnderstandings:[understanding],productSources:[website,interview],productEvidence:evidence,productDiagnoses:[diagnosis],expansionTheses:[thesis]};
     const result=applyOperatingCommand(state,{kind:"START_BRAND_DRY_RUN",brandId:brand.id,cycleId:"tools-cycle-001"},now);
     expect(result.executionCycles[0]).toMatchObject({brandId:brand.id,mode:"DRY_RUN",status:"COMPLETED"});
     expect(result.executionCycles[0]?.jobs).toHaveLength(13);
