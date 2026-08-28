@@ -94,6 +94,14 @@ describe("governed local operating state", () => {
     expect(()=>applyOperatingCommand(state,{kind:"START_BRAND_DRY_RUN",brandId:brand.id,cycleId:"tools-cycle-001"},"2026-08-27T14:00:00.000Z")).toThrow(/evidence gate is blocked/);
   });
 
+  it("turns a completed council into an active zero-effect sprint",()=>{
+    const base=initialOperatingState();
+    const sufficient={id:"turn-final",createdAt:"2026-08-28T13:00:00.000Z",ownerMessage:"Выбираю управляемый прототип.",analystResponse:"Совместный план готов.",alternatives:["Внутренний прототип LAFWIRON"],status:"SUFFICIENT"} as const;
+    const state={...base,productUnderstandings:[{brandId:"new-product",ownerDescription:"A sufficiently described product concept.",materialNames:[],productSummary:"A sufficiently described product concept.",customerSummary:"First customer",valueSummary:"Testable value",assumptions:[],criticalQuestions:[],analystDialogue:[sufficient],status:"DRAFT" as const}]};
+    const result=applyOperatingCommand(state,{kind:"START_ACTIVATION_SPRINT",brandId:"new-product",sprintId:"new-product-activation-1",selectedRoute:"Внутренний прототип LAFWIRON",firstArtifact:"Карта ценности и прототип"},"2026-08-28T13:01:00.000Z");
+    expect(result.activationSprints?.[0]).toMatchObject({status:"ACTIVE",mode:"DRY_RUN",externalEffects:0,brandId:"new-product"});
+  });
+
   it("runs a generic brand only from registered evidence, diagnosis and expansion thesis",()=>{
     const now="2026-08-27T14:00:00.000Z";
     const brand={id:"neighborhood-tools",name:"Neighborhood Tools",archetype:"INTERNATIONAL_NEIGHBORHOOD_MARKETPLACE",offering:"Rental of household tools",audience:"Neighbors and local owners",businessModel:"Transaction commission",objectives:["Validate local liquidity"],primaryValueEvent:"completed_rental",targetGeographies:["US"],languages:["en"],constraints:["No regulated equipment"],status:"DISCOVERY"} as const;
@@ -118,4 +126,3 @@ describe("governed local operating state", () => {
     expect(result.executionCycles[0]?.artifacts.distribution.state).toBe("BLOCKED");
   });
 });
-
