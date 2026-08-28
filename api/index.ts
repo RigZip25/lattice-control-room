@@ -110,6 +110,17 @@ function elementText(html:string,tag:string):string[] {
   return [...html.matchAll(new RegExp(`<${tag}\\b[^>]*>([\\s\\S]*?)<\\/${tag}>`,"gi"))].map((match)=>decodeHtml(match[1].replace(/<[^>]+>/g," "))).filter(Boolean);
 }
 
+function metaValues(html:string):Map<string,string[]> {
+  const values=new Map<string,string[]>();
+  for (const match of html.matchAll(/<meta\b[^>]*>/gi)) {
+    const tag=match[0]; const attributes=new Map<string,string>();
+    for (const attribute of tag.matchAll(/([:\w-]+)\s*=\s*["']([^"']*)["']/g)) attributes.set(attribute[1].toLowerCase(),decodeHtml(attribute[2]));
+    const key=(attributes.get("property")??attributes.get("name")??"").toLowerCase(); const content=attributes.get("content")??"";
+    if (key&&content) values.set(key,[...(values.get(key)??[]),content]);
+  }
+  return values;
+}
+
 async function fetchResearchPage(raw:string):Promise<{url:string;html:string}> {
   let url=await safeResearchUrl(raw);
   for (let redirect=0;redirect<4;redirect+=1) {
@@ -141,9 +152,11 @@ async function researchWebsite(raw:string) {
   const urls=[first.url,...new Set(candidates)].slice(0,5);
   const fetched=[first,...(await Promise.allSettled(urls.slice(1).map(fetchResearchPage))).flatMap((item)=>item.status==="fulfilled"?[item.value]:[])];
   const pages=fetched.map(({url,html})=>{
-    const title=elementText(html,"title")[0]??"Untitled page";
-    const meta=html.match(/<meta\b[^>]*(?:name=["']description["'][^>]*content=["']([^"']*)|content=["']([^"']*)["'][^>]*name=["']description["'])[^>]*>/i);
-    return {url,title,description:decodeHtml(meta?.[1]??meta?.[2]??""),headings:[...elementText(html,"h1"),...elementText(html,"h2")].slice(0,12)};
+    const metadata=metaValues(html); const titles=elementText(html,"title");
+    const title=metadata.get("og:title")?.at(-1)??metadata.get("twitter:title")?.at(-1)??titles.at(-1)??"Untitled page";
+    const description=metadata.get("og:description")?.at(-1)??metadata.get("twitter:description")?.at(-1)??metadata.get("description")?.at(-1)??"";
+    const keywords=(metadata.get("keywords")?.at(-1)??"").split(",").map((item)=>item.trim()).filter(Boolean).slice(0,12);
+    return {url,title,description,headings:[...elementText(html,"h1"),...elementText(html,"h2"),...(keywords.length?[`Keywords: ${keywords.join(", ")}`]:[])].filter((value)=>!/^created with figma$/i.test(value)&&!/^this site requires javascript/i.test(value)).slice(0,12)};
   });
   const claims=[...new Set(pages.flatMap((page)=>[page.description,...page.headings]).filter((value)=>value.length>=12))].slice(0,12);
   return {status:"COMPLETED" as const,researchedAt:new Date().toISOString(),pages,observedClaims:claims.length?claims:[`Website identifies itself as ${pages[0].title}`],unresolvedQuestions:["Who is the primary paying customer?","What measurable event proves customer value?","Which claims have independent evidence beyond the product website?"]};
