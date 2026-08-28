@@ -555,7 +555,7 @@ function brandModal() {
 
 function duplicateBrandModal() {
   const brand=state.duplicateBrand;
-  return `<div class="modal-backdrop"><section class="modal duplicate-brand-modal"><div class="module-title">${tr("ПРОЕКТ УЖЕ СУЩЕСТВУЕТ","PROJECT ALREADY EXISTS")} <button type="button" data-action="close-duplicate">×</button></div><h2>${esc(brand.name)}</h2><p>${tr("LAFWIRON уже хранит этот бренд. Вы можете дополнить исходные данные или удалить ошибочную запись и начать intake заново. Прошлый технический аудит останется только в архивном журнале.","LAFWIRON already stores this brand. You can enrich its intake or remove the active record and start over. Prior technical audit remains only in the archive ledger.")}</p><div class="modal-actions"><button data-action="close-duplicate">${tr("ОТМЕНА","CANCEL")}</button><button data-action="edit-brand" data-brand-id="${esc(brand.id)}">${tr("ОТКРЫТЬ И ДОПОЛНИТЬ","OPEN AND ENRICH")}</button><button class="danger" data-action="replace-brand" data-brand-id="${esc(brand.id)}">${tr("УДАЛИТЬ И СОЗДАТЬ ЗАНОВО","DELETE AND START OVER")}</button></div></section></div>`;
+  return `<div class="modal-backdrop"><section class="modal duplicate-brand-modal"><div class="module-title">${tr("ПРОЕКТ УЖЕ СУЩЕСТВУЕТ","PROJECT ALREADY EXISTS")} <button type="button" data-action="close-duplicate">×</button></div><h2>${esc(brand.name)}</h2><p>${tr("Проект уже сохранён. Продолжите его запуск с того места, где остановились, дополните материалы или удалите ошибочную запись и начните заново.","The project is already saved. Resume its launch where you stopped, enrich its materials, or delete an incorrect record and start over.")}</p><div class="modal-actions"><button class="primary" data-action="continue-brand-onboarding" data-brand-id="${esc(brand.id)}">${tr("ПРОДОЛЖИТЬ ЗАПУСК","RESUME LAUNCH")}</button><button data-action="edit-brand" data-brand-id="${esc(brand.id)}">${tr("ДОПОЛНИТЬ ДАННЫЕ","ENRICH DATA")}</button><button class="danger" data-action="replace-brand" data-brand-id="${esc(brand.id)}">${tr("УДАЛИТЬ И НАЧАТЬ ЗАНОВО","DELETE AND START OVER")}</button></div></section></div>`;
 }
 
 function analystModal() {
@@ -696,6 +696,7 @@ document.addEventListener("click", async (event) => {
   if (target.dataset.action === "close-country") { state.addCountry=false; state.pendingCountry=null; }
     if (target.dataset.action === "close-brand") state.addBrand=false;
     if (target.dataset.action === "close-duplicate") state.duplicateBrand=null;
+    if (target.dataset.action === "continue-brand-onboarding") { state.duplicateBrand=null; location.assign(`/brands/${encodeURIComponent(String(target.dataset.brandId))}/onboarding`); return; }
     if (target.dataset.action === "close-edit-brand") state.editBrandId=null;
     if (target.dataset.action === "edit-brand") { state.duplicateBrand=null; state.editBrandId=String(target.dataset.brandId); }
     if (target.dataset.action === "replace-brand") {
