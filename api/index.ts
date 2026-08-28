@@ -212,16 +212,28 @@ const semanticProductSchema=z.object({
   risks:z.array(z.string().max(280)).max(6),
   criticalQuestions:z.array(z.string().max(280)).max(6),
   recommendedNextResearch:z.array(z.string().max(280)).max(6),
+  strategicVerdict:z.string().min(1).max(600),
+  recommendedDisposition:z.enum(["HOLD","RESEARCH","IMPROVE","READY_FOR_MARKET_TEST"]),
+  primaryAudienceChoice:z.string().min(1).max(240),
+  primaryAudienceRationale:z.string().min(1).max(400),
+  marketPain:z.array(z.string().max(280)).max(6),
+  positioningThesis:z.string().min(1).max(400),
+  competitorHypotheses:z.array(z.object({name:z.string().max(120),whyRelevant:z.string().max(320),productStrongerWhere:z.string().max(320),productWeakerWhere:z.string().max(320),verificationNeeded:z.string().max(320)})).max(5),
+  differentiators:z.array(z.string().max(280)).max(6),
+  productWeaknesses:z.array(z.string().max(280)).max(6),
+  distributionHypotheses:z.array(z.string().max(280)).max(6),
+  improvementPhases:z.array(z.object({phase:z.string().max(100),objective:z.string().max(320),exitCriteria:z.string().max(320)})).max(5),
+  marketEducationNeed:z.string().max(500),
 });
 
-async function analyzeProductSemantics(research:Awaited<ReturnType<typeof researchWebsite>>,ownerDescription:string) {
+async function analyzeProductSemantics(research:Awaited<ReturnType<typeof researchWebsite>>,ownerDescription:string,maturity:string) {
   const generationId=`product-analysis-${randomUUID()}`;
-  const source=JSON.stringify({ownerDescription,pages:research.pages,websiteObservations:research.observedClaims}).slice(0,24_000);
+  const source=JSON.stringify({ownerDeclaredMaturity:maturity,ownerDescription,pages:research.pages,websiteObservations:research.observedClaims}).slice(0,24_000);
   console.log("[product-analysis] started",{generationId,model:analysisModel,pages:research.pages.length});
   const result=await generateText({
     model:analysisModel,
-    system:"Ты — старший продуктовый и маркетинговый аналитик LAFWIRON. Анализируй только переданные материалы. Не выдумывай факты, метрики, клиентов или доказательства. Все заявления сайта считай заявлениями владельца, пока нет независимого подтверждения. Пиши естественным, ясным русским языком, коротко и конкретно. Не предлагай бюджет и запуск до отдельного исследования рынка.",
-    prompt:`Верни ТОЛЬКО корректный JSON-объект без markdown и комментариев. Все пользовательские строки внутри JSON должны быть на русском языке, кроме названий бренда, продукта и URL. Формат: {"productName":"","oneLineSummary":"","companyContext":"","customerSegments":[],"jobsToBeDone":[],"valuePropositions":[],"businessModelHypotheses":[],"productCapabilities":[],"claims":[{"statement":"","classification":"OWNER_CLAIM|OBSERVED|UNKNOWN","evidenceUrls":[]}],"risks":[],"criticalQuestions":[],"recommendedNextResearch":[]}. Создай паспорт понимания продукта по публичному сайту. Отдели продукт от компании, функции от ценности, а наблюдения от неизвестного. OWNER_CLAIM означает утверждение сайта, OBSERVED — непосредственно наблюдаемую структуру или предложение, UNKNOWN — пробел. В evidenceUrls используй только URL из входных страниц. Следующие исследования формулируй как конкретные задачи внутренней системы, а не вопросы пользователю, если ответ можно найти независимо. Не более 6 пунктов в каждом массиве.\n\nВходные данные:\n${source}`,
+    system:"Ты — партнёр владельца по продуктовой стратегии и маркетингу в LAFWIRON. Твоя задача — не продвигать всё подряд, а определить, способен ли продукт обрести конкурентоспособный контур. Анализируй только переданные материалы. Не выдумывай факты, метрики, клиентов, готовность функций или доказательства. Все заявления сайта и владельца считай гипотезами до независимой проверки. Конкурентов называй только гипотезами для следующего исследования и объясняй, почему каждый релевантен. Пиши естественным, ясным русским языком, коротко и конкретно. На этом этапе маркетинговый запуск всегда заблокирован.",
+    prompt:`Верни ТОЛЬКО корректный JSON-объект без markdown и комментариев. Все пользовательские строки внутри JSON должны быть на русском языке, кроме названий бренда, продукта и URL. Обязательный формат: {"productName":"","oneLineSummary":"","companyContext":"","customerSegments":[],"jobsToBeDone":[],"valuePropositions":[],"businessModelHypotheses":[],"productCapabilities":[],"claims":[{"statement":"","classification":"OWNER_CLAIM|OBSERVED|UNKNOWN","evidenceUrls":[]}],"risks":[],"criticalQuestions":[],"recommendedNextResearch":[],"strategicVerdict":"","recommendedDisposition":"HOLD|RESEARCH|IMPROVE|READY_FOR_MARKET_TEST","primaryAudienceChoice":"","primaryAudienceRationale":"","marketPain":[],"positioningThesis":"","competitorHypotheses":[{"name":"","whyRelevant":"","productStrongerWhere":"","productWeakerWhere":"","verificationNeeded":""}],"differentiators":[],"productWeaknesses":[],"distributionHypotheses":[],"improvementPhases":[{"phase":"","objective":"","exitCriteria":""}],"marketEducationNeed":""}. Создай одновременно паспорт и предварительный стратегический диагноз. Выбери одну первичную аудиторию, а не перечисляй всех как равных. Сформулируй боль рынка, предварительное позиционирование и причины, по которым идея может не сработать. Конкуренты — только кандидаты на проверку: включай прямые решения, заменители и существующее поведение пользователя, объясняя релевантность. Для каждой фазы улучшения задай проверяемый критерий выхода. Distribution hypotheses должны соответствовать выбранной аудитории и зрелости продукта. READY_FOR_MARKET_TEST допустим только как будущая рекомендация после независимых доказательств; при IDEA или PROTOTYPE выбирай HOLD, RESEARCH или IMPROVE. OWNER_CLAIM означает утверждение сайта/владельца, OBSERVED — непосредственно наблюдаемую структуру, UNKNOWN — пробел. В evidenceUrls используй только URL из входных страниц. Не более 6 пунктов в каждом массиве.\n\nВходные данные:\n${source}`,
     providerOptions:{gateway:{user:executionWorkspaceId??"lafwiron-owner",tags:["feature:product-intelligence","mode:dry-run","budget:free-only"],cacheControl:"s-maxage=86400"}},
     maxOutputTokens:2_500,
     abortSignal:AbortSignal.timeout(55_000),
@@ -235,7 +247,37 @@ async function analyzeProductSemantics(research:Awaited<ReturnType<typeof resear
   const russianText=JSON.stringify(validated.data).match(/[А-Яа-яЁё]/g)?.length??0;
   if(russianText<40)throw new Error("AI-анализ не прошёл проверку русского языка. Повторите попытку.");
   console.log("[product-analysis] completed",{generationId,model:analysisModel,totalTokens:result.usage.totalTokens});
-  return {...validated.data,generationId,status:"COMPLETED" as const,model:analysisModel,createdAt:new Date().toISOString(),usage:{inputTokens:result.usage.inputTokens,outputTokens:result.usage.outputTokens,totalTokens:result.usage.totalTokens}};
+  return {...validated.data,marketingGate:"BLOCKED" as const,generationId,status:"COMPLETED" as const,model:analysisModel,createdAt:new Date().toISOString(),usage:{inputTokens:result.usage.inputTokens,outputTokens:result.usage.outputTokens,totalTokens:result.usage.totalTokens}};
+}
+
+const analystDialogueSchema=z.object({
+  analystResponse:z.string().min(1).max(1200),
+  nextQuestion:z.string().max(360).optional(),
+  alternatives:z.array(z.string().max(360)).max(3),
+  councilViews:z.array(z.object({role:z.enum(["PRODUCT","MARKET","GROWTH","CREATIVE","FINANCE","LEGAL"]),opinion:z.string().min(1).max(360)})).max(6),
+  status:z.enum(["ASKING","SUFFICIENT"]),
+}).superRefine((value,context)=>{
+  if(value.status==="ASKING"&&!value.nextQuestion?.trim()) context.addIssue({code:"custom",message:"The next question is required",path:["nextQuestion"]});
+});
+
+async function continueAnalystDialogue(input:{understanding:NonNullable<OperatingState["productUnderstandings"][number]>;userMessage:string;mode:"ANSWER"|"HELP"}) {
+  const analysis=input.understanding.websiteResearch?.analysis;
+  if(!analysis) throw new Error("Сначала изучите сайт или исходные материалы продукта");
+  const transcript=(input.understanding.analystDialogue??[]).slice(-8).map((turn)=>({owner:turn.ownerMessage,analyst:turn.analystResponse,question:turn.nextQuestion,status:turn.status}));
+  const context=JSON.stringify({maturity:input.understanding.maturity??"MVP",ownerDescription:input.understanding.ownerDescription,analysis,transcript,userMessage:input.userMessage,mode:input.mode}).slice(0,28_000);
+  const result=await generateText({
+    model:analysisModel,
+    system:"Ты — старший продуктовый аналитик LAFWIRON и партнёр владельца. Веди живое интервью, а не анкету. В каждом ходе задавай не более одного вопроса. Не спрашивай то, что система способна проверить сама по открытым источникам. Если владелец не знает, затрудняется или просит помощи, предложи 2–3 конкретные рабочие версии с преимуществами и рисками и попроси выбрать или поправить. Отделяй реализованное от идеи, заявления от доказательств, а прямых конкурентов от заменителей и существующего поведения. Не соглашайся автоматически и прямо говори, если контур слабый, преждевременный или не готов к рынку. Запуск и расходы всегда заблокированы. Пиши естественным русским языком.",
+    prompt:`Верни только JSON без markdown: {"analystResponse":"сводное профессиональное мнение ведущего","nextQuestion":"ровно один следующий вопрос или отсутствует при достаточности","alternatives":["вариант с кратким компромиссом"],"councilViews":[{"role":"PRODUCT|MARKET|GROWTH|CREATIVE|FINANCE|LEGAL","opinion":"только существенная позиция этой роли"}],"status":"ASKING|SUFFICIENT"}. В councilViews включай только роли, которым есть что добавить на этом ходе, без повторов сводного ответа. Достаточность означает, что ясны: стадия и реально готовые функции, первичный платящий клиент, острая боль, ценностное событие, бизнес-модель, ограничения и имеющиеся доказательства. Не завершай интервью только потому, что владелец дал длинный ответ. При HELP обязательно дай варианты.\n\nКонтекст:\n${context}`,
+    providerOptions:{gateway:{user:executionWorkspaceId??"lafwiron-owner",tags:["feature:brand-analyst","mode:dry-run","budget:free-only"],cacheControl:"s-maxage=3600"}},
+    maxOutputTokens:1_200,
+    abortSignal:AbortSignal.timeout(55_000),
+  });
+  const raw=result.text.trim().replace(/^```(?:json)?\s*/i,"").replace(/\s*```$/i,"");
+  const parsed=analystDialogueSchema.safeParse(JSON.parse(raw.slice(raw.indexOf("{"),raw.lastIndexOf("}")+1)));
+  if(!parsed.success) throw new Error("Ответ аналитика не прошёл структурную проверку. Повторите попытку.");
+  if((JSON.stringify(parsed.data).match(/[А-Яа-яЁё]/g)?.length??0)<20) throw new Error("Ответ аналитика не прошёл проверку русского языка. Повторите попытку.");
+  return {id:`analyst-${randomUUID()}`,createdAt:new Date().toISOString(),ownerMessage:input.userMessage,...parsed.data};
 }
 
 function websiteResearchError(error:unknown):{status:number;message:string} {
@@ -368,13 +410,31 @@ export default async function handler(request: ApiRequest, response: ApiResponse
       const intake=base.productUnderstandings.find((item)=>item.brandId===brandId);
       if (!intake?.website) throw new Error("A website is required to start website research");
       const rawResearch=await researchWebsite(intake.website);
-      const analysis=await analyzeProductSemantics(rawResearch,intake.ownerDescription);
+      const analysis=await analyzeProductSemantics(rawResearch,intake.ownerDescription,intake.maturity??"MVP");
       const research={...rawResearch,analysis,unresolvedQuestions:analysis.criticalQuestions};
       const next=applyOperatingCommand(base,{kind:"RECORD_WEBSITE_RESEARCH",brandId,research},new Date().toISOString());
       if (supabase&&executionWorkspaceId) {
         const result=await persistOperatingStateServer(supabase,executionWorkspaceId,next);
         if (result.status>=400) { response.status(result.status).json(result.body); return; }
       }
+      response.status(200).json(next);
+    } catch(error) { const failure=websiteResearchError(error); response.status(failure.status).json({error:failure.message}); }
+    return;
+  }
+  if (method === "POST" && pathname === "/api/v1/research/analyst") {
+    if (ownerAccessConfigured && !validOwnerSession(bearerToken(header(request,"authorization")))) { response.status(401).json({error:"Owner authentication required"}); return; }
+    try {
+      const envelope=parseBody(request.body) as {brandId?:unknown;currentState?:unknown;userMessage?:unknown;mode?:unknown};
+      const base=isOperatingState(envelope.currentState)?envelope.currentState:initialOperatingState();
+      const brandId=typeof envelope.brandId==="string"?envelope.brandId:"";
+      const userMessage=typeof envelope.userMessage==="string"?envelope.userMessage.trim():"";
+      const mode=envelope.mode==="HELP"?"HELP":"ANSWER";
+      if(!userMessage) throw new Error("Напишите ответ или попросите аналитика предложить варианты");
+      const understanding=base.productUnderstandings.find((item)=>item.brandId===brandId);
+      if(!understanding) throw new Error("Карточка продукта не найдена");
+      const turn=await continueAnalystDialogue({understanding,userMessage,mode});
+      const next=applyOperatingCommand(base,{kind:"RECORD_ANALYST_TURN",brandId,turn},new Date().toISOString());
+      if(supabase&&executionWorkspaceId){const stored=await persistOperatingStateServer(supabase,executionWorkspaceId,next);if(stored.status>=400){response.status(stored.status).json(stored.body);return;}}
       response.status(200).json(next);
     } catch(error) { const failure=websiteResearchError(error); response.status(failure.status).json({error:failure.message}); }
     return;

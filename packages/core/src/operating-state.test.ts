@@ -72,6 +72,16 @@ describe("governed local operating state", () => {
     expect(deleted.productUnderstandings).toHaveLength(0);
   });
 
+  it("persists one governed analyst question at a time",()=>{
+    const brand={id:"analyst-brand",name:"Analyst Brand",archetype:"OTHER",offering:"A product awaiting analysis",audience:"To be researched",businessModel:"Requires confirmation",objectives:["Find a viable contour"],primaryValueEvent:"validated_value",targetGeographies:["GLOBAL"],languages:["ru"],constraints:["DRY RUN only"],status:"DISCOVERY"} as const;
+    const created=applyOperatingCommand(initialOperatingState(),{kind:"ADD_BRAND_PROFILE",brand},"2026-08-27T16:00:00.000Z");
+    const captured=applyOperatingCommand(created,{kind:"CAPTURE_PRODUCT_INTAKE",understanding:{brandId:brand.id,ownerDescription:"A product concept that needs a competitive contour.",materialNames:[],productSummary:"A product concept that needs a competitive contour.",customerSummary:"Unknown",valueSummary:"Unknown",assumptions:[],criticalQuestions:[],status:"DRAFT"}},"2026-08-27T16:01:00.000Z");
+    const turn={id:"turn-1",createdAt:"2026-08-27T16:02:00.000Z",ownerMessage:"Пока существует только прототип.",analystResponse:"Это снижает готовность к выходу на рынок.",nextQuestion:"Какая функция прототипа уже работает стабильно?",alternatives:[],status:"ASKING"} as const;
+    const discussed=applyOperatingCommand(captured,{kind:"RECORD_ANALYST_TURN",brandId:brand.id,turn},turn.createdAt);
+    expect(discussed.productUnderstandings[0]?.analystDialogue).toEqual([turn]);
+    expect(discussed.productUnderstandings[0]?.status).toBe("DRAFT");
+  });
+
   it("blocks a generic brand cycle until the evidence and strategy gates are complete",()=>{
     const brand={id:"neighborhood-tools",name:"Neighborhood Tools",archetype:"INTERNATIONAL_NEIGHBORHOOD_MARKETPLACE",offering:"Rental of household tools",audience:"Neighbors and local owners",businessModel:"Transaction commission",objectives:["Validate local liquidity"],primaryValueEvent:"completed_rental",targetGeographies:["US"],languages:["en"],constraints:["No regulated equipment"],status:"DISCOVERY"} as const;
     const state={...initialOperatingState(),brandProfiles:[brand]};
@@ -102,3 +112,4 @@ describe("governed local operating state", () => {
     expect(result.executionCycles[0]?.artifacts.distribution.state).toBe("BLOCKED");
   });
 });
+

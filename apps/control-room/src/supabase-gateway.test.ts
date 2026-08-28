@@ -143,3 +143,4 @@ describe("supabase gateway", () => {
     expect(library).toMatchObject({stage:"LIBRARY_INGEST",payload:{storage:{metadataPersisted:true,binaryUploaded:false},rightsGate:{usageAuthorized:true}}});
   });
 });
+
