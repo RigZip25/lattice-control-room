@@ -1,9 +1,10 @@
 import { blueprints } from "/screen-blueprints.js";
 import { renderChoropleths } from "/map.js";
 
-const state = { executive:false, locale:"RU", notice:"", noticeTone:"success", noticeModal:false, analysisRun:null, decisions:3, selectedFilter:"ВСЕ", selectedRegion:"WORLD", mobileNav:false, welcome:location.pathname==="/", factoryStatus:null, backendStatus:null, authOpen:false, session:null, cloudContext:null, addCountry:false, addBrand:false, duplicateBrand:null, editBrandId:null, analystBrandId:null, analystPending:false, pendingAnalystMessage:null, addSource:false, addDiagnosis:false, addThesis:false, pendingCountry:null, pendingArea:null, addedMarkets:[], expansionAreas:[], brandProfiles:[], productUnderstandings:[], productSources:[], productEvidence:[], productDiagnoses:[], expansionTheses:[], executionCycles:[], dryRunPending:false, version:0 };
+const state = { executive:false, locale:"RU", notice:"", noticeTone:"success", noticeModal:false, analysisRun:null, decisions:3, selectedFilter:"ВСЕ", selectedRegion:"WORLD", mobileNav:false, welcome:location.pathname==="/", factoryStatus:null, backendStatus:null, authOpen:false, session:null, cloudContext:null, addCountry:false, addBrand:false, duplicateBrand:null, editBrandId:null, analystBrandId:null, analystPending:false, pendingAnalystMessage:null, pendingAnalystQuestion:null, analystSeconds:30, addSource:false, addDiagnosis:false, addThesis:false, pendingCountry:null, pendingArea:null, addedMarkets:[], expansionAreas:[], brandProfiles:[], productUnderstandings:[], productSources:[], productEvidence:[], productDiagnoses:[], expansionTheses:[], executionCycles:[], dryRunPending:false, version:0 };
 let noticeTimer;
 let analysisClock;
+let analystClock;
 const isLocalRuntime = ["localhost", "127.0.0.1", "::1"].includes(location.hostname);
 let screens = [];
 let control = null;
@@ -138,6 +139,23 @@ function beginAnalysisClock() {
 }
 function scrollAnalystThread() {
   requestAnimationFrame(()=>{const thread=document.querySelector(".analyst-thread");if(thread)thread.scrollTop=thread.scrollHeight;});
+}
+function startAnalystClock(){
+  clearInterval(analystClock);state.analystSeconds=30;
+  analystClock=setInterval(()=>{if(!state.analystPending){clearInterval(analystClock);return;}state.analystSeconds=Math.max(0,state.analystSeconds-1);updateAnalystProgress();},1000);
+}
+function updateAnalystProgress(){
+  const progress=document.querySelector(".analyst-live-progress");if(!progress)return;
+  const elapsed=30-state.analystSeconds;const percent=Math.min(96,Math.max(8,(elapsed/30)*100));
+  progress.querySelector("i")?.style.setProperty("width",`${percent}%`);
+  const timer=progress.querySelector("b");if(timer)timer.textContent=state.analystSeconds>0?tr(`до ${state.analystSeconds} сек.`,`up to ${state.analystSeconds} sec.`):tr("завершаем вывод…","finalizing…");
+  const stage=progress.querySelector("span");if(stage)stage.textContent=elapsed<8?tr("Сопоставляем ваш ответ с паспортом продукта","Matching your answer to the product passport"):elapsed<20?tr("Обсуждают PRODUCT · MARKET · GROWTH · FINANCE","PRODUCT · MARKET · GROWTH · FINANCE are discussing"):tr("Формируем решение и следующий вопрос","Preparing the decision and next question");
+}
+function installAnalystDiscussionState(){
+  const intake=state.productUnderstandings.find((item)=>item.brandId===state.analystBrandId);const stored=intake?.analystDialogue??[];
+  const owners=[...document.querySelectorAll(".analyst-thread .owner-turn")];
+  owners.forEach((owner,index)=>{if(owner.previousElementSibling?.classList.contains("answered-question"))return;const question=index===owners.length-1&&state.analystPending?state.pendingAnalystQuestion:(index===0?tr("Опишите продукт целиком своими словами: что он делает сегодня, а что пока остаётся замыслом?","Describe the whole product: what works today and what remains a concept?"):stored[index-1]?.nextQuestion);if(!question)return;const item=document.createElement("article");item.className="answered-question";item.innerHTML=`<small>${tr("ОТВЕЧЕННЫЙ ВОПРОС","ANSWERED QUESTION")}</small><p>${esc(question)}</p>`;owner.before(item);});
+  if(state.analystPending){const card=document.querySelector(".analyst-question");if(card&&!card.querySelector(".analyst-live-progress")){card.classList.add("discussing");card.insertAdjacentHTML("beforeend",`<div class="analyst-live-progress"><span></span><b></b><em><i></i></em></div>`);}updateAnalystProgress();}
 }
 function installAnalystResetControl() {
   const header=document.querySelector(".analyst-modal>header");
@@ -499,7 +517,7 @@ function render() {
     ${state.welcome?welcomeMarkup():""}
     ${state.analysisRun?analysisProcessModal():state.notice&&state.noticeModal?`<div class="cycle-status-backdrop"><section class="cycle-status ${state.noticeTone}" role="dialog" aria-modal="true" aria-live="assertive"><i>${state.noticeTone==="error"?"!":state.noticeTone==="progress"?"◌":"✓"}</i><p>${state.noticeTone==="error"?tr("ОШИБКА ЦИКЛА","CYCLE ERROR"):state.noticeTone==="progress"?tr("ВЫПОЛНЯЕТСЯ УПРАВЛЯЕМЫЙ ЦИКЛ","GOVERNED CYCLE RUNNING"):tr("DRY RUN УСПЕШНО ЗАВЕРШЁН","DRY RUN COMPLETED")}</p><h2>${state.noticeTone==="progress"?tr("Фабрика выполняет 13 стадий","The factory is running 13 stages"):state.noticeTone==="success"?tr("13 из 13 стадий завершены","13 of 13 stages completed"):tr("Цикл остановлен","Cycle stopped")}</h2><span>${esc(state.notice)}</span><div class="cycle-safety"><b>$0</b><small>${tr("ВНЕШНИХ РАСХОДОВ","EXTERNAL SPEND")}</small><b>${state.noticeTone==="success"?"COMPLETED":"DRY RUN"}</b><small>${tr("УПРАВЛЯЕМЫЙ РЕЖИМ","GOVERNED MODE")}</small></div>${state.dryRunPending?`<div class="cycle-progress"><i></i></div>`:`<button class="primary" data-action="close-cycle-status">${tr("ЗАКРЫТЬ И ВЕРНУТЬСЯ В КОМАНДНЫЙ ЦЕНТР","CLOSE AND RETURN TO CONTROL ROOM")}</button>`}</section></div>`:state.notice?`<div class="toast ${state.noticeTone}"><i>${state.noticeTone==="error"?"!":"✓"}</i><span><b>${tr("ДЕЙСТВИЕ ЗАПИСАНО","ACTION RECORDED")}</b><small>${esc(state.notice)}</small></span></div>`:""}`;
   renderChoropleths().catch((error) => { state.notice = error.message; console.error("Map rendering failed", error); });
-  if(state.analystBrandId){installAnalystResetControl();restoreFailedAnalystAnswer();}
+  if(state.analystBrandId){installAnalystResetControl();restoreFailedAnalystAnswer();installAnalystDiscussionState();}
 }
 
 function analysisProcessModal() {
@@ -651,9 +669,9 @@ document.addEventListener("click", async (event) => {
       window.speechSynthesis.cancel(); const speech=new SpeechSynthesisUtterance(last?.analystResponse??analysis?.strategicVerdict??analysis?.oneLineSummary??""); speech.lang=state.locale==="RU"?"ru-RU":"en-US"; window.speechSynthesis.speak(speech); return;
     }
     if(target.dataset.action==="analyst-help") {
-      const brandId=String(target.dataset.brandId); state.analystPending=true; state.pendingAnalystMessage=tr("Я пока не знаю ответа — предложите реалистичные варианты.","I do not know yet — suggest realistic options."); render(); scrollAnalystThread();
+      const brandId=String(target.dataset.brandId); state.pendingAnalystQuestion=document.querySelector(".analyst-question h3")?.textContent??null;state.analystPending=true; state.pendingAnalystMessage=tr("Я пока не знаю ответа — предложите реалистичные варианты.","I do not know yet — suggest realistic options.");startAnalystClock(); render(); scrollAnalystThread();
       try{await runAnalystDialogue(brandId,tr("Я пока не знаю ответа. Предложите несколько наиболее реалистичных вариантов и объясните компромиссы.","I do not know yet. Suggest realistic alternatives and explain the trade-offs."),"HELP");}
-      finally{state.analystPending=false;state.pendingAnalystMessage=null;} render(); scrollAnalystThread(); return;
+      finally{state.analystPending=false;state.pendingAnalystMessage=null;state.pendingAnalystQuestion=null;clearInterval(analystClock);} render(); scrollAnalystThread(); return;
     }
     if (target.dataset.action === "delete-brand") {
       const brandId=String(target.dataset.brandId);
@@ -739,10 +757,10 @@ document.addEventListener("submit", async (event) => {
     event.preventDefault();
     const form=new FormData(event.target); const brandId=String(form.get("brandId")??""); const message=String(form.get("message")??"").trim();
     if(!message)return;
-    state.analystPending=true; state.pendingAnalystMessage=message; render(); scrollAnalystThread();
+    state.pendingAnalystQuestion=document.querySelector(".analyst-question h3")?.textContent??null;state.analystPending=true; state.pendingAnalystMessage=message;startAnalystClock(); render(); scrollAnalystThread();
     try{await runAnalystDialogue(brandId,message,"ANSWER");state.pendingAnalystMessage=null;}
     catch(error){state.noticeTone="error";state.notice=error.message;state.pendingAnalystMessage=message;}
-    finally{state.analystPending=false;} render(); scrollAnalystThread(); return;
+    finally{state.analystPending=false;state.pendingAnalystQuestion=null;clearInterval(analystClock);} render(); scrollAnalystThread(); return;
   }
   if (event.target.id === "owner-auth-form") {
     event.preventDefault();
