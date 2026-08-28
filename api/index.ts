@@ -554,7 +554,8 @@ export default async function handler(request: ApiRequest, response: ApiResponse
       const understanding=base.productUnderstandings.find((item)=>item.brandId===brandId);
       if(!understanding) throw new Error("Карточка продукта не найдена");
       const turn=await continueAnalystDialogue({brandId,understanding,userMessage,mode});
-      const next=applyOperatingCommand(base,{kind:"RECORD_ANALYST_TURN",brandId,turn},new Date().toISOString());
+      const discussed=applyOperatingCommand(base,{kind:"RECORD_ANALYST_TURN",brandId,turn},new Date().toISOString());
+      const next=turn.status==="SUFFICIENT"?applyOperatingCommand(discussed,{kind:"CONFIRM_PRODUCT_UNDERSTANDING",brandId},new Date().toISOString()):discussed;
       if(supabase&&executionWorkspaceId){const stored=await persistOperatingStateServer(supabase,executionWorkspaceId,next);if(stored.status>=400){response.status(stored.status).json(stored.body);return;}}
       response.status(200).json(next);
     } catch(error) { const failure=websiteResearchError(error); response.status(failure.status).json({error:failure.message}); }
