@@ -610,7 +610,7 @@ function render() {
       <button class="locale" data-action="locale" aria-label="${tr("Переключить интерфейс на английский","Switch interface to Russian")}"><span class="${state.locale==="RU"?"active":""}">RU</span><i></i><span class="${state.locale==="EN"?"active":""}">EN</span></button>
       <button class="avatar" data-action="auth" title="${tr("Облачный профиль","Cloud profile")}">${state.session?"ON":"OP"}</button>
     </header>
-    <div class="stats-ribbon"><span>${state.brandProfiles.length} ${tr("БРЕНДОВ","BRANDS")} • ${state.productUnderstandings.filter((item)=>item.websiteResearch?.analysis).length} ${tr("ИЗУЧЕНО","REVIEWED")} • ${state.activationSprints.filter((item)=>item.status==="ACTIVE").length} ${tr("СПРИНТОВ","SPRINTS")} • ${state.addedMarkets.length} ${tr("РЫНКОВ","MARKETS")}</span><b>BUILD 2026.09.02.18 · DRY RUN / ${tr("ФАКТИЧЕСКОЕ СОСТОЯНИЕ","ACTUAL STATE")}</b></div>
+    <div class="stats-ribbon"><span>${state.brandProfiles.length} ${tr("БРЕНДОВ","BRANDS")} • ${state.productUnderstandings.filter((item)=>item.websiteResearch?.analysis).length} ${tr("ИЗУЧЕНО","REVIEWED")} • ${state.activationSprints.filter((item)=>item.status==="ACTIVE").length} ${tr("СПРИНТОВ","SPRINTS")} • ${state.addedMarkets.length} ${tr("РЫНКОВ","MARKETS")}</span><b>BUILD 2026.09.02.19 · DRY RUN / ${tr("ФАКТИЧЕСКОЕ СОСТОЯНИЕ","ACTUAL STATE")}</b></div>
     <div class="workspace">
       <aside class="side-nav ${state.mobileNav?"mobile-open":""}"><button class="mobile-nav-close" data-action="mobile-menu" aria-label="${tr("Закрыть навигацию","Close navigation")}">×</button><small>НАВИГАЦИЯ</small>${groups.map(([label,keys])=>`<details ${state.mobileNav||keys.includes(screen.key)?"open":""}><summary>${label}<i>⌄</i></summary><section>${keys.map(key=>{const item=byKey(key);return item?`<button class="${item.key===screen.key?"active":""}" data-route="${item.route}">${esc(item.title)}<span>${String(item.order).padStart(2,"0")}</span></button>`:""}).join("")}</section></details>`).join("")}<div class="health"><span>${tr("СОСТОЯНИЕ","STATUS")} <b>${tr("ГОТОВ","READY")}</b></span><span>${tr("ВНЕШНИЕ ДЕЙСТВИЯ","EXTERNAL ACTIONS")} <b>BLOCKED</b></span><span>${tr("РЕЖИМ","MODE")} <b>DRY RUN</b></span></div></aside>${state.mobileNav?'<button class="mobile-nav-scrim" data-action="mobile-menu" aria-label="Закрыть навигацию"></button>':""}
       <main>
@@ -798,6 +798,7 @@ function welcomeMarkup() {
 function navigate(route) { state.mobileNav=false; history.pushState({},"",route); render(); window.scrollTo(0,0); }
 document.addEventListener("click", async (event) => {
   const target = event.target.closest("[data-route],[data-geo-action],button"); if (!target) return;
+  if (target.matches("button") && !target.matches('button[type="submit"]')) event.preventDefault();
   if (target.dataset.geoAction === "add-expansion") { state.pendingCountry=String(target.dataset.geoCode ?? ""); state.addCountry=true; render(); return; }
   if (target.dataset.geoAction === "inspect-area") { try { state.pendingArea=JSON.parse(decodeURIComponent(String(target.dataset.geoArea ?? ""))); render(); } catch { state.notice=tr("Не удалось прочитать территорию","Unable to read territory"); render(); } return; }
   if (target.dataset.route) { navigate(target.dataset.route); return; }
