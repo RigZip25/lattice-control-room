@@ -227,6 +227,8 @@ export type OperatingCommand =
   | { readonly kind: "RECORD_WEBSITE_RESEARCH"; readonly brandId: string; readonly research: WebsiteResearch }
   | { readonly kind: "RECORD_ANALYST_TURN"; readonly brandId: string; readonly turn: BrandAnalystTurn }
   | { readonly kind: "RESET_ANALYST_DIALOGUE"; readonly brandId: string }
+  | { readonly kind: "RESET_BRAND_ANALYSIS"; readonly brandId:string }
+  | { readonly kind: "CLEAN_START_BRAND"; readonly brandId:string }
   | { readonly kind: "START_ACTIVATION_SPRINT"; readonly brandId:string; readonly sprintId:string; readonly selectedRoute:string; readonly firstArtifact:string }
   | { readonly kind: "CONFIRM_PRODUCT_UNDERSTANDING"; readonly brandId: string }
   | { readonly kind: "REGISTER_PRODUCT_SOURCE"; readonly source: Omit<ProductSource,"id"|"status"> }
@@ -244,7 +246,7 @@ export function initialOperatingState(): OperatingState {
 
 export function applyOperatingCommand(state: OperatingState, command: OperatingCommand, occurredAt: string): OperatingState {
   if (!Number.isFinite(Date.parse(occurredAt))) throw new Error("Operating event timestamp is invalid");
-  if (command === null || typeof command !== "object" || !["SET_EXECUTIVE_VIEW","SET_LOCALE","SET_FILTER","REFRESH_READ_MODELS","RESOLVE_DECISION","ADD_DISCOVERY_MARKET","UPDATE_BRAND_PROFILE","DELETE_BRAND_PROFILE","ADD_EXPANSION_AREA","ADD_BRAND_PROFILE","CAPTURE_PRODUCT_INTAKE","UPDATE_PRODUCT_INTAKE","RECORD_WEBSITE_RESEARCH","RECORD_ANALYST_TURN","RESET_ANALYST_DIALOGUE","START_ACTIVATION_SPRINT","CONFIRM_PRODUCT_UNDERSTANDING","REGISTER_PRODUCT_SOURCE","RECORD_PRODUCT_EVIDENCE","CREATE_PRODUCT_DIAGNOSIS","CONFIRM_PRODUCT_DIAGNOSIS","CREATE_EXPANSION_THESIS","CREATE_TEST_PORTFOLIO","START_RIGZIP_DRY_RUN","START_BRAND_DRY_RUN"].includes(command.kind)) {
+  if (command === null || typeof command !== "object" || !["SET_EXECUTIVE_VIEW","SET_LOCALE","SET_FILTER","REFRESH_READ_MODELS","RESOLVE_DECISION","ADD_DISCOVERY_MARKET","UPDATE_BRAND_PROFILE","DELETE_BRAND_PROFILE","ADD_EXPANSION_AREA","ADD_BRAND_PROFILE","CAPTURE_PRODUCT_INTAKE","UPDATE_PRODUCT_INTAKE","RECORD_WEBSITE_RESEARCH","RECORD_ANALYST_TURN","RESET_ANALYST_DIALOGUE","RESET_BRAND_ANALYSIS","CLEAN_START_BRAND","START_ACTIVATION_SPRINT","CONFIRM_PRODUCT_UNDERSTANDING","REGISTER_PRODUCT_SOURCE","RECORD_PRODUCT_EVIDENCE","CREATE_PRODUCT_DIAGNOSIS","CONFIRM_PRODUCT_DIAGNOSIS","CREATE_EXPANSION_THESIS","CREATE_TEST_PORTFOLIO","START_RIGZIP_DRY_RUN","START_BRAND_DRY_RUN"].includes(command.kind)) {
     throw new Error("Operating command kind is invalid");
   }
   if (command.kind === "SET_EXECUTIVE_VIEW" && typeof command.enabled !== "boolean") throw new Error("Executive view command is invalid");
@@ -296,6 +298,8 @@ export function applyOperatingCommand(state: OperatingState, command: OperatingC
     if (command.turn.status==='ASKING' && !command.turn.nextQuestion?.trim()) throw new Error("Analyst must ask exactly one next question");
   }
   if (command.kind === "RESET_ANALYST_DIALOGUE" && !state.productUnderstandings.some((item)=>item.brandId===command.brandId)) throw new Error("Product intake is not registered");
+  if(command.kind==="RESET_BRAND_ANALYSIS"&&!state.productUnderstandings.some((item)=>item.brandId===command.brandId))throw new Error("Product intake is not registered");
+  if(command.kind==="CLEAN_START_BRAND"&&!state.brandProfiles.some((item)=>item.id===command.brandId))throw new Error("Clean-start brand is not registered");
   if(command.kind==="START_ACTIVATION_SPRINT") {
     const marketReadiness=assessBrandMarketReadiness(state.productUnderstandings.find((item)=>item.brandId===command.brandId));
     if(!marketReadiness.ready) throw new Error(`Activation sprint is blocked by market readiness: ${marketReadiness.blockers.join(",")||"owner confirmation required"}`);
@@ -377,6 +381,11 @@ export function applyOperatingCommand(state: OperatingState, command: OperatingC
     case "RECORD_WEBSITE_RESEARCH": return { ...next, productUnderstandings:state.productUnderstandings.map((item)=>{ if(item.brandId!==command.brandId)return item; const {confirmedAt:_,...unconfirmed}=item; return {...unconfirmed,websiteResearch:command.research,productSummary:command.research.analysis?.oneLineSummary??command.research.observedClaims[0]??item.productSummary,customerSummary:command.research.analysis?.customerSegments.join(" · ")??item.customerSummary,valueSummary:command.research.analysis?.valuePropositions.join(" · ")??item.valueSummary,criticalQuestions:command.research.analysis?.criticalQuestions??command.research.unresolvedQuestions,status:"DRAFT"}; }) };
     case "RECORD_ANALYST_TURN": return { ...next, productUnderstandings:state.productUnderstandings.map((item)=>{if(item.brandId!==command.brandId)return item;const {confirmedAt:_,...unconfirmed}=item;return {...unconfirmed,analystDialogue:[...(item.analystDialogue??[]),command.turn],status:"DRAFT"};}) };
     case "RESET_ANALYST_DIALOGUE": return { ...next, productUnderstandings:state.productUnderstandings.map((item)=>{if(item.brandId!==command.brandId)return item;const {analystDialogue:_,confirmedAt:__,...reset}=item;return {...reset,status:"DRAFT"};}) };
+    case "RESET_BRAND_ANALYSIS": return {...next,productUnderstandings:state.productUnderstandings.map((item)=>{if(item.brandId!==command.brandId)return item;const {websiteResearch:_,analystDialogue:__,confirmedAt:___,...reset}=item;return {...reset,status:"DRAFT"};}),productDiagnoses:state.productDiagnoses.filter((item)=>item.brandId!==command.brandId),expansionTheses:state.expansionTheses.filter((item)=>item.brandId!==command.brandId),testPortfolios:(state.testPortfolios??[]).filter((item)=>item.brandId!==command.brandId),activationSprints:(state.activationSprints??[]).filter((item)=>item.brandId!==command.brandId)};
+    case "CLEAN_START_BRAND": {
+      const understanding=state.productUnderstandings.find((item)=>item.brandId===command.brandId);const cleanUnderstanding=understanding?(()=>{const {websiteResearch:_,analystDialogue:__,confirmedAt:___,...clean}=understanding;return {...clean,status:"DRAFT" as const};})():undefined;
+      return {...next,brandProfiles:state.brandProfiles.filter((item)=>item.id===command.brandId),productUnderstandings:cleanUnderstanding?[cleanUnderstanding]:[],productSources:[],productEvidence:[],productDiagnoses:[],expansionTheses:[],testPortfolios:[],activationSprints:[],executionCycles:[],discoveryMarkets:[],expansionAreas:[],openDecisions:0};
+    }
     case "START_ACTIVATION_SPRINT": return {...next,activationSprints:[...(state.activationSprints??[]),{sprintId:command.sprintId,brandId:command.brandId,selectedRoute:command.selectedRoute,firstArtifact:command.firstArtifact,status:"ACTIVE",mode:"DRY_RUN",externalEffects:0,startedAt:occurredAt}]};
     case "CONFIRM_PRODUCT_UNDERSTANDING": return { ...next, productUnderstandings:state.productUnderstandings.map((item)=>item.brandId===command.brandId?{...item,status:"CONFIRMED",confirmedAt:occurredAt}:item) };
     case "REGISTER_PRODUCT_SOURCE": return { ...next, productSources:[...state.productSources,registerProductSource(command.source)] };

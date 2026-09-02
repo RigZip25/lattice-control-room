@@ -594,6 +594,9 @@ export default async function handler(request: ApiRequest, response: ApiResponse
           const deletion=await deleteBrandServer(supabase,executionWorkspaceId,envelope.command.brandId);
           if (deletion.status>=400) { response.status(deletion.status).json(deletion.body); return; }
         }
+        if(envelope.command.kind==="CLEAN_START_BRAND"){
+          for(const brand of base.brandProfiles.filter((item)=>item.id!==envelope.command.brandId)){const deletion=await deleteBrandServer(supabase,executionWorkspaceId,brand.id);if(deletion.status>=400){response.status(deletion.status).json(deletion.body);return;}}
+        }
         for (const brand of next.brandProfiles) {
           const brandResult=await persistBrandServer(supabase,executionWorkspaceId,brand);
           if (brandResult.status>=400) { response.status(brandResult.status).json(brandResult.body); return; }
