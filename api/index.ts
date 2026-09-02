@@ -381,6 +381,11 @@ const expansionProposalSchema=z.object({
   portfolioLogic:z.string().min(20).max(700),
   candidates:z.array(expansionCandidateSchema).min(2).max(4),
 });
+const testPortfolioProposalSchema=z.object({
+  geographyName:z.string().min(2).max(120),objective:z.string().min(12).max(500),durationDays:z.number().int().min(3).max(45),proposedBudgetUsd:z.number().min(0).max(2500),
+  channels:z.array(z.object({channel:z.string().min(2).max(100),role:z.string().min(5).max(240),hypothesis:z.string().min(12).max(400),allocationUsd:z.number().min(0).max(2500),primaryMetric:z.string().min(2).max(160),successThreshold:z.string().min(2).max(180),stopCondition:z.string().min(2).max(240),legalCheck:z.string().min(2).max(240)})).min(2).max(6),
+  assumptions:z.array(z.string().min(2).max(280)).min(1).max(6),
+});
 
 async function generateExpansionProposal(base:OperatingState,brandId:string) {
   const brand=base.brandProfiles.find((item)=>item.id===brandId);
@@ -406,6 +411,20 @@ async function generateExpansionProposal(base:OperatingState,brandId:string) {
     }catch(error){if(attempt>=2){await failAiGeneration(supabase!,generationId,error);throw error;}}
   }
   throw new Error("Сравнительный тезис не сформирован");
+}
+
+async function generateTestPortfolio(base:OperatingState,brandId:string){
+  const brand=base.brandProfiles.find((item)=>item.id===brandId);const understanding=base.productUnderstandings.find((item)=>item.brandId===brandId);const diagnosis=base.productDiagnoses.find((item)=>item.brandId===brandId);const thesis=base.expansionTheses.find((item)=>item.brandId===brandId);
+  if(!brand||!understanding||!diagnosis||!thesis)throw new Error("Сначала завершите диагноз и тезис экспансии");
+  if((base.testPortfolios??[]).some((item)=>item.brandId===brandId))return base;
+  const context=JSON.stringify({brand,understanding:{maturity:understanding.maturity,founderExpertise:understanding.founderExpertise,analysis:understanding.websiteResearch?.analysis},diagnosis,expansionCandidates:thesis.candidates}).slice(0,28_000);
+  const generationId=`test-portfolio-${randomUUID()}`;await reserveGeneration({generationId,brandId,purpose:"TEST_PORTFOLIO",source:context,maxOutputTokens:2400,maximumAttempts:2});let inputTokens=0;let outputTokens=0;
+  for(let attempt=1;attempt<=2;attempt+=1){try{
+    const result=await generateText({model:analysisModel,system:"Ты — growth-партнёр LAFWIRON. Составь небольшой обратимый маркетинговый тест, который создаёт знание, а не изображает готовность продукта. Выбери одну географию из тезиса и 2–5 релевантных каналов, включая органические, партнёрские, сообщества, SEO/контент, маркетплейсы, инфлюенсеров или платные каналы только когда они действительно уместны. Не выдумывай конверсии и факты. Бюджет — только предложение владельцу; реальные расходы, публикации и коммуникации запрещены. Сумма распределений должна точно равняться общему бюджету. Пиши по-русски.",prompt:`Верни только JSON: {"geographyName":"...","objective":"какое знание получим","durationDays":14,"proposedBudgetUsd":500,"channels":[{"channel":"...","role":"...","hypothesis":"...","allocationUsd":100,"primaryMetric":"...","successThreshold":"...","stopCondition":"...","legalCheck":"..."}],"assumptions":["..."]}. Контекст: ${context}`,providerOptions:{gateway:{user:executionWorkspaceId??"lafwiron-owner",tags:["feature:test-portfolio","mode:dry-run",`attempt:${attempt}`],cacheControl:"s-maxage=3600"}},maxOutputTokens:2400,abortSignal:AbortSignal.timeout(60_000)});
+    inputTokens+=result.usage.inputTokens??0;outputTokens+=result.usage.outputTokens??0;const raw=result.text.trim().replace(/^```(?:json)?\s*/i,"").replace(/\s*```$/i,"");const start=raw.indexOf("{");const end=raw.lastIndexOf("}");const parsed=testPortfolioProposalSchema.safeParse(JSON.parse(start>=0&&end>start?raw.slice(start,end+1):raw));if(!parsed.success)throw new Error("Модель вернула неполный тестовый портфель");
+    const sum=parsed.data.channels.reduce((total,item)=>total+item.allocationUsd,0);if(Math.abs(sum-parsed.data.proposedBudgetUsd)>.01)throw new Error("Распределение бюджета не сходится");const usage={inputTokens,outputTokens,totalTokens:inputTokens+outputTokens};await completeAiGeneration(supabase!,{generationId,output:parsed.data,usage,actualCostUsd:actualAnalysisCost(usage)});
+    return applyOperatingCommand(base,{kind:"CREATE_TEST_PORTFOLIO",portfolio:{brandId,expansionThesisId:thesis.id,...parsed.data,authorityRequired:parsed.data.proposedBudgetUsd>0,createdAt:new Date().toISOString()}},new Date().toISOString());
+  }catch(error){if(attempt>=2){await failAiGeneration(supabase!,generationId,error);throw error;}}}throw new Error("Тестовый портфель не сформирован");
 }
 
 async function continueAnalystDialogue(input:{brandId:string;understanding:NonNullable<OperatingState["productUnderstandings"][number]>;userMessage:string;mode:"START"|"ANSWER"|"HELP"}) {
@@ -662,6 +681,10 @@ export default async function handler(request: ApiRequest, response: ApiResponse
       response.status(200).json(next);
     }catch(error){const failure=websiteResearchError(error);response.status(failure.status).json({error:failure.message});}
     return;
+  }
+  if(method==="POST"&&pathname==="/api/v1/research/test-portfolio"){
+    if(ownerAccessConfigured&&!validOwnerSession(bearerToken(header(request,"authorization")))){response.status(401).json({error:"Owner authentication required"});return;}
+    try{const envelope=parseBody(request.body) as {brandId?:unknown;currentState?:unknown};const base=await canonicalOperatingState(isOperatingState(envelope.currentState)?envelope.currentState:initialOperatingState());const brandId=typeof envelope.brandId==="string"?envelope.brandId:"";const next=await generateTestPortfolio(base,brandId);if(supabase&&executionWorkspaceId){const stored=await persistOperatingStateServer(supabase,executionWorkspaceId,next,base.version);if(stored.status>=400){response.status(stored.status).json(stored.body);return;}}response.status(200).json(next);}catch(error){const failure=websiteResearchError(error);response.status(failure.status).json({error:failure.message});}return;
   }
   if (method === "GET" && pathname === "/api/v1/execution-status") {
     const generatedAt=new Date().toISOString();

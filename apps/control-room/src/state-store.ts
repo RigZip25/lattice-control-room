@@ -20,7 +20,7 @@ export function createFileOperatingStateStore(path:string):OperatingStateStore {
       if (!existsSync(path)) return initialOperatingState();
       const parsed:unknown=JSON.parse(readFileSync(path,"utf8"));
       assertStoredState(parsed);
-      return { ...parsed, productUnderstandings:parsed.productUnderstandings ?? [], productSources:parsed.productSources ?? [], productEvidence:parsed.productEvidence ?? [], productDiagnoses:parsed.productDiagnoses ?? [], expansionTheses:parsed.expansionTheses ?? [], executionCycles:parsed.executionCycles ?? [] };
+      return { ...parsed, productUnderstandings:parsed.productUnderstandings ?? [], productSources:parsed.productSources ?? [], productEvidence:parsed.productEvidence ?? [], productDiagnoses:parsed.productDiagnoses ?? [], expansionTheses:parsed.expansionTheses ?? [], testPortfolios:parsed.testPortfolios ?? [], executionCycles:parsed.executionCycles ?? [] };
     },
     save(state) {
       mkdirSync(dirname(path),{recursive:true});
@@ -30,4 +30,5 @@ export function createFileOperatingStateStore(path:string):OperatingStateStore {
     },
   };
 }
+
 

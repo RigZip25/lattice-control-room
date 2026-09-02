@@ -57,5 +57,7 @@ export function reconcileRegisteredBrands(state:OperatingState,rows:readonly Reg
     productEvidence:keepBrandScoped(state.productEvidence),
     productDiagnoses:keepBrandScoped(state.productDiagnoses),
     expansionTheses:keepBrandScoped(state.expansionTheses),
+    testPortfolios:keepBrandScoped(state.testPortfolios??[]),
   };
 }
+

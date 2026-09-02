@@ -29,8 +29,10 @@ export * from "./product-line.js";
 export * from "./product-evidence.js";
 export * from "./product-diagnosis.js";
 export * from "./expansion-thesis.js";
+export * from "./test-portfolio.js";
 export * from "./execution-observability.js";
 export * from "./rigzip-scenario.js";
 export * from "./screen-registry.js";
 export * from "./wallet.js";
 export * from "./operating-state.js";
+
