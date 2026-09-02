@@ -365,6 +365,49 @@ const analystDialogueSchema=z.object({
   if(value.status==="SUFFICIENT"&&Object.values(value.readiness).some((item)=>item.status!=="CLEAR")) context.addIssue({code:"custom",message:"Sufficient status requires all readiness gates",path:["readiness"]});
 });
 
+const expansionCandidateSchema=z.object({
+  countryCode:z.string().regex(/^[A-Z]{2}$/),
+  geographyName:z.string().min(2).max(120),
+  administrativeLevel:z.enum(["COUNTRY","STATE","REGION"]),
+  demandScore:z.number().min(0).max(100),
+  supplyScore:z.number().min(0).max(100),
+  accessibilityScore:z.number().min(0).max(100),
+  regulatoryScore:z.number().min(0).max(100),
+  rationale:z.string().min(12).max(500),
+  assumptions:z.array(z.string().min(2).max(280)).min(1).max(4),
+  validationQuestions:z.array(z.string().min(2).max(280)).min(1).max(4),
+});
+const expansionProposalSchema=z.object({
+  portfolioLogic:z.string().min(20).max(700),
+  candidates:z.array(expansionCandidateSchema).min(2).max(4),
+});
+
+async function generateExpansionProposal(base:OperatingState,brandId:string) {
+  const brand=base.brandProfiles.find((item)=>item.id===brandId);
+  const understanding=base.productUnderstandings.find((item)=>item.brandId===brandId);
+  const diagnosis=base.productDiagnoses.find((item)=>item.brandId===brandId);
+  if(!brand||!understanding||!diagnosis?.confirmedAt) throw new Error("Сначала подтвердите рабочий диагноз продукта");
+  if(base.expansionTheses.some((item)=>item.brandId===brandId)) return base;
+  const context=JSON.stringify({brand:{name:brand.name,offering:brand.offering,audience:brand.audience,businessModel:brand.businessModel,targetGeographies:brand.targetGeographies,constraints:brand.constraints},maturity:understanding.maturity,founderExpertise:understanding.founderExpertise,diagnosis:{valueThesis:diagnosis.valueThesis,priorityAudiences:diagnosis.priorityAudiences,customerProblems:diagnosis.customerProblems,adoptionBarriers:diagnosis.adoptionBarriers,competitiveAlternatives:diagnosis.competitiveAlternatives,materialRisks:diagnosis.materialRisks,unresolvedQuestions:diagnosis.unresolvedQuestions},productAnalysis:understanding.websiteResearch?.analysis,alreadyTrackedMarkets:base.discoveryMarkets,selectedExpansionAreas:base.expansionAreas.filter((item)=>item.brand===brandId)}).slice(0,28_000);
+  const generationId=`expansion-thesis-${randomUUID()}`;
+  await reserveGeneration({generationId,brandId,purpose:"EXPANSION_THESIS",source:context,maxOutputTokens:2_200,maximumAttempts:2});
+  let inputTokens=0;let outputTokens=0;
+  for(let attempt=1;attempt<=2;attempt+=1){
+    try{
+      const result=await generateText({model:analysisModel,system:"Ты — партнёр владельца по международной и региональной экспансии LAFWIRON. Предлагай не самые модные рынки, а две–четыре географии, которые дают разные, сравнимые пути обучения. Учитывай зрелость продукта, аудиторию, способ покупки, язык, конкуренцию, доступность каналов и правовые ограничения. Не выдумывай исследования, точные размеры рынка, клиентов или подтверждённый спрос. Все оценки 0–100 являются моделируемыми исследовательскими приоритетами, а не фактами. Объясняй человеческим русским языком. Реальные расходы, публикации и внешние коммуникации запрещены.",prompt:`Верни только валидный JSON без markdown: {"portfolioLogic":"почему именно такой набор географий даёт полезное сравнение","candidates":[{"countryCode":"US","geographyName":"название страны, штата или региона","administrativeLevel":"COUNTRY|STATE|REGION","demandScore":0,"supplyScore":0,"accessibilityScore":0,"regulatoryScore":0,"rationale":"почему география заслуживает внутреннего исследования","assumptions":["что пока предполагается"],"validationQuestions":["что фабрика должна проверить сама"]}]}. Дай 2–4 уникальных кандидата. Для штата countryCode остаётся US. demandScore — предполагаемая сила проблемы и спроса; supplyScore — возможность обеспечить предложение; accessibilityScore — доступность аудитории и каналов; regulatoryScore — простота правового и платформенного контура, где 100 означает проще. Не маскируй неизвестность точными цифрами: различай кандидатов осторожно, а все неподтверждённые основания помещай в assumptions и validationQuestions. Не требуй от владельца исследований, которые фабрика может выполнить сама.\n\nКонтекст:\n${context}`,providerOptions:{gateway:{user:executionWorkspaceId??"lafwiron-owner",tags:["feature:expansion-thesis","mode:dry-run","budget:owner-approved-20-usd",`attempt:${attempt}`],cacheControl:"s-maxage=3600"}},maxOutputTokens:2_200,abortSignal:AbortSignal.timeout(60_000)});
+      inputTokens+=result.usage.inputTokens??0;outputTokens+=result.usage.outputTokens??0;
+      const raw=result.text.trim().replace(/^```(?:json)?\s*/i,"").replace(/\s*```$/i,"");const start=raw.indexOf("{");const end=raw.lastIndexOf("}");
+      const parsed=expansionProposalSchema.safeParse(JSON.parse(start>=0&&end>start?raw.slice(start,end+1):raw));
+      if(!parsed.success) throw new Error("Модель вернула неполный сравнительный тезис");
+      if(new Set(parsed.data.candidates.map((item)=>`${item.countryCode}:${item.geographyName.toLowerCase()}`)).size!==parsed.data.candidates.length) throw new Error("Модель повторила одну географию");
+      const usage={inputTokens,outputTokens,totalTokens:inputTokens+outputTokens};
+      await completeAiGeneration(supabase!,{generationId,output:parsed.data,usage,actualCostUsd:actualAnalysisCost(usage)});
+      return applyOperatingCommand(base,{kind:"CREATE_EXPANSION_THESIS",thesis:{brandId,diagnosisId:diagnosis.id,candidates:parsed.data.candidates,createdAt:new Date().toISOString()}},new Date().toISOString());
+    }catch(error){if(attempt>=2){await failAiGeneration(supabase!,generationId,error);throw error;}}
+  }
+  throw new Error("Сравнительный тезис не сформирован");
+}
+
 async function continueAnalystDialogue(input:{brandId:string;understanding:NonNullable<OperatingState["productUnderstandings"][number]>;userMessage:string;mode:"START"|"ANSWER"|"HELP"}) {
   const analysis=input.understanding.websiteResearch?.analysis;
   if(!analysis) throw new Error("Сначала изучите сайт или исходные материалы продукта");
@@ -608,6 +651,18 @@ export default async function handler(request: ApiRequest, response: ApiResponse
     }catch(error){const failure=websiteResearchError(error);response.status(failure.status).json({error:failure.message});}
     return;
   }
+  if(method==="POST"&&pathname==="/api/v1/research/expansion"){
+    if(ownerAccessConfigured&&!validOwnerSession(bearerToken(header(request,"authorization")))){response.status(401).json({error:"Owner authentication required"});return;}
+    try{
+      const envelope=parseBody(request.body) as {brandId?:unknown;currentState?:unknown};
+      const base=await canonicalOperatingState(isOperatingState(envelope.currentState)?envelope.currentState:initialOperatingState());
+      const brandId=typeof envelope.brandId==="string"?envelope.brandId:"";
+      const next=await generateExpansionProposal(base,brandId);
+      if(supabase&&executionWorkspaceId){const stored=await persistOperatingStateServer(supabase,executionWorkspaceId,next,base.version);if(stored.status>=400){response.status(stored.status).json(stored.body);return;}}
+      response.status(200).json(next);
+    }catch(error){const failure=websiteResearchError(error);response.status(failure.status).json({error:failure.message});}
+    return;
+  }
   if (method === "GET" && pathname === "/api/v1/execution-status") {
     const generatedAt=new Date().toISOString();
     const cycle=runRigZipDryRun().durableCycle;
@@ -627,4 +682,5 @@ export default async function handler(request: ApiRequest, response: ApiResponse
   }
   response.status(404).json({ error:"Not found" });
 }
+
 
